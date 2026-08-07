@@ -46,11 +46,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const loginAdmin = (email: string, pass: string): boolean => {
-    // Valid passwords for admin access
-    const validPasses = ['admin', 'admin123', '123456', 'aura2026'];
-    const validEmail = email.toLowerCase().includes('admin') || email.toLowerCase().includes('aura');
+    // Official Master Admin passwords: AuraAdmin2026!, admin123, aura2026
+    const masterPasses = ['AuraAdmin2026!', 'admin123', 'admin', 'aura2026', '123456'];
+    const isMasterEmail = email.toLowerCase().includes('admin') || email.toLowerCase().includes('aurafitness') || email.toLowerCase().includes('thiago');
 
-    if (validPasses.includes(pass) || (validEmail && validPasses.includes(pass))) {
+    if (masterPasses.includes(pass) || (isMasterEmail && masterPasses.includes(pass))) {
       setIsAdmin(true);
       localStorage.setItem('aura_admin_authenticated', 'true');
       return true;

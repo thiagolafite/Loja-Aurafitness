@@ -32,7 +32,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
       onClose();
       navigate('/admin');
     } else {
-      setErrorMsg('Credenciais inválidas! Tente novamente (Senha padrão: admin123).');
+      setErrorMsg('Credenciais administrativas inválidas! Verifique seu e-mail e senha.');
     }
   };
 
@@ -106,9 +106,6 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
                   placeholder="Digite sua senha admin..."
                 />
               </div>
-              <span className="text-[10px] text-muted-foreground mt-1 block">
-                Dica para teste: Use a senha <strong className="text-primary">admin123</strong> ou <strong className="text-primary">admin</strong>
-              </span>
             </div>
 
             <button

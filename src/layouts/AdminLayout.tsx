@@ -109,9 +109,6 @@ export const AdminLayout: React.FC = () => {
                 onChange={(e) => setAdminPass(e.target.value)}
                 className="w-full bg-[#142318] border border-[#2d4d38] text-white rounded-xl px-3.5 py-2.5 outline-none focus:border-amber-400"
               />
-              <span className="text-[10px] text-white/50 mt-1 block">
-                Dica para testes: Senha <strong className="text-amber-300">admin123</strong>
-              </span>
             </div>
 
             <button
