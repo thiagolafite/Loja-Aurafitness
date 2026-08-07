@@ -12,7 +12,7 @@ export const CustomerAuthPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const initialMode = searchParams.get('modo') === 'cadastro' ? 'register' : 'login';
 
-  const { loginAsCustomer, registerCustomer } = useAuth();
+  const { loginAsCustomer, registerCustomer, loginAdmin } = useAuth();
   const [mode, setMode] = useState<'login' | 'register'>(initialMode);
 
   // Login Form State
@@ -69,11 +69,21 @@ export const CustomerAuthPage: React.FC = () => {
       return;
     }
 
+    // Try Admin Login if password is provided
+    if (loginPassword && (loginPassword === 'admin123' || loginPassword === 'admin' || loginEmail.includes('admin'))) {
+      const isAdminSuccess = loginAdmin(loginEmail, loginPassword);
+      if (isAdminSuccess) {
+        navigate('/admin');
+        return;
+      }
+    }
+
+    // Try Customer Login
     const success = loginAsCustomer(loginEmail);
     if (success) {
       navigate('/minha-conta');
     } else {
-      setLoginError('E-mail não encontrado. Crie uma conta no formulário ao lado!');
+      setLoginError('E-mail não encontrado. Crie uma nova conta no formulário ao lado!');
     }
   };
 

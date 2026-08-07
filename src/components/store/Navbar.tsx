@@ -143,6 +143,14 @@ export const Navbar: React.FC = () => {
                   >
                     ❤️ Meus Favoritos
                   </Link>
+                  {isAdmin && (
+                    <Link
+                      to="/admin"
+                      className="block px-4 py-2 hover:bg-amber-950/60 text-amber-300 font-bold transition-colors border-t border-[#345c2a]"
+                    >
+                      🛡️ Painel de Administração
+                    </Link>
+                  )}
                   <button
                     onClick={logout}
                     className="w-full text-left px-4 py-2 hover:bg-rose-950/60 text-rose-300 transition-colors border-t border-[#345c2a] mt-1"
@@ -176,8 +184,8 @@ export const Navbar: React.FC = () => {
               )}
             </button>
 
-            {/* Admin Toggle */}
-            {isAdmin ? (
+            {/* Admin Badge (Visible ONLY when authenticated as Admin) */}
+            {isAdmin && (
               <div className="flex items-center gap-1">
                 <Link
                   to="/admin"
@@ -190,20 +198,11 @@ export const Navbar: React.FC = () => {
                 <button
                   onClick={logoutAdmin}
                   className="p-1.5 text-rose-300 hover:text-rose-100 transition-colors"
-                  title="Sair do Admin"
+                  title="Sair do Modo Admin"
                 >
                   <LogOut className="w-4 h-4" />
                 </button>
               </div>
-            ) : (
-              <button
-                onClick={() => setIsAdminAuthModalOpen(true)}
-                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-[#213f1a] text-[#c6d7bd] hover:bg-[#2e5725] border border-[#37612d] flex items-center gap-1 transition-all"
-                title="Área Administrativa (Acesso Restrito)"
-              >
-                <ShieldAlert className="w-3.5 h-3.5" />
-                <span className="hidden xl:inline">Área Admin</span>
-              </button>
             )}
           </div>
         </div>
