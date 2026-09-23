@@ -15,8 +15,8 @@ export const initialProducts: Product[] = [
     weight: 420,
     brand: 'Aura Fitness',
     images: [
-      'https://media.base44.com/images/public/69f3626de7a99e14099d1411/76bc2834c_CpiadeDSC_3103.png',
-      'https://media.base44.com/images/public/69f3626de7a99e14099d1411/0fa666d77_CpiadeDSC_3214.png'
+      '/images/look-3103.png',
+      '/images/look-3214.png'
     ],
     sizes: ['PP', 'P', 'M', 'G', 'GG'],
     colors: [
@@ -55,8 +55,8 @@ export const initialProducts: Product[] = [
     weight: 320,
     brand: 'Aura Fitness',
     images: [
-      'https://media.base44.com/images/public/69f3626de7a99e14099d1411/f28126454_MacacoBless.png',
-      'https://media.base44.com/images/public/69f3626de7a99e14099d1411/5144dcde1_CpiadeDSC_3656.png'
+      '/images/macaco-bless.png',
+      '/images/look-3656.png'
     ],
     sizes: ['PP', 'P', 'M', 'G'],
     colors: [
@@ -93,8 +93,8 @@ export const initialProducts: Product[] = [
     weight: 450,
     brand: 'Aura Fitness',
     images: [
-      'https://media.base44.com/images/public/69f3626de7a99e14099d1411/0fa666d77_CpiadeDSC_3214.png',
-      'https://media.base44.com/images/public/69f3626de7a99e14099d1411/72c2cce78_CpiadeDSC_3603.png'
+      '/images/look-3214.png',
+      '/images/look-3603.png'
     ],
     sizes: ['PP', 'P', 'M', 'G', 'GG'],
     colors: [
@@ -131,8 +131,8 @@ export const initialProducts: Product[] = [
     weight: 280,
     brand: 'Aura Fitness',
     images: [
-      'https://media.base44.com/images/public/69f3626de7a99e14099d1411/64c91e414_Conjuntostyle.png',
-      'https://media.base44.com/images/public/69f3626de7a99e14099d1411/5144dcde1_CpiadeDSC_3656.png'
+      '/images/banner-style.png',
+      '/images/look-3656.png'
     ],
     sizes: ['PP', 'P', 'M', 'G'],
     colors: [
@@ -169,8 +169,8 @@ export const initialProducts: Product[] = [
     weight: 160,
     brand: 'Aura Fitness',
     images: [
-      'https://media.base44.com/images/public/69f3626de7a99e14099d1411/72c2cce78_CpiadeDSC_3603.png',
-      'https://media.base44.com/images/public/69f3626de7a99e14099d1411/76bc2834c_CpiadeDSC_3103.png'
+      '/images/look-3603.png',
+      '/images/look-3103.png'
     ],
     sizes: ['PP', 'P', 'M', 'G'],
     colors: [
@@ -207,8 +207,8 @@ export const initialProducts: Product[] = [
     weight: 290,
     brand: 'Aura Fitness',
     images: [
-      'https://media.base44.com/images/public/69f3626de7a99e14099d1411/5144dcde1_CpiadeDSC_3656.png',
-      'https://media.base44.com/images/public/69f3626de7a99e14099d1411/0fa666d77_CpiadeDSC_3214.png'
+      '/images/look-3656.png',
+      '/images/look-3214.png'
     ],
     sizes: ['PP', 'P', 'M', 'G', 'GG'],
     colors: [
@@ -238,7 +238,7 @@ export const initialReviews: Review[] = [
     id: 'rev-1',
     productId: 'prod-1',
     productName: 'Conjunto Style Black',
-    productImage: 'https://media.base44.com/images/public/69f3626de7a99e14099d1411/76bc2834c_CpiadeDSC_3103.png',
+    productImage: '/images/look-3103.png',
     customerName: 'Camila Rodrigues',
     customerEmail: 'camila.r@gmail.com',
     rating: 5,
@@ -263,9 +263,9 @@ export const initialBlogPosts: BlogPost[] = [
     category: 'Moda Fitness',
     author: {
       name: 'Equipe Aura Fitness',
-      avatar: 'https://media.base44.com/images/public/69f3626de7a99e14099d1411/3f1e331bf_Logo_Aura_PDFpdf-removebg-preview.png'
+      avatar: '/images/logo-aura.png'
     },
-    imageUrl: 'https://media.base44.com/images/public/69f3626de7a99e14099d1411/0fa666d77_CpiadeDSC_3214.png',
+    imageUrl: '/images/look-3214.png',
     readTimeMinutes: 5,
     publishedAt: '2026-07-08T08:00:00Z',
     isPublished: true,
@@ -308,8 +308,8 @@ export const initialStoreSettings: StoreSettings = {
     youtube: 'https://youtube.com',
     tiktok: 'https://tiktok.com/@adoro.aura'
   },
-  logoUrl: 'https://media.base44.com/images/public/69f3626de7a99e14099d1411/3f1e331bf_Logo_Aura_PDFpdf-removebg-preview.png',
-  bannerUrl: 'https://media.base44.com/images/public/69f3626de7a99e14099d1411/64c91e414_Conjuntostyle.png',
+  logoUrl: '/images/logo-aura.png',
+  bannerUrl: '/images/banner-style.png',
   shipping: {
     freeShippingThreshold: 299.00,
     defaultFlatRate: 19.90,

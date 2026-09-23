@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Search, User, MapPin, ShoppingBag } from 'lucide-react';
-import { getCustomers } from '../../lib/base44Client';
+import { getCustomers } from '../../lib/dataClient';
 import { formatCurrency, formatDate } from '../../lib/utils';
 
 export const AdminCustomersPage: React.FC = () => {

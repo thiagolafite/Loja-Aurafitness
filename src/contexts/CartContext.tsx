@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { CartItem, Product, ProductColor, Coupon } from '../types';
-import { validateCoupon } from '../lib/base44Client';
+import { validateCoupon } from '../lib/dataClient';
 
 interface CartContextType {
   items: CartItem[];

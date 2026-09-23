@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Plus, Layers, Trash2 } from 'lucide-react';
-import { getLookSets, saveLookSet, deleteLookSet, getProducts } from '../../lib/base44Client';
+import { getLookSets, saveLookSet, deleteLookSet, getProducts } from '../../lib/dataClient';
 import { formatCurrency } from '../../lib/utils';
 import { LookSet } from '../../types';
 

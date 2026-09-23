@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { BookOpen, Clock, User, ArrowRight, Search } from 'lucide-react';
-import { getBlogPosts } from '../../lib/base44Client';
+import { getBlogPosts } from '../../lib/dataClient';
 import { formatDate } from '../../lib/utils';
 import { BlogCategory } from '../../types';
 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Plus, Tag, Trash2 } from 'lucide-react';
-import { getCoupons, saveCoupon, deleteCoupon } from '../../lib/base44Client';
+import { getCoupons, saveCoupon, deleteCoupon } from '../../lib/dataClient';
 import { Coupon } from '../../types';
 import { formatCurrency } from '../../lib/utils';
 

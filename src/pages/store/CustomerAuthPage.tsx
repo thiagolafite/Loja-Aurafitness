@@ -5,34 +5,32 @@ import {
   Lock,
   User,
   Phone,
-  FileText,
   MapPin,
-  CreditCard,
-  ShieldCheck,
   CheckCircle2,
   ArrowRight,
-  Sparkles,
-  KeyRound,
   RefreshCw,
+  Loader2,
+  KeyRound,
+  ShieldCheck,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
 import { useViaCep } from '../../hooks/useViaCep';
 import { formatCPF, formatPhone, formatCEP } from '../../lib/utils';
-import { SavedPaymentMethod } from '../../types';
 
 export const CustomerAuthPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialMode = searchParams.get('modo') === 'cadastro' ? 'register' : 'login';
 
-  const { loginAsCustomer, registerCustomer, loginAdmin } = useAuth();
-  const [mode, setMode] = useState<'login' | 'register' | 'verify_email'>(initialMode);
+  const { signInCustomer, signUpCustomer, signInAdmin, resetPassword } = useAuth();
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot_password'>(initialMode);
 
   // Login Form State
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [isLoginLoading, setIsLoginLoading] = useState(false);
 
   // Registration Form State
   const [regName, setRegName] = useState('');
@@ -41,6 +39,14 @@ export const CustomerAuthPage: React.FC = () => {
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
   const [regCpf, setRegCpf] = useState('');
   const [regPhone, setRegPhone] = useState('');
+  const [regError, setRegError] = useState('');
+  const [isRegLoading, setIsRegLoading] = useState(false);
+
+  // Forgot Password State
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotNotice, setForgotNotice] = useState('');
+  const [forgotError, setForgotError] = useState('');
+  const [isForgotLoading, setIsForgotLoading] = useState(false);
 
   // Address State with ViaCEP
   const [cep, setCep] = useState('');
@@ -51,21 +57,7 @@ export const CustomerAuthPage: React.FC = () => {
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
 
-  const { fetchAddressByCep, loading: cepLoading, error: cepError } = useViaCep();
-
-  // Saved Payment Method Option
-  const [addPayment, setAddPayment] = useState(false);
-  const [cardHolder, setCardHolder] = useState('');
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardExpiry, setCardExpiry] = useState('');
-
-  const [regError, setRegError] = useState('');
-
-  // Email Verification State
-  const [generatedCode, setGeneratedCode] = useState('');
-  const [verificationInput, setVerificationInput] = useState('');
-  const [verifyError, setVerifyError] = useState('');
-  const [verificationNotice, setVerificationNotice] = useState('');
+  const { fetchAddressByCep, loading: cepLoading } = useViaCep();
 
   // Handle CEP Blur
   const handleCepBlur = async () => {
@@ -82,115 +74,116 @@ export const CustomerAuthPage: React.FC = () => {
   };
 
   // Submit Login
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
+    setIsLoginLoading(true);
 
-    if (!loginEmail) {
-      setLoginError('Por favor, informe seu e-mail de cadastro.');
-      return;
-    }
-
-    // Check if credentials belong to Admin
-    if (
-      loginPassword &&
-      (loginPassword === 'AuraAdmin2026!' ||
-        loginPassword === 'admin123' ||
-        loginPassword === 'admin' ||
-        loginEmail.includes('admin'))
-    ) {
-      const isAdminSuccess = loginAdmin(loginEmail, loginPassword);
-      if (isAdminSuccess) {
-        navigate('/admin');
+    try {
+      if (!loginEmail || !loginPassword) {
+        setLoginError('Por favor, informe seu e-mail e senha de acesso.');
+        setIsLoginLoading(false);
         return;
       }
-    }
 
-    // Try Customer Login
-    const success = loginAsCustomer(loginEmail);
-    if (success) {
-      navigate('/minha-conta');
-    } else {
-      setLoginError('E-mail não encontrado. Crie uma nova conta no formulário ao lado!');
+      // Authenticate via Supabase Auth
+      const res = await signInCustomer(loginEmail, loginPassword);
+      if (res.success) {
+        // Check if user is admin to redirect accordingly
+        const { data: adminRecord } = await (await import('../../lib/supabaseClient')).supabase
+          .from('admin_users')
+          .select('id')
+          .eq('email', loginEmail.trim())
+          .maybeSingle();
+
+        if (adminRecord) {
+          navigate('/admin');
+        } else {
+          navigate('/minha-conta');
+        }
+      } else {
+        const errorMsg = res.error?.includes('Invalid login credentials')
+          ? 'E-mail ou senha incorretos. Verifique suas credenciais.'
+          : res.error || 'Falha ao autenticar. Verifique seus dados.';
+        setLoginError(errorMsg);
+      }
+    } catch (err) {
+      setLoginError('Erro de conexão ao efetuar login. Tente novamente.');
+    } finally {
+      setIsLoginLoading(false);
     }
   };
 
-  // Step 1: Initiate Customer Registration and trigger Email Verification Code
-  const handleRegisterSubmit = (e: React.FormEvent) => {
+  // Submit Registration
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setRegError('');
+    setIsRegLoading(true);
 
-    if (!regName || !regEmail || !regPassword) {
-      setRegError('Preencha os campos obrigatórios (Nome, E-mail e Senha).');
-      return;
+    try {
+      if (!regName || !regEmail || !regPassword) {
+        setRegError('Preencha os campos obrigatórios (Nome, E-mail e Senha).');
+        setIsRegLoading(false);
+        return;
+      }
+
+      if (regPassword.length < 6) {
+        setRegError('A senha deve conter no mínimo 6 caracteres.');
+        setIsRegLoading(false);
+        return;
+      }
+
+      if (regPassword !== regConfirmPassword) {
+        setRegError('As senhas digitadas não coincidem!');
+        setIsRegLoading(false);
+        return;
+      }
+
+      const res = await signUpCustomer(
+        regEmail,
+        regPassword,
+        regName,
+        formatPhone(regPhone),
+        formatCPF(regCpf)
+      );
+
+      if (res.success) {
+        navigate('/minha-conta');
+      } else {
+        setRegError(res.error || 'Não foi possível concluir o cadastro. Verifique os dados.');
+      }
+    } catch (err) {
+      setRegError('Erro ao processar cadastro. Tente novamente.');
+    } finally {
+      setIsRegLoading(false);
     }
-
-    if (regPassword !== regConfirmPassword) {
-      setRegError('As senhas digitadas não coincidem!');
-      return;
-    }
-
-    // Generate 6-digit confirmation code
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    setGeneratedCode(code);
-    setVerificationNotice(`Código de confirmação enviado para o e-mail: ${regEmail}`);
-    setMode('verify_email');
   };
 
-  // Step 2: Validate Email Verification Code and Finalize Registration
-  const handleConfirmVerificationCode = (e: React.FormEvent) => {
+  // Submit Password Reset
+  const handleForgotSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setVerifyError('');
+    setForgotError('');
+    setForgotNotice('');
+    setIsForgotLoading(true);
 
-    if (verificationInput.trim() !== generatedCode) {
-      setVerifyError('Código de confirmação incorreto. Verifique o código digitado.');
-      return;
+    try {
+      if (!forgotEmail) {
+        setForgotError('Por favor, informe seu e-mail cadastrado.');
+        setIsForgotLoading(false);
+        return;
+      }
+
+      const res = await resetPassword(forgotEmail);
+      if (res.success) {
+        setForgotNotice(`Enviamos um link de redefinição de senha para o e-mail ${forgotEmail}. Verifique sua caixa de entrada e spam.`);
+      } else {
+        setForgotError(res.error || 'Não foi possível enviar o e-mail de recuperação.');
+      }
+    } catch (err) {
+      setForgotError('Erro ao enviar solicitação. Tente novamente.');
+    } finally {
+      setIsForgotLoading(false);
     }
-
-    const savedPaymentMethods: SavedPaymentMethod[] = [];
-    if (addPayment && cardNumber) {
-      savedPaymentMethods.push({
-        id: `card-${Date.now()}`,
-        type: 'credit_card',
-        cardHolderName: cardHolder || regName,
-        cardLastFour: cardNumber.slice(-4) || '4242',
-        cardBrand: 'Visa',
-        expiryDate: cardExpiry || '12/28',
-        isDefault: true,
-      });
-    }
-
-    const created = registerCustomer({
-      name: regName,
-      email: regEmail,
-      cpf: formatCPF(regCpf),
-      phone: formatPhone(regPhone),
-      addresses: [
-        {
-          recipientName: regName,
-          cep: formatCEP(cep),
-          street,
-          number,
-          complement,
-          neighborhood,
-          city,
-          state,
-          isDefault: true,
-        },
-      ],
-      savedPaymentMethods,
-      wishlist: [],
-    });
-
-    if (created) {
-      navigate('/minha-conta');
-    }
-  };
-
-  const handleResendCode = () => {
-    const newCode = Math.floor(100000 + Math.random() * 900000).toString();
-    setGeneratedCode(newCode);
-    setVerificationNotice(`Novo código enviado para ${regEmail}`);
   };
 
   return (
@@ -203,17 +196,17 @@ export const CustomerAuthPage: React.FC = () => {
         <h1 className="font-serif font-bold text-3xl sm:text-4xl text-foreground">
           {mode === 'login'
             ? 'Acesse sua Conta'
-            : mode === 'verify_email'
-            ? 'Confirmação por E-mail'
+            : mode === 'forgot_password'
+            ? 'Recuperar Senha'
             : 'Criar Novo Cadastro'}
         </h1>
         <p className="text-xs text-muted-foreground">
-          Gerencie seus pedidos, favoritos, cartões salvos e endereços de entrega com segurança.
+          Gerencie seus pedidos, favoritos, endereços e acompanhe suas entregas com segurança.
         </p>
       </div>
 
       {/* Tabs Switcher */}
-      {mode !== 'verify_email' && (
+      {mode !== 'forgot_password' && (
         <div className="flex justify-center">
           <div className="bg-muted/50 p-1.5 rounded-2xl border border-border flex gap-2">
             <button
@@ -274,7 +267,19 @@ export const CustomerAuthPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-semibold text-foreground mb-1">Senha de Acesso *</label>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block font-semibold text-foreground">Senha de Acesso *</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForgotEmail(loginEmail);
+                      setMode('forgot_password');
+                    }}
+                    className="text-[11px] text-primary hover:underline font-semibold"
+                  >
+                    Esqueceu a senha?
+                  </button>
+                </div>
                 <div className="relative">
                   <Lock className="w-4 h-4 text-muted-foreground absolute left-3 top-3" />
                   <input
@@ -291,78 +296,82 @@ export const CustomerAuthPage: React.FC = () => {
 
             <button
               type="submit"
-              className="w-full py-3.5 rounded-xl bg-primary hover:bg-primary-hover text-white font-bold text-xs shadow-md transition-colors flex items-center justify-center gap-2"
+              disabled={isLoginLoading}
+              className="w-full py-3.5 rounded-xl bg-primary hover:bg-primary-hover text-white font-bold text-xs shadow-md transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
             >
-              <span>Entrar na Minha Conta</span>
-              <ArrowRight className="w-4 h-4" />
+              {isLoginLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <ArrowRight className="w-4 h-4" />
+              )}
+              <span>{isLoginLoading ? 'Entrando...' : 'Entrar na Minha Conta'}</span>
             </button>
           </motion.form>
-        ) : mode === 'verify_email' ? (
-          /* EMAIL VERIFICATION CODE STEP */
+        ) : mode === 'forgot_password' ? (
+          /* FORGOT PASSWORD FORM */
           <motion.form
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            onSubmit={handleConfirmVerificationCode}
-            className="space-y-6 text-xs max-w-md mx-auto text-center"
+            onSubmit={handleForgotSubmit}
+            className="space-y-6 text-xs max-w-md mx-auto"
           >
-            <div className="p-4 bg-primary/10 rounded-full w-16 h-16 mx-auto flex items-center justify-center text-primary">
-              <Mail className="w-8 h-8" />
+            <div className="p-4 bg-primary/10 rounded-full w-14 h-14 mx-auto flex items-center justify-center text-primary">
+              <KeyRound className="w-7 h-7" />
             </div>
 
-            <div className="space-y-2">
-              <h3 className="font-serif font-bold text-xl text-foreground">Verifique seu E-mail</h3>
-              <p className="text-muted-foreground text-xs leading-relaxed">
-                Enviamos um código de confirmação de 6 dígitos para o e-mail:
-                <br />
-                <strong className="text-foreground font-semibold">{regEmail}</strong>
+            <div className="text-center space-y-1">
+              <h3 className="font-serif font-bold text-xl text-foreground">Recuperação de Senha</h3>
+              <p className="text-muted-foreground text-xs">
+                Informe o e-mail associado à sua conta para receber as instruções de redefinição.
               </p>
             </div>
 
-            {verificationNotice && (
-              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 text-emerald-800 dark:text-emerald-300 rounded-xl text-xs font-semibold">
-                {verificationNotice}
+            {forgotNotice && (
+              <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 text-emerald-800 dark:text-emerald-300 rounded-xl text-xs font-semibold">
+                {forgotNotice}
               </div>
             )}
 
-            {verifyError && (
-              <div className="p-3 bg-destructive/10 border border-destructive/30 text-destructive rounded-xl text-xs font-medium">
-                {verifyError}
+            {forgotError && (
+              <div className="p-3.5 bg-destructive/10 border border-destructive/30 text-destructive rounded-xl text-xs font-medium">
+                {forgotError}
               </div>
             )}
 
-            {/* Verification Code Box */}
-            <div className="space-y-2 text-left">
-              <label className="block font-bold text-center text-foreground">
-                Digite o Código de 6 Dígitos *
-              </label>
-              <input
-                type="text"
-                required
-                maxLength={6}
-                placeholder="Ex: 839210"
-                value={verificationInput}
-                onChange={(e) => setVerificationInput(e.target.value.replace(/\D/g, ''))}
-                className="w-full text-center font-serif text-2xl tracking-[0.4em] font-bold bg-background border border-border rounded-2xl py-3 text-primary focus:ring-2 focus:ring-primary outline-none"
-              />
-              <span className="text-[11px] text-muted-foreground block text-center pt-1">
-                (Código gerado para validação: <strong className="text-primary">{generatedCode}</strong>)
-              </span>
+            <div>
+              <label className="block font-semibold text-foreground mb-1">E-mail Cadastrado *</label>
+              <div className="relative">
+                <Mail className="w-4 h-4 text-muted-foreground absolute left-3 top-3" />
+                <input
+                  type="email"
+                  required
+                  placeholder="seuemail@exemplo.com"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  className="w-full bg-background border border-border rounded-xl pl-9 pr-3.5 py-2.5 text-xs focus:ring-2 focus:ring-primary outline-none"
+                />
+              </div>
             </div>
 
             <button
               type="submit"
-              className="w-full py-3.5 rounded-xl bg-primary hover:bg-primary-hover text-white font-bold text-xs shadow-md transition-colors flex items-center justify-center gap-2"
+              disabled={isForgotLoading}
+              className="w-full py-3.5 rounded-xl bg-primary hover:bg-primary-hover text-white font-bold text-xs shadow-md transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
             >
-              <CheckCircle2 className="w-4 h-4" />
-              <span>Validar Código & Ativar Minha Conta</span>
+              {isForgotLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4" />
+              )}
+              <span>{isForgotLoading ? 'Enviando link...' : 'Enviar Link de Redefinição'}</span>
             </button>
 
             <button
               type="button"
-              onClick={handleResendCode}
-              className="text-xs text-muted-foreground hover:text-primary font-semibold flex items-center justify-center gap-1 mx-auto"
+              onClick={() => setMode('login')}
+              className="text-xs text-muted-foreground hover:text-primary font-semibold block text-center mx-auto pt-2"
             >
-              <RefreshCw className="w-3.5 h-3.5" /> Reenviar Código de Confirmação
+              ← Voltar para o Login
             </button>
           </motion.form>
         ) : (
@@ -463,7 +472,7 @@ export const CustomerAuthPage: React.FC = () => {
             <div className="space-y-4 pt-4 border-t border-border">
               <h3 className="font-serif font-bold text-base text-foreground flex items-center justify-between border-b border-border pb-2">
                 <span className="flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-primary" /> 2. Endereço Principal de Entrega
+                  <MapPin className="w-4 h-4 text-primary" /> 2. Endereço Principal de Entrega (Opcional)
                 </span>
                 {cepLoading && (
                   <span className="text-[10px] text-primary font-normal animate-pulse">
@@ -474,7 +483,7 @@ export const CustomerAuthPage: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block font-semibold mb-1">CEP *</label>
+                  <label className="block font-semibold mb-1">CEP</label>
                   <input
                     type="text"
                     placeholder="00000-000"
@@ -535,10 +544,15 @@ export const CustomerAuthPage: React.FC = () => {
             <div className="pt-6 border-t border-border flex justify-end">
               <button
                 type="submit"
-                className="py-3.5 px-8 rounded-xl bg-primary hover:bg-primary-hover text-white font-bold text-xs shadow-md transition-colors flex items-center gap-2"
+                disabled={isRegLoading}
+                className="py-3.5 px-8 rounded-xl bg-primary hover:bg-primary-hover text-white font-bold text-xs shadow-md transition-colors flex items-center gap-2 disabled:opacity-60"
               >
-                <span>Avançar para Validação do E-mail</span>
-                <ArrowRight className="w-4 h-4" />
+                {isRegLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4" />
+                )}
+                <span>{isRegLoading ? 'Criando Conta...' : 'Finalizar Cadastro Seguro'}</span>
               </button>
             </div>
           </motion.form>

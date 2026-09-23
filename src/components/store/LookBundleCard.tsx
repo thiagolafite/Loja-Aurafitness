@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { Sparkles, ShoppingBag, ArrowRight } from 'lucide-react';
 import { LookSet } from '../../types';
 import { formatCurrency } from '../../lib/utils';
-import { getProducts } from '../../lib/base44Client';
+import { getProducts } from '../../lib/dataClient';
 import { useCart } from '../../contexts/CartContext';
 
 interface LookBundleCardProps {

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Star, MessageSquare, CheckCircle, ThumbsUp } from 'lucide-react';
-import { getApprovedReviewsByProductId, addReview } from '../../lib/base44Client';
+import { getApprovedReviewsByProductId, addReview } from '../../lib/dataClient';
 import { formatDate } from '../../lib/utils';
 import { useAuth } from '../../contexts/AuthContext';
 

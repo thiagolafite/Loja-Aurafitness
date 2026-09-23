@@ -12,7 +12,7 @@ export const Footer: React.FC = () => {
           <div className="lg:col-span-2 space-y-4">
             <Link to="/" className="inline-block">
               <img
-                src="https://media.base44.com/images/public/69f3626de7a99e14099d1411/3f1e331bf_Logo_Aura_PDFpdf-removebg-preview.png"
+                src="/images/logo-aura.png"
                 alt="Aura Fitness"
                 className="h-10 w-auto object-contain brightness-0 invert"
               />
@@ -96,7 +96,7 @@ export const Footer: React.FC = () => {
             <span>•</span>
             <span>Termos de Uso</span>
             <span>•</span>
-            <span className="text-white/70">Base44 E-commerce Integration</span>
+            <span className="text-white/70">Aura Fitness Boutique</span>
           </div>
         </div>
       </div>

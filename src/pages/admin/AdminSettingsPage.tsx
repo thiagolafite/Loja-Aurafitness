@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Save, Check, Settings, Phone, QrCode, Truck, Globe } from 'lucide-react';
-import { getStoreSettings, updateStoreSettings } from '../../lib/base44Client';
+import { getStoreSettings, updateStoreSettings } from '../../lib/dataClient';
 import { StoreSettings } from '../../types';
 
 export const AdminSettingsPage: React.FC = () => {

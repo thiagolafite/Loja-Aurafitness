@@ -22,7 +22,7 @@ import {
   Pie,
   Cell,
 } from 'recharts';
-import { getOrders, getProducts, getCustomers } from '../../lib/base44Client';
+import { getOrders, getProducts, getCustomers } from '../../lib/dataClient';
 import { formatCurrency } from '../../lib/utils';
 import { useNavigate } from 'react-router-dom';
 

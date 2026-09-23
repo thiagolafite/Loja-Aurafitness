@@ -4,7 +4,7 @@ import { ArrowRight, ChevronLeft, ChevronRight, Heart } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ProductCard } from '../../components/store/ProductCard';
 import { TrustBar } from '../../components/store/TrustBar';
-import { getProducts } from '../../lib/base44Client';
+import { getProducts } from '../../lib/dataClient';
 import { Product } from '../../types';
 
 export const HomePage: React.FC = () => {
@@ -22,8 +22,8 @@ export const HomePage: React.FC = () => {
       subtitle: 'Conjuntos que abraçam seu movimento',
       buttonText: 'VER CONJUNTOS',
       link: '/catalogo?categoria=CONJUNTOS',
-      leftImage: 'https://media.base44.com/images/public/69f3626de7a99e14099d1411/0fa666d77_CpiadeDSC_3214.png',
-      rightImage: 'https://media.base44.com/images/public/69f3626de7a99e14099d1411/f28126454_MacacoBless.png',
+      leftImage: '/images/look-3214.png',
+      rightImage: '/images/macaco-bless.png',
     },
     {
       badge: 'AURA NAVY',
@@ -31,8 +31,8 @@ export const HomePage: React.FC = () => {
       subtitle: 'Sofisticação e zero transparência para cada treino',
       buttonText: 'VER LEGGINGS',
       link: '/catalogo?categoria=LEGGINGS',
-      leftImage: 'https://media.base44.com/images/public/69f3626de7a99e14099d1411/5144dcde1_CpiadeDSC_3656.png',
-      rightImage: 'https://media.base44.com/images/public/69f3626de7a99e14099d1411/64c91e414_Conjuntostyle.png',
+      leftImage: '/images/look-3656.png',
+      rightImage: '/images/banner-style.png',
     },
   ];
 

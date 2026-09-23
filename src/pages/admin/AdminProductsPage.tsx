@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Plus, Edit, Trash2, Sparkles, Search, Image as ImageIcon, Check, X, Tag, FileSpreadsheet, FolderPlus } from 'lucide-react';
-import { getProducts, saveProduct, deleteProduct, aiGenerateProductDescription, aiGenerateSeoMeta } from '../../lib/base44Client';
+import { getProducts, saveProduct, deleteProduct, aiGenerateProductDescription, aiGenerateSeoMeta } from '../../lib/dataClient';
 import { formatCurrency } from '../../lib/utils';
 import { Product } from '../../types';
 import { ProductImporterModal } from '../../components/admin/ProductImporterModal';
@@ -69,7 +69,7 @@ export const AdminProductsPage: React.FC = () => {
     setEditingProduct(null);
   };
 
-  // Base44 AI Integration: Generate Product Description & SEO
+  // AI Assistant Integration: Generate Product Description & SEO
   const handleGenerateAiDescription = async () => {
     if (!editingProduct?.name) {
       alert('Digite primeiro o nome do produto para a IA gerar a descrição.');
@@ -243,7 +243,7 @@ export const AdminProductsPage: React.FC = () => {
               <div className="p-4 bg-primary/10 border border-primary/30 rounded-2xl flex items-center justify-between gap-4">
                 <div>
                   <h4 className="font-serif font-bold text-sm text-primary flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-accent animate-pulse" /> Assistente de IA Base44
+                    <Sparkles className="w-4 h-4 text-accent animate-pulse" /> Assistente de IA AuraFit
                   </h4>
                   <p className="text-muted-foreground text-[11px] mt-0.5">
                     Gere descrições completas e otimização SEO para o produto usando IA com 1 clique.

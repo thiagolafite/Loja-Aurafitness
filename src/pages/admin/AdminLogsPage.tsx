@@ -1,6 +1,6 @@
 import React from 'react';
 import { History, Package, CreditCard } from 'lucide-react';
-import { getInventoryMovements, getPaymentLogs } from '../../lib/base44Client';
+import { getInventoryMovements, getPaymentLogs } from '../../lib/dataClient';
 import { formatCurrency, formatDate } from '../../lib/utils';
 
 export const AdminLogsPage: React.FC = () => {

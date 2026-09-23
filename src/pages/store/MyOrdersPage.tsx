@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Package, Truck, ExternalLink, RotateCcw, XCircle, ChevronDown, ChevronUp, CheckCircle, Clock } from 'lucide-react';
-import { getOrders, updateOrderStatus, getProducts } from '../../lib/base44Client';
+import { getOrders, updateOrderStatus, getProducts } from '../../lib/dataClient';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import { useCart } from '../../contexts/CartContext';
 import { Order, OrderStatus } from '../../types';

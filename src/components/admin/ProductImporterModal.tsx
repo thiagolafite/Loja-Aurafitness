@@ -15,7 +15,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { bulkImportProducts, getProducts } from '../../lib/base44Client';
+import { bulkImportProducts, getProducts } from '../../lib/dataClient';
 import { Product } from '../../types';
 import { formatCurrency } from '../../lib/utils';
 

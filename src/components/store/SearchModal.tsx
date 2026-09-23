@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, X, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getProducts } from '../../lib/base44Client';
+import { getProducts } from '../../lib/dataClient';
 import { formatCurrency } from '../../lib/utils';
 
 interface SearchModalProps {

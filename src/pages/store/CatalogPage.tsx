@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Filter, SlidersHorizontal, RotateCcw, Search, Grid, ListFilter } from 'lucide-react';
 import { ProductCard } from '../../components/store/ProductCard';
-import { getProducts } from '../../lib/base44Client';
+import { getProducts } from '../../lib/dataClient';
 import { formatCurrency } from '../../lib/utils';
 
 export const CatalogPage: React.FC = () => {

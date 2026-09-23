@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, useLocation, Link } from 'react-router-dom';
 import { CheckCircle2, MessageCircle, Copy, Check, Package, MapPin, Truck, ArrowRight } from 'lucide-react';
-import { getOrderById, getStoreSettings } from '../../lib/base44Client';
+import { getOrderById, getStoreSettings } from '../../lib/dataClient';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import { generateWhatsAppOrderMessage } from '../../lib/whatsapp';
 import { OrderItem } from '../../types';

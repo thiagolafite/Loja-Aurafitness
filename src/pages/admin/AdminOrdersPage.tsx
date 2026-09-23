@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Search, Eye, Truck, Printer, CheckCircle, Clock, XCircle, ChevronRight, MessageCircle } from 'lucide-react';
-import { getOrders, updateOrderStatus, getStoreSettings } from '../../lib/base44Client';
+import { getOrders, updateOrderStatus, getStoreSettings } from '../../lib/dataClient';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import { Order, OrderStatus } from '../../types';
 import { generateWhatsAppOrderMessage } from '../../lib/whatsapp';

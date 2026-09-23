@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Plus, Edit, Trash2, Sparkles, X } from 'lucide-react';
-import { getBlogPosts, saveBlogPost, deleteBlogPost, aiGenerateBlogPost } from '../../lib/base44Client';
+import { getBlogPosts, saveBlogPost, deleteBlogPost, aiGenerateBlogPost } from '../../lib/dataClient';
 import { BlogPost, BlogCategory } from '../../types';
 import { formatDate } from '../../lib/utils';
 
@@ -113,10 +113,10 @@ export const AdminBlogPage: React.FC = () => {
               <button onClick={() => setIsModalOpen(false)}><X className="w-5 h-5 text-muted-foreground" /></button>
             </div>
 
-            {/* Base44 AI Generator Banner */}
+            {/* AI Assistant Generator Banner */}
             <div className="p-3 bg-primary/10 border border-primary/30 rounded-xl space-y-2">
               <span className="font-bold text-primary flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-accent animate-pulse" /> IA Redatora Base44
+                <Sparkles className="w-4 h-4 text-accent animate-pulse" /> Assistente de Redação
               </span>
               <div className="flex gap-2">
                 <input

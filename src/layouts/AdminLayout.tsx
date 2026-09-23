@@ -24,26 +24,34 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
-import { getNotifications, markNotificationRead } from '../lib/base44Client';
+import { getNotifications, markNotificationRead } from '../lib/dataClient';
 
 export const AdminLayout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
-  const { isAdmin, loginAdmin, logoutAdmin } = useAuth();
+  const { isAdmin, signInAdmin, logoutAdmin, isLoading: isAuthLoading } = useAuth();
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [adminEmail, setAdminEmail] = useState('admin@aurafitness.com.br');
   const [adminPass, setAdminPass] = useState('');
   const [authError, setAuthError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleAdminAuthSubmit = (e: React.FormEvent) => {
+  const handleAdminAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
-    const success = loginAdmin(adminEmail, adminPass);
-    if (!success) {
-      setAuthError('Senha ou e-mail de acesso inválido (Use a senha: admin123).');
+    setIsSubmitting(true);
+    try {
+      const res = await signInAdmin(adminEmail, adminPass);
+      if (!res.success) {
+        setAuthError(res.error || 'Credenciais administrativas inválidas. Verifique seu e-mail e senha.');
+      }
+    } catch (err) {
+      setAuthError('Erro de conexão ao autenticar. Tente novamente.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -113,9 +121,10 @@ export const AdminLayout: React.FC = () => {
 
             <button
               type="submit"
-              className="w-full py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold shadow-lg transition-colors"
+              disabled={isSubmitting}
+              className="w-full py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold shadow-lg transition-colors disabled:opacity-60"
             >
-              Autenticar e Entrar
+              {isSubmitting ? 'Autenticando...' : 'Autenticar e Entrar'}
             </button>
           </form>
 

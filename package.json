@@ -10,12 +10,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@mercadopago/sdk-react": "^1.0.7",
+    "@supabase/supabase-js": "^2.109.0",
     "@tanstack/react-query": "^5.51.23",
     "canvas-confetti": "^1.9.3",
     "clsx": "^2.1.1",
     "framer-motion": "^11.3.28",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.428.0",
+    "mercadopago": "^3.4.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.52.2",
@@ -30,6 +33,7 @@
     "@types/node": "^22.4.1",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
+    "@vercel/node": "^5.10.2",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.41",

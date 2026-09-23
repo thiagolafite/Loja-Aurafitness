@@ -1,7 +1,7 @@
 import React from 'react';
 import { MessageCircle } from 'lucide-react';
 import { generateWhatsAppDirectContact } from '../../lib/whatsapp';
-import { getStoreSettings } from '../../lib/base44Client';
+import { getStoreSettings } from '../../lib/dataClient';
 
 export const WhatsAppButton: React.FC = () => {
   const settings = getStoreSettings();

@@ -21,7 +21,7 @@ import {
   deletePromotion,
   getProducts,
   applyPromotionToProducts,
-} from '../../lib/base44Client';
+} from '../../lib/dataClient';
 import { Promotion, Product } from '../../types';
 import { formatCurrency } from '../../lib/utils';
 
@@ -100,7 +100,7 @@ export const AdminPromotionsPage: React.FC = () => {
       isActive: true,
     });
 
-    // Optionally apply immediate discount to product catalog prices in base44Client
+    // Optionally apply immediate discount to product catalog prices in dataClient
     let affectedCount = 0;
     if (applyImmediateDiscount) {
       affectedCount = applyPromotionToProducts(

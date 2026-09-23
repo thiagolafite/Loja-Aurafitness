@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, Share2, ShoppingBag, Trash2 } from 'lucide-react';
 import { useWishlist } from '../../contexts/WishlistContext';
-import { getProducts } from '../../lib/base44Client';
+import { getProducts } from '../../lib/dataClient';
 import { ProductCard } from '../../components/store/ProductCard';
 
 export const WishlistPage: React.FC = () => {

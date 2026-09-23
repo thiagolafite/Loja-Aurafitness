@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Lock, ShieldCheck, AlertCircle, KeyRound, Mail } from 'lucide-react';
+import { X, Lock, ShieldCheck, AlertCircle, KeyRound, Mail, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -16,23 +16,31 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
   onSuccess,
 }) => {
   const navigate = useNavigate();
-  const { loginAdmin } = useAuth();
+  const { signInAdmin } = useAuth();
 
   const [email, setEmail] = useState('admin@aurafitness.com.br');
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
+    setIsLoading(true);
 
-    const success = loginAdmin(email, password);
-    if (success) {
-      if (onSuccess) onSuccess();
-      onClose();
-      navigate('/admin');
-    } else {
-      setErrorMsg('Credenciais administrativas inválidas! Verifique seu e-mail e senha.');
+    try {
+      const res = await signInAdmin(email, password);
+      if (res.success) {
+        if (onSuccess) onSuccess();
+        onClose();
+        navigate('/admin');
+      } else {
+        setErrorMsg(res.error || 'Credenciais administrativas inválidas! Verifique seu e-mail e senha.');
+      }
+    } catch (err) {
+      setErrorMsg('Ocorreu um erro ao tentar autenticar. Tente novamente.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -110,10 +118,15 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
 
             <button
               type="submit"
-              className="w-full py-3 rounded-xl bg-primary hover:bg-primary-hover text-white font-bold text-xs shadow-lg transition-colors flex items-center justify-center gap-2"
+              disabled={isLoading}
+              className="w-full py-3 rounded-xl bg-primary hover:bg-primary-hover text-white font-bold text-xs shadow-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
             >
-              <ShieldCheck className="w-4 h-4" />
-              <span>Entrar no Painel Admin</span>
+              {isLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <ShieldCheck className="w-4 h-4" />
+              )}
+              <span>{isLoading ? 'Autenticando...' : 'Entrar no Painel Admin'}</span>
             </button>
           </form>
         </motion.div>

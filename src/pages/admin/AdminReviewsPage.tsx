@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Star, CheckCircle, XCircle, MessageSquare, AlertOctagon } from 'lucide-react';
-import { getReviews, updateReviewStatus } from '../../lib/base44Client';
+import { getReviews, updateReviewStatus } from '../../lib/dataClient';
 import { formatDate } from '../../lib/utils';
 import { Review } from '../../types';
 

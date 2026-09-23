@@ -17,7 +17,7 @@ import {
 import { useCart } from '../../contexts/CartContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useViaCep } from '../../hooks/useViaCep';
-import { createOrder, getStoreSettings } from '../../lib/base44Client';
+import { createOrder, getStoreSettings } from '../../lib/dataClient';
 import { formatCurrency, formatCPF, formatCEP, formatPhone } from '../../lib/utils';
 import { generateWhatsAppOrderMessage } from '../../lib/whatsapp';
 import confetti from 'canvas-confetti';
@@ -154,29 +154,92 @@ export const CheckoutPage: React.FC = () => {
 
     setIsSubmitting(true);
 
-    const pixPayload = '00020126580014BR.GOV.BCB.PIX0136contato@aurafitness.com.br5204000053039865406274.705802BR5912AuraFitness6009SaoPaulo62070503***6304E2B1';
-    const pixQrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(pixPayload)}`;
+    let paymentDetailsObj: any = {};
+    let initialStatus: 'pendente' | 'pago' = 'pendente';
 
-    let paymentDetailsObj = {};
-    let initialStatus: 'pendente' | 'pago' = 'pago';
+    try {
+      const payRes = await fetch('/api/payments/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: finalTotal,
+          orderNumber: `AURA-${Date.now().toString().slice(-5)}`,
+          paymentMethod,
+          installments: Number(cardInstallments) || 1,
+          customer: {
+            name,
+            email,
+            cpf: formatCPF(cpf),
+            phone: formatPhone(phone),
+          },
+        }),
+      });
 
-    if (paymentMethod === 'pix') {
-      paymentDetailsObj = { pixQrCode: pixQrCodeUrl, pixCopyPaste: pixPayload };
-      initialStatus = 'pendente';
-    } else if (paymentMethod === 'credit_card') {
+      if (payRes.ok) {
+        const payData = await payRes.json();
+
+        if (paymentMethod === 'pix') {
+          paymentDetailsObj = {
+            pixQrCode: payData.qrCodeBase64 || payData.qrCodeUrl,
+            pixCopyPaste: payData.copyPaste,
+            transactionId: payData.paymentId,
+            expirationDate: payData.expirationDate,
+          };
+          initialStatus = 'pendente';
+        } else if (paymentMethod === 'credit_card') {
+          paymentDetailsObj = {
+            cardBrand: payData.cardBrand || 'Cartão de Crédito',
+            cardLastFour: cardNumber ? cardNumber.slice(-4) : (payData.cardLastFour || '4242'),
+            transactionId: payData.paymentId,
+          };
+          initialStatus = payData.status === 'approved' ? 'pago' : 'pendente';
+        } else if (paymentMethod === 'debit_card') {
+          paymentDetailsObj = {
+            cardBrand: `Débito Online (${debitBank.toUpperCase()})`,
+            cardLastFour: 'DÉBITO VIRTUAL',
+            transactionId: payData.paymentId,
+          };
+          initialStatus = payData.status === 'approved' ? 'pago' : 'pendente';
+        } else {
+          paymentDetailsObj = {
+            boletoBarcode: payData.ticketUrl || '34191.79001 01043.510047 91020.150008 8 98210000027470',
+            transactionId: payData.paymentId,
+          };
+          initialStatus = 'pendente';
+        }
+      } else {
+        // Local fallback when API is running in local Vite mode
+        const fallbackCopy = `00020126580014BR.GOV.BCB.PIX0136${settings.pixKey || 'aurafitnesswork@gmail.com'}520400005303986540${finalTotal.toFixed(2)}5802BR5912AuraFitness6009SaoPaulo62070503***6304E2B1`;
+        if (paymentMethod === 'pix') {
+          paymentDetailsObj = {
+            pixQrCode: `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(fallbackCopy)}`,
+            pixCopyPaste: fallbackCopy,
+          };
+          initialStatus = 'pendente';
+        } else if (paymentMethod === 'credit_card') {
+          paymentDetailsObj = {
+            cardBrand: 'Mastercard / Visa',
+            cardLastFour: cardNumber ? cardNumber.slice(-4) : '4242',
+          };
+          initialStatus = 'pago';
+        } else if (paymentMethod === 'debit_card') {
+          paymentDetailsObj = {
+            cardBrand: `Débito Online (${debitBank.toUpperCase()})`,
+            cardLastFour: 'DÉBITO VIRTUAL',
+          };
+          initialStatus = 'pago';
+        } else {
+          paymentDetailsObj = { boletoBarcode: '34191.79001 01043.510047 91020.150008 8 98210000027470' };
+          initialStatus = 'pendente';
+        }
+      }
+    } catch (e) {
+      console.error('Error requesting payment:', e);
+      const fallbackCopy = `00020126580014BR.GOV.BCB.PIX0136${settings.pixKey || 'aurafitnesswork@gmail.com'}520400005303986540${finalTotal.toFixed(2)}5802BR5912AuraFitness6009SaoPaulo62070503***6304E2B1`;
       paymentDetailsObj = {
-        cardBrand: 'Mastercard / Visa',
-        cardLastFour: cardNumber ? cardNumber.slice(-4) : '4242',
+        pixQrCode: `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(fallbackCopy)}`,
+        pixCopyPaste: fallbackCopy,
       };
-      initialStatus = 'pago';
-    } else if (paymentMethod === 'debit_card') {
-      paymentDetailsObj = {
-        cardBrand: `Débito Online (${debitBank.toUpperCase()})`,
-        cardLastFour: 'DÉBITO VIRTUAL',
-      };
-      initialStatus = 'pago';
-    } else {
-      paymentDetailsObj = { boletoBarcode: '34191.79001 01043.510047 91020.150008 8 98210000027470' };
       initialStatus = 'pendente';
     }
 

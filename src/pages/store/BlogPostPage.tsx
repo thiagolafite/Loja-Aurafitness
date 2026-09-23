@@ -1,7 +1,7 @@
 import React from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Clock, ArrowLeft, Share2, Calendar, User, Bookmark } from 'lucide-react';
-import { getBlogPostBySlug, getBlogPosts } from '../../lib/base44Client';
+import { getBlogPostBySlug, getBlogPosts } from '../../lib/dataClient';
 import { formatDate } from '../../lib/utils';
 
 export const BlogPostPage: React.FC = () => {

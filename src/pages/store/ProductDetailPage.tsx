@@ -13,7 +13,7 @@ import {
   ArrowRight,
   MessageCircle,
 } from 'lucide-react';
-import { getProductById, getProducts } from '../../lib/base44Client';
+import { getProductById, getProducts } from '../../lib/dataClient';
 import { formatCurrency, calculateDiscount } from '../../lib/utils';
 import { useCart } from '../../contexts/CartContext';
 import { useWishlist } from '../../contexts/WishlistContext';
