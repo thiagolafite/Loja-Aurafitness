@@ -8,6 +8,62 @@ const supabaseAdmin = supabaseUrl && supabaseServiceKey
   ? createClient(supabaseUrl, supabaseServiceKey)
   : null;
 
+// BACEN EMV BR Code Generator for 100% compliant static PIX
+function crc16(payload: string): string {
+  let crc = 0xFFFF;
+  for (let i = 0; i < payload.length; i++) {
+    crc ^= payload.charCodeAt(i) << 8;
+    for (let j = 0; j < 8; j++) {
+      if ((crc & 0x8000) !== 0) {
+        crc = ((crc << 1) ^ 0x1021) & 0xFFFF;
+      } else {
+        crc = (crc << 1) & 0xFFFF;
+      }
+    }
+  }
+  return crc.toString(16).toUpperCase().padStart(4, '0');
+}
+
+function emvField(id: string, value: string): string {
+  const len = String(value.length).padStart(2, '0');
+  return `${id}${len}${value}`;
+}
+
+function generatePixBrCode(key: string, amount: number, name = 'AURA FITNESS', city = 'SAO PAULO', txid = '***'): string {
+  const cleanKey = key.trim();
+  const cleanName = (name || 'AURA FITNESS')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .slice(0, 25);
+  const cleanCity = (city || 'SAO PAULO')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .slice(0, 15);
+  const cleanTxid = (txid || '***').replace(/[^a-zA-Z0-9]/g, '').slice(0, 25) || '***';
+
+  const merchantAccount = emvField('00', 'BR.GOV.BCB.PIX') + emvField('01', cleanKey);
+  let payload =
+    emvField('00', '01') +
+    emvField('26', merchantAccount) +
+    emvField('52', '0000') +
+    emvField('53', '986');
+
+  if (amount && Number(amount) > 0) {
+    payload += emvField('54', Number(amount).toFixed(2));
+  }
+
+  payload +=
+    emvField('58', 'BR') +
+    emvField('59', cleanName) +
+    emvField('60', cleanCity) +
+    emvField('62', emvField('05', cleanTxid)) +
+    '6304';
+
+  return payload + crc16(payload);
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -67,8 +123,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Fallback simulation if access token is not configured
   if (!accessToken || accessToken.includes('xxxx') || accessToken.includes('seu-token')) {
-    const fakeCopyPaste = `00020126580014BR.GOV.BCB.PIX0136aurafitnesswork@gmail.com520400005303986540${Number(amount).toFixed(2)}5802BR5912AuraFitness6009SaoPaulo62070503***6304E2B1`;
-    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(fakeCopyPaste)}`;
+    const pixKey = process.env.PIX_KEY || 'aurafitnesswork@gmail.com';
+    const fakeCopyPaste = generatePixBrCode(pixKey, Number(amount), 'AURA FITNESS', 'SAO PAULO');
+    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(fakeCopyPaste)}`;
 
     const mockPaymentId = `MP-${Date.now()}`;
 

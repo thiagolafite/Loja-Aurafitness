@@ -20,6 +20,7 @@ import { useViaCep } from '../../hooks/useViaCep';
 import { createOrder, getStoreSettings } from '../../lib/dataClient';
 import { formatCurrency, formatCPF, formatCEP, formatPhone } from '../../lib/utils';
 import { generateWhatsAppOrderMessage } from '../../lib/whatsapp';
+import { generatePixBrCode } from '../../lib/pix';
 import confetti from 'canvas-confetti';
 
 export const CheckoutPage: React.FC = () => {
@@ -217,10 +218,15 @@ export const CheckoutPage: React.FC = () => {
         }
       } else {
         // Local fallback when API is running in local Vite mode
-        const fallbackCopy = `00020126580014BR.GOV.BCB.PIX0136${settings.pixKey || 'aurafitnesswork@gmail.com'}520400005303986540${finalTotal.toFixed(2)}5802BR5912AuraFitness6009SaoPaulo62070503***6304E2B1`;
+        const fallbackCopy = generatePixBrCode({
+          key: settings.pixKey || 'aurafitnesswork@gmail.com',
+          name: settings.companyName || 'AURA FITNESS',
+          city: 'SAO PAULO',
+          amount: finalTotal,
+        });
         if (paymentMethod === 'pix') {
           paymentDetailsObj = {
-            pixQrCode: `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(fallbackCopy)}`,
+            pixQrCode: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(fallbackCopy)}`,
             pixCopyPaste: fallbackCopy,
           };
           initialStatus = 'pendente';
@@ -259,9 +265,14 @@ export const CheckoutPage: React.FC = () => {
           transactionId: `PICPAY-${Date.now()}`,
         };
       } else {
-        const fallbackCopy = `00020126580014BR.GOV.BCB.PIX0136${settings.pixKey || 'aurafitnesswork@gmail.com'}520400005303986540${finalTotal.toFixed(2)}5802BR5912AuraFitness6009SaoPaulo62070503***6304E2B1`;
+        const fallbackCopy = generatePixBrCode({
+          key: settings.pixKey || 'aurafitnesswork@gmail.com',
+          name: settings.companyName || 'AURA FITNESS',
+          city: 'SAO PAULO',
+          amount: finalTotal,
+        });
         paymentDetailsObj = {
-          pixQrCode: `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(fallbackCopy)}`,
+          pixQrCode: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(fallbackCopy)}`,
           pixCopyPaste: fallbackCopy,
         };
       }
