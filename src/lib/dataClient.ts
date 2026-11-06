@@ -819,6 +819,10 @@ export function deleteLookSet(id: string): void {
 
 // --- SETTINGS SERVICE ---
 export function getStoreSettings(): StoreSettings {
+  if (!cachedSettings.pixKey || cachedSettings.pixKey === 'aurafitnesswork@gmail.com') {
+    cachedSettings.pixKey = 'brendaraissasousasilva@jim.com';
+    setStorageItem(STORAGE_KEYS.SETTINGS, cachedSettings);
+  }
   return cachedSettings;
 }
 

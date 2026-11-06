@@ -123,7 +123,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Fallback simulation if access token is not configured
   if (!accessToken || accessToken.includes('xxxx') || accessToken.includes('seu-token')) {
-    const pixKey = process.env.PIX_KEY || 'aurafitnesswork@gmail.com';
+    const pixKey = process.env.PIX_KEY || 'brendaraissasousasilva@jim.com';
     const fakeCopyPaste = generatePixBrCode(pixKey, Number(amount), 'AURA FITNESS', 'SAO PAULO');
     const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(fakeCopyPaste)}`;
 

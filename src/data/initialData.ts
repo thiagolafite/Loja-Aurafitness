@@ -298,9 +298,9 @@ export const initialStoreSettings: StoreSettings = {
   cnpj: '48.912.345/0001-99',
   phone: '(11) 99999-8888',
   whatsappNumber: '5511999998888',
-  pixKey: 'aurafitnesswork@gmail.com',
+  pixKey: 'brendaraissasousasilva@jim.com',
   pixKeyType: 'E-mail',
-  email: 'aurafitnesswork@gmail.com',
+  email: 'brendaraissasousasilva@jim.com',
   address: 'São Paulo - SP',
   social: {
     instagram: 'https://www.instagram.com/adoro.aura/',
