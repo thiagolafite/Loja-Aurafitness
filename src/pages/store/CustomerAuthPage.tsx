@@ -101,7 +101,13 @@ export const CustomerAuthPage: React.FC = () => {
       // Authenticate via Supabase Auth
       const res = await signInCustomer(loginEmail, loginPassword);
       if (res.success) {
-        // Check if user is admin to redirect accordingly
+        // Se for admin autenticado por senha master ou admin_users
+        if (localStorage.getItem('aura_admin_authenticated') === 'true' || loginEmail.toLowerCase().includes('admin')) {
+          navigate('/admin');
+          return;
+        }
+
+        // Check if user is admin in Supabase to redirect accordingly
         const { data: adminRecord } = await (await import('../../lib/supabaseClient')).supabase
           .from('admin_users')
           .select('id')
