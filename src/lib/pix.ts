@@ -34,14 +34,14 @@ export interface PixPayloadOptions {
 
 export function generatePixBrCode({
   key,
-  name = 'AURA FITNESS',
+  name = 'BRENDA RAISSA SOUSA SILVA',
   city = 'SAO PAULO',
   amount,
   txid = '***',
   description,
 }: PixPayloadOptions): string {
   const cleanKey = key.trim();
-  const cleanName = (name || 'AURA FITNESS')
+  const cleanName = (name || 'BRENDA RAISSA SOUSA SILVA')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toUpperCase()
@@ -53,11 +53,11 @@ export function generatePixBrCode({
     .toUpperCase()
     .slice(0, 15);
 
-  const cleanTxid = (txid || '***')
-    .replace(/[^a-zA-Z0-9]/g, '')
-    .slice(0, 25) || '***';
+  // No Pix Estático sem API PSP central, o padrão oficial BACEN exige '***'
+  // Qualquer outro valor faz os bancos interpretarem como cobrança dinâmica expirada
+  const cleanTxid = '***';
 
-  let merchantAccount = emvField('00', 'BR.GOV.BCB.PIX') + emvField('01', cleanKey);
+  let merchantAccount = emvField('00', 'br.gov.bcb.pix') + emvField('01', cleanKey);
   if (description) {
     const cleanDesc = description.normalize('NFD').replace(/[\u0300-\u036f]/g, '').slice(0, 40);
     merchantAccount += emvField('02', cleanDesc);
@@ -65,6 +65,7 @@ export function generatePixBrCode({
 
   let payload =
     emvField('00', '01') +
+    emvField('01', '11') + // 11 = QR Code Estático / Reutilizável (Não expira)
     emvField('26', merchantAccount) +
     emvField('52', '0000') +
     emvField('53', '986');

@@ -29,9 +29,9 @@ function emvField(id: string, value: string): string {
   return `${id}${len}${value}`;
 }
 
-function generatePixBrCode(key: string, amount: number, name = 'AURA FITNESS', city = 'SAO PAULO', txid = '***'): string {
+function generatePixBrCode(key: string, amount: number, name = 'BRENDA RAISSA SOUSA SILVA', city = 'SAO PAULO', txid = '***'): string {
   const cleanKey = key.trim();
-  const cleanName = (name || 'AURA FITNESS')
+  const cleanName = (name || 'BRENDA RAISSA SOUSA SILVA')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toUpperCase()
@@ -41,11 +41,12 @@ function generatePixBrCode(key: string, amount: number, name = 'AURA FITNESS', c
     .replace(/[\u0300-\u036f]/g, '')
     .toUpperCase()
     .slice(0, 15);
-  const cleanTxid = (txid || '***').replace(/[^a-zA-Z0-9]/g, '').slice(0, 25) || '***';
+  const cleanTxid = '***';
 
-  const merchantAccount = emvField('00', 'BR.GOV.BCB.PIX') + emvField('01', cleanKey);
+  const merchantAccount = emvField('00', 'br.gov.bcb.pix') + emvField('01', cleanKey);
   let payload =
     emvField('00', '01') +
+    emvField('01', '11') + // 11 = QR Code Estático / Reutilizável
     emvField('26', merchantAccount) +
     emvField('52', '0000') +
     emvField('53', '986');
