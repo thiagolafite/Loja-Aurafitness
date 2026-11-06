@@ -320,15 +320,17 @@ export const CheckoutPage: React.FC = () => {
       couponCode: appliedCoupon?.code,
     });
 
-    // Trigger celebration confetti
-    try {
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 },
-      });
-    } catch (e) {
-      console.log('Confetti triggered', e);
+    // Trigger celebration confetti only if already approved/paid
+    if (initialStatus === 'pago') {
+      try {
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { y: 0.6 },
+        });
+      } catch (e) {
+        console.log('Confetti triggered', e);
+      }
     }
 
     // Generate WhatsApp seller URL payload and open tab or save to order
