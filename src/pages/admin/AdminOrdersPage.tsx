@@ -122,18 +122,31 @@ export const AdminOrdersPage: React.FC = () => {
                   </td>
                   <td className="p-3.5 font-serif font-bold text-foreground">{formatCurrency(order.totals.total)}</td>
                   <td className="p-3.5">
-                    <select
-                      value={order.status}
-                      onChange={(e) => handleUpdateStatus(order.id, e.target.value as OrderStatus)}
-                      className="bg-background border border-border rounded-lg px-2 py-1 text-xs font-bold text-primary outline-none cursor-pointer"
-                    >
-                      <option value="pendente">Pendente</option>
-                      <option value="pago">Pago</option>
-                      <option value="em_separacao">Em Separação</option>
-                      <option value="enviado">Enviado</option>
-                      <option value="entregue">Entregue</option>
-                      <option value="cancelado">Cancelado</option>
-                    </select>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={order.status}
+                        onChange={(e) => handleUpdateStatus(order.id, e.target.value as OrderStatus)}
+                        className="bg-background border border-border rounded-lg px-2 py-1 text-xs font-bold text-primary outline-none cursor-pointer"
+                      >
+                        <option value="pendente">Pendente</option>
+                        <option value="pago">Pago</option>
+                        <option value="em_separacao">Em Separação</option>
+                        <option value="enviado">Enviado</option>
+                        <option value="entregue">Entregue</option>
+                        <option value="cancelado">Cancelado</option>
+                      </select>
+
+                      {order.status === 'pendente' && (
+                        <button
+                          onClick={() => handleUpdateStatus(order.id, 'pago')}
+                          className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold px-2.5 py-1 rounded-lg shadow-sm transition-colors whitespace-nowrap"
+                          title="Aprovar pagamento recebido (Pix / PicPay)"
+                        >
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          Aprovar
+                        </button>
+                      )}
+                    </div>
                   </td>
                   <td className="p-3.5 text-right">
                     <button
@@ -166,6 +179,35 @@ export const AdminOrdersPage: React.FC = () => {
               <button onClick={() => setViewingOrder(null)} className="text-muted-foreground hover:text-foreground text-xs font-semibold">
                 Fechar
               </button>
+            </div>
+
+            {/* Payment Details & Quick Action */}
+            <div className="p-4 bg-muted/40 border border-border rounded-2xl space-y-3 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="font-semibold text-muted-foreground">Forma de Pagamento:</span>
+                <span className="font-bold uppercase text-foreground">{viewingOrder.paymentMethod}</span>
+              </div>
+              {viewingOrder.paymentMethod === 'pix' && (
+                <div className="text-[11px] text-muted-foreground space-y-1">
+                  <p>• Chave Pix da loja: <strong className="font-mono text-foreground">{settings.pixKey || 'brendaraissasousasilva@jim.com'}</strong> (InfinitePay)</p>
+                  <p>• Titular / Favorecida: <strong className="text-foreground">Brenda Raissa Sousa Silva</strong></p>
+                </div>
+              )}
+              {viewingOrder.paymentMethod === 'picpay' && (
+                <div className="text-[11px] text-muted-foreground space-y-1">
+                  <p>• Conta PicPay: <strong className="font-mono text-foreground">@adoroaurafit</strong></p>
+                  <p>• Titular: <strong className="text-foreground">Brenda Raissa Sousa Silva</strong></p>
+                </div>
+              )}
+              {viewingOrder.status === 'pendente' && (
+                <button
+                  onClick={() => handleUpdateStatus(viewingOrder.id, 'pago')}
+                  className="w-full mt-2 inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-xl shadow transition-colors text-xs"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  Confirmar Pagamento Recebido (Aprovar Pedido)
+                </button>
+              )}
             </div>
 
             {/* Tracking Code Section */}

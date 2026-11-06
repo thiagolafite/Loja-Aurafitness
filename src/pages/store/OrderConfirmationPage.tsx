@@ -10,6 +10,7 @@ import {
   Truck,
   ArrowRight,
   ShieldCheck,
+  MessageCircle,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { getOrderById, getStoreSettings } from '../../lib/dataClient';
@@ -28,6 +29,7 @@ export const OrderConfirmationPage: React.FC = () => {
   const [order, setOrder] = useState<Order | undefined>(initialOrder);
 
   const [copiedPix, setCopiedPix] = useState(false);
+  const [copiedPixKey, setCopiedPixKey] = useState(false);
   const [copiedPicpay, setCopiedPicpay] = useState(false);
 
   // Real-time polling to check if payment was approved (via Webhook or Admin)
@@ -89,6 +91,12 @@ export const OrderConfirmationPage: React.FC = () => {
       setCopiedPix(true);
       setTimeout(() => setCopiedPix(false), 3000);
     }
+  };
+
+  const handleCopyPixKey = () => {
+    navigator.clipboard.writeText(settings.pixKey || 'brendaraissasousasilva@jim.com');
+    setCopiedPixKey(true);
+    setTimeout(() => setCopiedPixKey(false), 3000);
   };
 
   const handleCopyPicpay = () => {
@@ -173,43 +181,95 @@ export const OrderConfirmationPage: React.FC = () => {
         </div>
       ) : (
         <>
-          {/* PIX QR Code Box */}
+          {/* PIX QR Code Box (Opção A - InfinitePay / CloudWalk) */}
           {order.paymentMethod === 'pix' && (
-            <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 p-6 rounded-3xl text-center space-y-4 shadow-md">
-              <span className="bg-emerald-600 text-white text-xs font-bold px-3 py-1 rounded-full uppercase">
+            <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 p-6 sm:p-8 rounded-3xl text-center space-y-6 shadow-xl">
+              <div className="inline-flex items-center gap-2 bg-emerald-600 text-white text-xs font-bold px-4 py-1.5 rounded-full uppercase tracking-wider shadow-sm">
+                <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
                 PAGAMENTO VIA PIX (5% DE DESCONTO APLICADO)
-              </span>
-              <h3 className="font-serif font-bold text-xl text-emerald-900 dark:text-emerald-200">
-                Escaneie o QR Code abaixo para concluir o pagamento
-              </h3>
+              </div>
 
-              <div className="w-48 h-48 bg-white p-2.5 rounded-2xl mx-auto border border-emerald-300 shadow-lg">
+              <div>
+                <h3 className="font-serif font-bold text-2xl text-foreground">
+                  Escaneie o QR Code abaixo para pagar
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Beneficiária: <strong className="text-foreground">Brenda Raissa Sousa Silva</strong> • Instituição: <strong className="text-foreground">InfinitePay / CloudWalk</strong> • Total: <strong className="text-foreground font-mono">{formatCurrency(order.totals.total)}</strong>
+                </p>
+              </div>
+
+              {/* QR Code Container */}
+              <div className="w-56 h-56 bg-white p-3 rounded-2xl mx-auto border-2 border-emerald-400 shadow-xl flex items-center justify-center">
                 <img
                   src={order.paymentDetails?.pixQrCode || 'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=PIX_AURA_FITNESS'}
-                  alt="PIX QR Code"
+                  alt="PIX QR Code Banco Central"
                   className="w-full h-full object-contain"
                 />
               </div>
 
+              {/* Copia e Cola */}
               <div className="max-w-md mx-auto space-y-2">
-                <span className="text-xs text-emerald-800 dark:text-emerald-300 block font-medium">
-                  Ou utilize o código Copia e Cola no seu aplicativo do banco:
+                <span className="text-xs text-emerald-900 dark:text-emerald-200 block font-semibold">
+                  Código Pix Copia e Cola (Padrão Banco Central BR Code):
                 </span>
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
                     readOnly
                     value={order.paymentDetails?.pixCopyPaste || ''}
-                    className="w-full bg-white dark:bg-card border border-emerald-300 rounded-xl px-3.5 py-2 text-xs font-mono text-foreground truncate"
+                    className="w-full bg-white dark:bg-card border border-emerald-300 rounded-xl px-3.5 py-2.5 text-xs font-mono text-foreground truncate"
                   />
                   <button
                     onClick={handleCopyPix}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-xl shrink-0 flex items-center gap-1.5 shadow-sm transition-colors"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shrink-0 flex items-center gap-1.5 shadow-sm transition-colors"
                   >
                     {copiedPix ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                    {copiedPix ? 'Copiado!' : 'Copiar PIX'}
+                    {copiedPix ? 'Copiado!' : 'Copiar Código'}
                   </button>
                 </div>
+              </div>
+
+              {/* Chave E-mail Direta */}
+              <div className="max-w-md mx-auto p-4 bg-background border border-border rounded-2xl text-xs space-y-3 shadow-sm text-left">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Chave Pix (E-mail):</span>
+                  <div className="flex items-center gap-2">
+                    <strong className="font-mono text-foreground">{settings.pixKey || 'brendaraissasousasilva@jim.com'}</strong>
+                    <button
+                      onClick={handleCopyPixKey}
+                      className="text-emerald-700 dark:text-emerald-400 hover:underline font-bold text-[11px] ml-1"
+                    >
+                      {copiedPixKey ? '✓ Copiada' : 'Copiar Chave'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="border-t border-border pt-3 space-y-1 text-muted-foreground text-[11px]">
+                  <p>1. Abra o aplicativo do seu banco e acerte no <strong>Pix</strong> (Ler QR Code ou Copia e Cola).</p>
+                  <p>2. Confirme o valor de <strong>{formatCurrency(order.totals.total)}</strong> para <strong>Brenda Raissa Sousa Silva</strong> na <strong>InfinitePay</strong>.</p>
+                  <p>3. Conclua a transferência. Assim que o pagamento for registrado, esta página será <strong>atualizada automaticamente</strong>!</p>
+                </div>
+              </div>
+
+              {/* Status ao vivo */}
+              <div className="flex items-center justify-center gap-2 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 p-3 rounded-2xl border border-amber-200 dark:border-amber-800 max-w-md mx-auto">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping" />
+                <span className="font-medium">Aguardando confirmação do pagamento...</span>
+              </div>
+
+              {/* Botão opcional para enviar comprovante via WhatsApp */}
+              <div className="pt-1">
+                <a
+                  href={`https://wa.me/${settings.whatsappNumber}?text=${encodeURIComponent(
+                    `Olá! Realizei o pagamento Pix do pedido #${order.orderNumber} no valor de ${formatCurrency(order.totals.total)} para Brenda Raissa Sousa Silva (InfinitePay). Segue o comprovante!`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:text-emerald-800 underline transition-colors"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  Já pagou? Clique aqui para enviar o comprovante no WhatsApp
+                </a>
               </div>
             </div>
           )}

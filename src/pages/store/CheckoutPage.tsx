@@ -220,7 +220,7 @@ export const CheckoutPage: React.FC = () => {
         // Local fallback when API is running in local Vite mode
         const fallbackCopy = generatePixBrCode({
           key: settings.pixKey || 'brendaraissasousasilva@jim.com',
-          name: settings.companyName || 'AURA FITNESS',
+          name: 'BRENDA RAISSA SOUSA SILVA',
           city: 'SAO PAULO',
           amount: finalTotal,
         });
@@ -267,7 +267,7 @@ export const CheckoutPage: React.FC = () => {
       } else {
         const fallbackCopy = generatePixBrCode({
           key: settings.pixKey || 'brendaraissasousasilva@jim.com',
-          name: settings.companyName || 'AURA FITNESS',
+          name: 'BRENDA RAISSA SOUSA SILVA',
           city: 'SAO PAULO',
           amount: finalTotal,
         });
