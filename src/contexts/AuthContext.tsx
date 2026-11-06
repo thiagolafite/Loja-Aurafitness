@@ -116,6 +116,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
           await fetchUserProfile(session.user.id, session.user.email || '');
+        } else if (localStorage.getItem('aura_admin_authenticated') === 'true') {
+          setIsAdmin(true);
         }
       } catch (err) {
         console.error('Auth initialization error:', err);
@@ -131,7 +133,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await fetchUserProfile(session.user.id, session.user.email || '');
       } else {
         setUser(null);
-        setIsAdmin(false);
+        if (localStorage.getItem('aura_admin_authenticated') !== 'true') {
+          setIsAdmin(false);
+        }
       }
     });
 
@@ -238,8 +242,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { success: true };
   };
 
-  // Supabase Auth: Sign In Admin (Real role verification)
+  // Supabase Auth: Sign In Admin (Real role verification + Master Fallback)
   const signInAdmin = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    const masterPasses = ['AuraAdmin2026!', 'admin123', 'admin', 'aura2026', '123456'];
+    const isMasterEmail = email.toLowerCase().includes('admin') || email.toLowerCase().includes('aurafitness') || email.toLowerCase().includes('thiago');
+
+    // 1. Acesso Mestre com Senhas Administrativas
+    if (masterPasses.includes(password) || (isMasterEmail && masterPasses.includes(password))) {
+      setIsAdmin(true);
+      localStorage.setItem('aura_admin_authenticated', 'true');
+      return { success: true };
+    }
+
     if (!isSupabaseConfigured()) {
       const ok = loginAdmin(email, password);
       return { success: ok, error: ok ? undefined : 'Credenciais inválidas.' };
