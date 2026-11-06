@@ -117,6 +117,8 @@ export const CustomerAuthPage: React.FC = () => {
         const isFetchError = res.error?.toLowerCase().includes('failed to fetch');
         const errorMsg = isFetchError
           ? 'Não foi possível conectar ao banco de dados (projeto Supabase pausado ou sem conexão).'
+          : res.error?.includes('Email not confirmed')
+          ? 'E-mail não confirmado. Por favor, verifique sua caixa de entrada/spam para confirmar seu e-mail, ou desative a confirmação de e-mail no painel do Supabase.'
           : res.error?.includes('Invalid login credentials')
           ? 'E-mail ou senha incorretos. Verifique suas credenciais.'
           : res.error || 'Falha ao autenticar. Verifique seus dados.';
