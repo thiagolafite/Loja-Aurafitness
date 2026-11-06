@@ -102,13 +102,21 @@ export const CustomerAuthPage: React.FC = () => {
           navigate('/minha-conta');
         }
       } else {
-        const errorMsg = res.error?.includes('Invalid login credentials')
+        const isFetchError = res.error?.toLowerCase().includes('failed to fetch');
+        const errorMsg = isFetchError
+          ? 'Não foi possível conectar ao banco de dados (projeto Supabase pausado ou sem conexão).'
+          : res.error?.includes('Invalid login credentials')
           ? 'E-mail ou senha incorretos. Verifique suas credenciais.'
           : res.error || 'Falha ao autenticar. Verifique seus dados.';
         setLoginError(errorMsg);
       }
-    } catch (err) {
-      setLoginError('Erro de conexão ao efetuar login. Tente novamente.');
+    } catch (err: any) {
+      const isFetchError = err?.message?.toLowerCase().includes('failed to fetch');
+      setLoginError(
+        isFetchError
+          ? 'Não foi possível conectar ao banco de dados (projeto Supabase pausado ou sem conexão).'
+          : 'Erro de conexão ao efetuar login. Tente novamente.'
+      );
     } finally {
       setIsLoginLoading(false);
     }
@@ -150,10 +158,19 @@ export const CustomerAuthPage: React.FC = () => {
       if (res.success) {
         navigate('/minha-conta');
       } else {
-        setRegError(res.error || 'Não foi possível concluir o cadastro. Verifique os dados.');
+        const isFetchError = res.error?.toLowerCase().includes('failed to fetch');
+        const errorMsg = isFetchError
+          ? 'Não foi possível conectar ao banco de dados (o projeto Supabase pode estar pausado por inatividade). Reative-o no painel do Supabase para continuar.'
+          : res.error || 'Não foi possível concluir o cadastro. Verifique os dados.';
+        setRegError(errorMsg);
       }
-    } catch (err) {
-      setRegError('Erro ao processar cadastro. Tente novamente.');
+    } catch (err: any) {
+      const isFetchError = err?.message?.toLowerCase().includes('failed to fetch');
+      setRegError(
+        isFetchError
+          ? 'Não foi possível conectar ao banco de dados (o projeto Supabase pode estar pausado por inatividade).'
+          : 'Erro ao processar cadastro. Tente novamente.'
+      );
     } finally {
       setIsRegLoading(false);
     }
