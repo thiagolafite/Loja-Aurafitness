@@ -29,6 +29,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'Dados incompletos para processamento de pagamento.' });
   }
 
+  // Direct PicPay payment handler
+  if (paymentMethod === 'picpay') {
+    const picpayUser = 'adoroaurafit';
+    const picpayPaymentUrl = `https://picpay.me/${picpayUser}`;
+    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(picpayPaymentUrl)}`;
+    const mockPaymentId = `PICPAY-${Date.now()}`;
+
+    if (supabaseAdmin && orderId) {
+      await supabaseAdmin.from('payment_logs').insert({
+        order_id: orderId,
+        order_number: orderNumber || `ORD-${Date.now()}`,
+        amount: Number(amount),
+        method: 'picpay',
+        status: 'pending',
+        transaction_id: mockPaymentId,
+        payload: { picpayUser, picpayPaymentUrl, amount, customer, recipient: 'Brenda Raissa Sousa Silva' },
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      paymentId: mockPaymentId,
+      status: 'pending',
+      paymentMethod: 'picpay',
+      picpayUser,
+      picpayPaymentUrl,
+      qrCodeUrl,
+    });
+  }
+
   const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN || process.env.MERCADO_PAGO_ACCESS_TOKEN;
   const appUrl = process.env.VITE_APP_URL || 'https://aurafitness.vercel.app';
   const cleanCpf = customer.cpf ? customer.cpf.replace(/\D/g, '') : '00000000000';

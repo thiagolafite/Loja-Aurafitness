@@ -13,9 +13,13 @@ export function generateWhatsAppOrderMessage(order: Order, sellerPhone: string):
 
   const paymentText =
     order.paymentMethod === 'pix'
-      ? '⚡ PIX (À Vista)'
+      ? '⚡ PIX (À Vista com 5% OFF)'
+      : order.paymentMethod === 'picpay'
+      ? '💚 PicPay (@adoroaurafit - Brenda Raissa)'
       : order.paymentMethod === 'credit_card'
       ? '💳 Cartão de Crédito'
+      : order.paymentMethod === 'debit_card'
+      ? '🏦 Débito Online'
       : '📄 Boleto Bancário';
 
   const address = order.shippingAddress;

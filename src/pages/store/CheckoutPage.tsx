@@ -56,7 +56,7 @@ export const CheckoutPage: React.FC = () => {
   });
 
   // Payment Method Selection
-  const [paymentMethod, setPaymentMethod] = useState<'pix' | 'credit_card' | 'debit_card' | 'boleto'>('pix');
+  const [paymentMethod, setPaymentMethod] = useState<'pix' | 'picpay' | 'credit_card' | 'debit_card' | 'boleto'>('pix');
   const [selectedSavedCard, setSelectedSavedCard] = useState<string | null>(
     user?.savedPaymentMethods?.[0]?.id || null
   );
@@ -133,7 +133,7 @@ export const CheckoutPage: React.FC = () => {
     }
   };
 
-  const pixDiscount = paymentMethod === 'pix' ? subtotal * 0.05 : 0;
+  const pixDiscount = (paymentMethod === 'pix' || paymentMethod === 'picpay') ? subtotal * 0.05 : 0;
   const totalDiscounts = discountAmount + pixDiscount;
   const finalTotal = Math.max(0, subtotal - totalDiscounts + selectedShippingMethod.price);
 
@@ -186,6 +186,14 @@ export const CheckoutPage: React.FC = () => {
             expirationDate: payData.expirationDate,
           };
           initialStatus = 'pendente';
+        } else if (paymentMethod === 'picpay') {
+          paymentDetailsObj = {
+            picpayUser: payData.picpayUser || 'adoroaurafit',
+            picpayPaymentUrl: payData.picpayPaymentUrl || 'https://picpay.me/adoroaurafit',
+            picpayQrCode: payData.qrCodeUrl || `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent('https://picpay.me/adoroaurafit')}`,
+            transactionId: payData.paymentId || `PICPAY-${Date.now()}`,
+          };
+          initialStatus = 'pendente';
         } else if (paymentMethod === 'credit_card') {
           paymentDetailsObj = {
             cardBrand: payData.cardBrand || 'Cartão de Crédito',
@@ -216,6 +224,14 @@ export const CheckoutPage: React.FC = () => {
             pixCopyPaste: fallbackCopy,
           };
           initialStatus = 'pendente';
+        } else if (paymentMethod === 'picpay') {
+          paymentDetailsObj = {
+            picpayUser: 'adoroaurafit',
+            picpayPaymentUrl: 'https://picpay.me/adoroaurafit',
+            picpayQrCode: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent('https://picpay.me/adoroaurafit')}`,
+            transactionId: `PICPAY-${Date.now()}`,
+          };
+          initialStatus = 'pendente';
         } else if (paymentMethod === 'credit_card') {
           paymentDetailsObj = {
             cardBrand: 'Mastercard / Visa',
@@ -235,11 +251,20 @@ export const CheckoutPage: React.FC = () => {
       }
     } catch (e) {
       console.error('Error requesting payment:', e);
-      const fallbackCopy = `00020126580014BR.GOV.BCB.PIX0136${settings.pixKey || 'aurafitnesswork@gmail.com'}520400005303986540${finalTotal.toFixed(2)}5802BR5912AuraFitness6009SaoPaulo62070503***6304E2B1`;
-      paymentDetailsObj = {
-        pixQrCode: `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(fallbackCopy)}`,
-        pixCopyPaste: fallbackCopy,
-      };
+      if (paymentMethod === 'picpay') {
+        paymentDetailsObj = {
+          picpayUser: 'adoroaurafit',
+          picpayPaymentUrl: 'https://picpay.me/adoroaurafit',
+          picpayQrCode: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent('https://picpay.me/adoroaurafit')}`,
+          transactionId: `PICPAY-${Date.now()}`,
+        };
+      } else {
+        const fallbackCopy = `00020126580014BR.GOV.BCB.PIX0136${settings.pixKey || 'aurafitnesswork@gmail.com'}520400005303986540${finalTotal.toFixed(2)}5802BR5912AuraFitness6009SaoPaulo62070503***6304E2B1`;
+        paymentDetailsObj = {
+          pixQrCode: `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(fallbackCopy)}`,
+          pixCopyPaste: fallbackCopy,
+        };
+      }
       initialStatus = 'pendente';
     }
 
@@ -645,12 +670,12 @@ export const CheckoutPage: React.FC = () => {
 
             {step === 3 && (
               <div className="space-y-6">
-                {/* Method Options: PIX, Credit, Debit, Boleto */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {/* Method Options: PIX, PicPay, Credit, Debit, Boleto */}
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
                   <button
                     type="button"
                     onClick={() => setPaymentMethod('pix')}
-                    className={`p-3.5 rounded-xl border text-center transition-all flex flex-col items-center gap-1.5 ${
+                    className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center gap-1.5 ${
                       paymentMethod === 'pix'
                         ? 'border-primary bg-primary/5 ring-2 ring-primary text-primary font-bold'
                         : 'border-border bg-background text-muted-foreground hover:border-primary/50'
@@ -662,8 +687,23 @@ export const CheckoutPage: React.FC = () => {
 
                   <button
                     type="button"
+                    onClick={() => setPaymentMethod('picpay')}
+                    className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center gap-1.5 ${
+                      paymentMethod === 'picpay'
+                        ? 'border-[#11C76F] bg-[#11C76F]/10 ring-2 ring-[#11C76F] text-[#11C76F] font-bold'
+                        : 'border-border bg-background text-muted-foreground hover:border-[#11C76F]/50'
+                    }`}
+                  >
+                    <div className="w-5 h-5 rounded-md bg-[#11C76F] flex items-center justify-center text-white font-black text-[10px] shadow-sm">
+                      P
+                    </div>
+                    <span className="text-xs">PicPay (5% OFF)</span>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => setPaymentMethod('credit_card')}
-                    className={`p-3.5 rounded-xl border text-center transition-all flex flex-col items-center gap-1.5 ${
+                    className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center gap-1.5 ${
                       paymentMethod === 'credit_card'
                         ? 'border-primary bg-primary/5 ring-2 ring-primary text-primary font-bold'
                         : 'border-border bg-background text-muted-foreground hover:border-primary/50'
@@ -676,7 +716,7 @@ export const CheckoutPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setPaymentMethod('debit_card')}
-                    className={`p-3.5 rounded-xl border text-center transition-all flex flex-col items-center gap-1.5 ${
+                    className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center gap-1.5 ${
                       paymentMethod === 'debit_card'
                         ? 'border-primary bg-primary/5 ring-2 ring-primary text-primary font-bold'
                         : 'border-border bg-background text-muted-foreground hover:border-primary/50'
@@ -689,7 +729,7 @@ export const CheckoutPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setPaymentMethod('boleto')}
-                    className={`p-3.5 rounded-xl border text-center transition-all flex flex-col items-center gap-1.5 ${
+                    className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center gap-1.5 ${
                       paymentMethod === 'boleto'
                         ? 'border-primary bg-primary/5 ring-2 ring-primary text-primary font-bold'
                         : 'border-border bg-background text-muted-foreground hover:border-primary/50'
@@ -707,6 +747,21 @@ export const CheckoutPage: React.FC = () => {
                       <CheckCircle className="w-4 h-4 text-emerald-600" /> Pagamento Instantâneo via PIX com 5% de Desconto!
                     </p>
                     <p>O QR Code oficial e a chave "Copia e Cola" serão exibidos imediatamente na tela de confirmação.</p>
+                  </div>
+                )}
+
+                {/* PicPay Details */}
+                {paymentMethod === 'picpay' && (
+                  <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-[#11C76F]/40 rounded-xl space-y-2 text-xs text-emerald-950 dark:text-emerald-200">
+                    <p className="font-semibold flex items-center gap-1.5 text-[#11C76F]">
+                      <CheckCircle className="w-4 h-4 text-[#11C76F]" /> Pagamento via PicPay (@adoroaurafit) com 5% de Desconto!
+                    </p>
+                    <p>
+                      Você poderá abrir diretamente o app do <strong>PicPay</strong> no seu celular ou escanear o QR Code oficial na tela de confirmação.
+                    </p>
+                    <p className="text-[11px] text-muted-foreground pt-1">
+                      Destinatário oficial: <strong>Brenda Raissa Sousa Silva (@adoroaurafit)</strong>
+                    </p>
                   </div>
                 )}
 

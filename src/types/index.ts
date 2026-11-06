@@ -85,7 +85,7 @@ export interface OrderTotals {
 }
 
 export type OrderStatus = 'pendente' | 'pago' | 'em_separacao' | 'enviado' | 'entregue' | 'cancelado';
-export type PaymentMethod = 'pix' | 'credit_card' | 'debit_card' | 'boleto';
+export type PaymentMethod = 'pix' | 'picpay' | 'credit_card' | 'debit_card' | 'boleto';
 
 export interface Order {
   id: string;
@@ -108,6 +108,11 @@ export interface Order {
     cardBrand?: string;
     cardLastFour?: string;
     boletoBarcode?: string;
+    picpayUser?: string;
+    picpayPaymentUrl?: string;
+    picpayQrCode?: string;
+    transactionId?: string;
+    expirationDate?: string;
   };
   totals: OrderTotals;
   status: OrderStatus;

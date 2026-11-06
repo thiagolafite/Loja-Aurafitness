@@ -107,7 +107,19 @@ export const AdminOrdersPage: React.FC = () => {
                     <div className="text-[10px] text-muted-foreground font-normal">{order.customer.cpf}</div>
                   </td>
                   <td className="p-3.5 text-muted-foreground">{order.shippingAddress.city}/{order.shippingAddress.state}</td>
-                  <td className="p-3.5 uppercase font-medium">{order.paymentMethod}</td>
+                  <td className="p-3.5">
+                    {order.paymentMethod === 'picpay' ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#11C76F]/15 text-[#11C76F] uppercase">
+                        PicPay
+                      </span>
+                    ) : order.paymentMethod === 'pix' ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 uppercase">
+                        Pix
+                      </span>
+                    ) : (
+                      <span className="uppercase text-xs font-medium text-muted-foreground">{order.paymentMethod}</span>
+                    )}
+                  </td>
                   <td className="p-3.5 font-serif font-bold text-foreground">{formatCurrency(order.totals.total)}</td>
                   <td className="p-3.5">
                     <select

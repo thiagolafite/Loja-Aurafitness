@@ -15,6 +15,7 @@ export const OrderConfirmationPage: React.FC = () => {
   const order = passedOrder || getOrderById(id || '');
 
   const [copiedPix, setCopiedPix] = useState(false);
+  const [copiedPicpay, setCopiedPicpay] = useState(false);
 
   if (!order) {
     return (
@@ -35,6 +36,12 @@ export const OrderConfirmationPage: React.FC = () => {
       setCopiedPix(true);
       setTimeout(() => setCopiedPix(false), 3000);
     }
+  };
+
+  const handleCopyPicpay = () => {
+    navigator.clipboard.writeText('https://picpay.me/adoroaurafit');
+    setCopiedPicpay(true);
+    setTimeout(() => setCopiedPicpay(false), 3000);
   };
 
   return (
@@ -113,6 +120,91 @@ export const OrderConfirmationPage: React.FC = () => {
                 {copiedPix ? 'Copiado!' : 'Copiar PIX'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* PicPay Payment Box */}
+      {order.paymentMethod === 'picpay' && (
+        <div className="bg-[#11C76F]/10 border-2 border-[#11C76F]/40 p-6 sm:p-8 rounded-3xl text-center space-y-6 shadow-xl">
+          <div className="inline-flex items-center gap-2 bg-[#11C76F] text-white text-xs font-bold px-4 py-1.5 rounded-full uppercase tracking-wider shadow-sm">
+            <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+            PAGAMENTO VIA PICPAY (5% DE DESCONTO APLICADO)
+          </div>
+
+          <div>
+            <h3 className="font-serif font-bold text-2xl text-foreground">
+              Pague com seu PicPay para @adoroaurafit
+            </h3>
+            <p className="text-xs text-muted-foreground mt-1">
+              Favorecida: <strong className="text-foreground">Brenda Raissa Sousa Silva</strong> • Total: <strong className="text-foreground font-mono">{formatCurrency(order.totals.total)}</strong>
+            </p>
+          </div>
+
+          {/* Mobile Direct Button */}
+          <div className="max-w-sm mx-auto">
+            <a
+              href={order.paymentDetails?.picpayPaymentUrl || 'https://picpay.me/adoroaurafit'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full inline-flex items-center justify-center gap-2.5 bg-[#11C76F] hover:bg-[#0ea35b] text-white font-bold text-sm py-4 px-6 rounded-2xl shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02]"
+            >
+              <div className="w-5 h-5 rounded-md bg-white text-[#11C76F] font-black text-xs flex items-center justify-center shrink-0">
+                P
+              </div>
+              Abrir e Pagar no App PicPay
+            </a>
+            <span className="text-[11px] text-muted-foreground block mt-1.5">
+              (Se estiver no celular, o app PicPay abre direto na tela de pagamento)
+            </span>
+          </div>
+
+          {/* QR Code Container for Desktop */}
+          <div className="pt-2">
+            <span className="text-xs font-semibold text-foreground block mb-2">
+              Ou aponte a câmera do celular para o QR Code oficial:
+            </span>
+            <div className="w-48 h-48 bg-white p-2.5 rounded-2xl mx-auto border-2 border-[#11C76F]/30 shadow-md">
+              <img
+                src={order.paymentDetails?.picpayQrCode || `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https%3A%2F%2Fpicpay.me%2Fadoroaurafit`}
+                alt="PicPay QR Code"
+                className="w-full h-full object-contain"
+              />
+            </div>
+          </div>
+
+          {/* Copy Link Input */}
+          <div className="max-w-md mx-auto space-y-2">
+            <span className="text-xs text-muted-foreground block font-medium">
+              Link direto do perfil PicPay:
+            </span>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                readOnly
+                value="https://picpay.me/adoroaurafit"
+                className="w-full bg-white dark:bg-card border border-[#11C76F]/40 rounded-xl px-3.5 py-2 text-xs font-mono text-foreground truncate"
+              />
+              <button
+                onClick={handleCopyPicpay}
+                className="bg-[#11C76F] hover:bg-[#0ea35b] text-white text-xs font-bold px-4 py-2 rounded-xl shrink-0 flex items-center gap-1.5 shadow-sm transition-colors"
+              >
+                {copiedPicpay ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                {copiedPicpay ? 'Copiado!' : 'Copiar Link'}
+              </button>
+            </div>
+          </div>
+
+          {/* Next steps instruction */}
+          <div className="max-w-md mx-auto p-4 bg-background border border-border rounded-2xl text-left text-xs space-y-2 shadow-sm">
+            <h4 className="font-bold text-foreground flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-[#11C76F]" /> Próximos Passos:
+            </h4>
+            <ol className="list-decimal list-inside space-y-1.5 text-muted-foreground">
+              <li>Pague <strong>{formatCurrency(order.totals.total)}</strong> para <strong>@adoroaurafit</strong> no PicPay.</li>
+              <li>Envie o comprovante para nosso WhatsApp clicando no botão verde no topo desta página.</li>
+              <li>Assim que verificado, seu pedido será separado e despachado imediatamente!</li>
+            </ol>
           </div>
         </div>
       )}
