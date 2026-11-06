@@ -9,7 +9,22 @@ interface AuthContextType {
   isLoading: boolean;
   // Supabase Auth Methods (Async)
   signInCustomer: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  signUpCustomer: (email: string, password: string, name: string, phone?: string, cpf?: string) => Promise<{ success: boolean; error?: string }>;
+  signUpCustomer: (
+    email: string,
+    password: string,
+    name: string,
+    phone?: string,
+    cpf?: string,
+    address?: {
+      cep: string;
+      street: string;
+      number: string;
+      complement?: string;
+      neighborhood: string;
+      city: string;
+      state: string;
+    }
+  ) => Promise<{ success: boolean; error?: string }>;
   signInAdmin: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
@@ -155,10 +170,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     password: string,
     name: string,
     phone?: string,
-    cpf?: string
+    cpf?: string,
+    address?: {
+      cep: string;
+      street: string;
+      number: string;
+      complement?: string;
+      neighborhood: string;
+      city: string;
+      state: string;
+    }
   ): Promise<{ success: boolean; error?: string }> => {
     if (!isSupabaseConfigured()) {
-      const created = registerCustomer({ email, name, phone, cpf });
+      const addresses = address && address.cep && address.street ? [{
+        recipientName: name,
+        cep: address.cep,
+        street: address.street,
+        number: address.number,
+        complement: address.complement,
+        neighborhood: address.neighborhood,
+        city: address.city,
+        state: address.state,
+        isDefault: true,
+      }] : [];
+      const created = registerCustomer({ email, name, phone, cpf, addresses });
       return { success: Boolean(created) };
     }
 
@@ -179,7 +214,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     if (data.user) {
-      await fetchUserProfile(data.user.id, data.user.email || '');
+      // Save address if provided
+      if (address && address.cep && address.street) {
+        try {
+          await supabase.from('addresses').insert({
+            user_id: data.user.id,
+            recipient_name: name,
+            cep: address.cep,
+            street: address.street,
+            number: address.number,
+            complement: address.complement || '',
+            neighborhood: address.neighborhood,
+            city: address.city,
+            state: address.state,
+            is_default: true,
+          });
+        } catch (addrErr) {
+          console.warn('Erro ao salvar endereço inicial do cliente:', addrErr);
+        }
+      }
     }
 
     return { success: true };

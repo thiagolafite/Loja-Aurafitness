@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import {
   Mail,
   Lock,
@@ -20,16 +20,28 @@ import { formatCPF, formatPhone, formatCEP } from '../../lib/utils';
 
 export const CustomerAuthPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
-  const initialMode = searchParams.get('modo') === 'cadastro' ? 'register' : 'login';
+  const isRegisterRoute = location.pathname.includes('/cadastro') || searchParams.get('modo') === 'cadastro';
+  const initialMode = isRegisterRoute ? 'register' : 'login';
 
   const { signInCustomer, signUpCustomer, signInAdmin, resetPassword } = useAuth();
   const [mode, setMode] = useState<'login' | 'register' | 'forgot_password'>(initialMode);
+
+  // Sync mode when URL route changes
+  useEffect(() => {
+    if (location.pathname.includes('/cadastro') || searchParams.get('modo') === 'cadastro') {
+      setMode('register');
+    } else if (location.pathname.includes('/login')) {
+      setMode('login');
+    }
+  }, [location.pathname, searchParams]);
 
   // Login Form State
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [loginSuccessNotice, setLoginSuccessNotice] = useState('');
   const [isLoginLoading, setIsLoginLoading] = useState(false);
 
   // Registration Form State
@@ -147,16 +159,46 @@ export const CustomerAuthPage: React.FC = () => {
         return;
       }
 
+      const addressObj = cep.trim() && street.trim() ? {
+        cep: formatCEP(cep),
+        street,
+        number: number || 'S/N',
+        complement,
+        neighborhood,
+        city,
+        state,
+      } : undefined;
+
       const res = await signUpCustomer(
         regEmail,
         regPassword,
         regName,
         formatPhone(regPhone),
-        formatCPF(regCpf)
+        formatCPF(regCpf),
+        addressObj
       );
 
       if (res.success) {
-        navigate('/minha-conta');
+        // Desloga qualquer sessão automática para direcionar de forma limpa para a tela de login
+        try {
+          const { supabase } = await import('../../lib/supabaseClient');
+          await supabase.auth.signOut();
+        } catch (e) {
+          // ignore
+        }
+
+        // Limpa campos sensíveis e prepara a tela de login
+        setLoginEmail(regEmail);
+        setLoginPassword('');
+        setLoginError('');
+        setLoginSuccessNotice('Cadastro realizado com sucesso! Faça seu login para acessar sua conta.');
+
+        setRegPassword('');
+        setRegConfirmPassword('');
+
+        // Direciona automaticamente para a tela de login
+        setMode('login');
+        navigate('/login', { replace: true });
       } else {
         const isFetchError = res.error?.toLowerCase().includes('failed to fetch');
         const errorMsg = isFetchError
@@ -228,7 +270,11 @@ export const CustomerAuthPage: React.FC = () => {
           <div className="bg-muted/50 p-1.5 rounded-2xl border border-border flex gap-2">
             <button
               type="button"
-              onClick={() => setMode('login')}
+              onClick={() => {
+                setMode('login');
+                setLoginError('');
+                navigate('/login', { replace: true });
+              }}
               className={`px-6 py-2.5 rounded-xl font-bold text-xs transition-all ${
                 mode === 'login'
                   ? 'bg-card text-foreground shadow-md border border-border'
@@ -239,7 +285,12 @@ export const CustomerAuthPage: React.FC = () => {
             </button>
             <button
               type="button"
-              onClick={() => setMode('register')}
+              onClick={() => {
+                setMode('register');
+                setRegError('');
+                setLoginSuccessNotice('');
+                navigate('/cadastro', { replace: true });
+              }}
               className={`px-6 py-2.5 rounded-xl font-bold text-xs transition-all ${
                 mode === 'register'
                   ? 'bg-card text-foreground shadow-md border border-border'
@@ -261,6 +312,13 @@ export const CustomerAuthPage: React.FC = () => {
             onSubmit={handleLoginSubmit}
             className="space-y-6 text-xs max-w-md mx-auto"
           >
+            {loginSuccessNotice && (
+              <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 p-3.5 rounded-xl text-xs font-semibold flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{loginSuccessNotice}</span>
+              </div>
+            )}
+
             {loginError && (
               <div className="bg-destructive/10 border border-destructive/30 text-destructive p-3.5 rounded-xl text-xs font-medium">
                 {loginError}
