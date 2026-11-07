@@ -13,11 +13,13 @@ import {
   DollarSign,
   Boxes,
   Sparkles,
+  Palette,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { bulkImportProducts, getProducts } from '../../lib/dataClient';
 import { Product } from '../../types';
 import { formatCurrency } from '../../lib/utils';
+import { classifyProduct, STORE_CATEGORIES, STORE_COLORS } from '../../lib/productClassifier';
 
 interface ProductImporterModalProps {
   isOpen: boolean;
@@ -29,6 +31,8 @@ interface ParsedCSVRow {
   sku: string;
   name: string;
   category: string;
+  isSet: boolean;
+  detectedColors: { name: string; hex: string }[];
   price: number;
   promotionalPrice?: number;
   stock_P: number;
@@ -45,6 +49,8 @@ interface UploadedImageItem {
   category: string;
   productName: string;
   dataUrl: string;
+  isSet: boolean;
+  detectedColors: { name: string; hex: string }[];
 }
 
 export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
@@ -114,7 +120,15 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
 
       const sku = cols[0] || `SKU-IMP-${Date.now()}-${i}`;
       const name = cols[1] || `Produto Importado ${i}`;
-      const category = cols[2] || 'Leggings';
+      const description = cols[9] || '';
+
+      // Análise Inteligente de Padrões pelo Nome/Descrição
+      const classification = classifyProduct(name, description);
+      const categoryFromCsv = cols[2]?.trim();
+      const category = (categoryFromCsv && categoryFromCsv !== '' && categoryFromCsv !== 'Geral')
+        ? categoryFromCsv
+        : classification.category;
+
       const price = parseFloat(cols[3]?.replace(',', '.')) || 0;
       const promotionalPrice = cols[4] ? parseFloat(cols[4].replace(',', '.')) : undefined;
 
@@ -122,7 +136,6 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
       const stock_M = parseInt(cols[6]) || 0;
       const stock_G = parseInt(cols[7]) || 0;
       const stock_GG = parseInt(cols[8]) || 0;
-      const description = cols[9] || '';
 
       const match = existingProducts.find(
         (p) => p.sku.toLowerCase() === sku.toLowerCase() || p.name.toLowerCase() === name.toLowerCase()
@@ -132,6 +145,8 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
         sku,
         name,
         category,
+        isSet: classification.isSet,
+        detectedColors: classification.colors,
         price,
         promotionalPrice: promotionalPrice && promotionalPrice > 0 ? promotionalPrice : undefined,
         stock_P,
@@ -168,11 +183,12 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
     if (parsedRows.length === 0) return;
 
     const productsToSave: Partial<Product>[] = parsedRows.map((row) => {
+      const primaryColorName = row.detectedColors[0]?.name || 'Padrao';
       const stockMap: Record<string, number> = {
-        'P-Padrao': row.stock_P || 5,
-        'M-Padrao': row.stock_M || 10,
-        'G-Padrao': row.stock_G || 8,
-        'GG-Padrao': row.stock_GG || 3,
+        [`P-${primaryColorName}`]: row.stock_P || 5,
+        [`M-${primaryColorName}`]: row.stock_M || 10,
+        [`G-${primaryColorName}`]: row.stock_G || 8,
+        [`GG-${primaryColorName}`]: row.stock_GG || 3,
       };
 
       return {
@@ -180,10 +196,11 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
         sku: row.sku,
         name: row.name,
         category: row.category,
+        colors: row.detectedColors,
         price: row.price,
         promotionalPrice: row.promotionalPrice,
         stock: stockMap,
-        description: row.description || 'Produto importado via sistema de tabela.',
+        description: row.description || `Produto oficial Aura Fitness da categoria ${row.category}.`,
       };
     });
 
@@ -210,11 +227,16 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
       const relPath = file.webkitRelativePath || file.name;
       const pathParts = relPath.split('/');
       
-      let detectedCategory = selectedCategory;
       let prodName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
 
-      if (pathParts.length > 1) {
+      // Análise Inteligente de Padrões por Nome do Arquivo
+      const classification = classifyProduct(prodName);
+      let detectedCategory = selectedCategory;
+
+      if (pathParts.length > 1 && pathParts[0] !== 'fotos' && pathParts[0] !== 'imagens' && pathParts[0] !== 'upload') {
         detectedCategory = pathParts[0]; // First folder name
+      } else {
+        detectedCategory = classification.category;
       }
 
       const reader = new FileReader();
@@ -225,6 +247,8 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
           category: detectedCategory,
           productName: prodName,
           dataUrl,
+          isSet: classification.isSet,
+          detectedColors: classification.colors,
         });
 
         processedCount++;
@@ -253,15 +277,23 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
     Object.entries(grouped).forEach(([key, imgs]) => {
       const [category, prodName] = key.split('___');
       const dataUrls = imgs.map((i) => i.dataUrl);
+      const firstItem = imgs[0];
+      const colors = firstItem?.detectedColors || [{ name: 'Preto', hex: '#111111' }];
+      const primaryColorName = colors[0]?.name || 'Preto';
 
       productsToCreate.push({
         name: prodName,
         category: category,
+        colors: colors,
         images: dataUrls,
         price: 189.90,
-        description: `Peça exclusiva da categoria ${category}.`,
+        description: `Peça exclusiva da categoria ${category}. Conforto, modelagem premium e zero transparência.`,
         sku: `AUR-${category.slice(0, 3).toUpperCase()}-${Date.now().toString().slice(-4)}`,
-        stock: { 'P-Padrao': 10, 'M-Padrao': 15, 'G-Padrao': 8 },
+        stock: {
+          [`P-${primaryColorName}`]: 10,
+          [`M-${primaryColorName}`]: 15,
+          [`G-${primaryColorName}`]: 8,
+        },
       });
     });
 
@@ -427,7 +459,7 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
                             <th className="p-2.5 border-b">Status</th>
                             <th className="p-2.5 border-b">SKU</th>
                             <th className="p-2.5 border-b">Nome</th>
-                            <th className="p-2.5 border-b">Categoria</th>
+                            <th className="p-2.5 border-b">Categoria & Cores (Padrão IA)</th>
                             <th className="p-2.5 border-b">Preço De</th>
                             <th className="p-2.5 border-b">Preço Por</th>
                             <th className="p-2.5 border-b">Estoque (P/M/G/GG)</th>
@@ -449,7 +481,26 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
                               </td>
                               <td className="p-2.5 font-mono font-semibold">{row.sku}</td>
                               <td className="p-2.5 font-medium">{row.name}</td>
-                              <td className="p-2.5">{row.category}</td>
+                              <td className="p-2.5">
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-semibold text-foreground">{row.category}</span>
+                                    {row.isSet && (
+                                      <span className="px-1.5 py-0.5 rounded-md bg-purple-500/20 text-purple-700 dark:text-purple-300 text-[9px] font-bold">
+                                        👗 Conjunto
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-1 flex-wrap">
+                                    {row.detectedColors.map((col, cIdx) => (
+                                      <span key={cIdx} className="inline-flex items-center gap-1 text-[10px] bg-background border border-border px-1.5 py-0.5 rounded-md">
+                                        <span className="w-2 h-2 rounded-full border border-black/20" style={{ backgroundColor: col.hex }} />
+                                        <span>{col.name}</span>
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              </td>
                               <td className="p-2.5 font-semibold">{formatCurrency(row.price)}</td>
                               <td className="p-2.5 text-emerald-600 font-semibold">
                                 {row.promotionalPrice ? formatCurrency(row.promotionalPrice) : '-'}
@@ -555,9 +606,15 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
                             alt={img.productName}
                             className="w-full h-full object-cover"
                           />
-                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity p-2 flex flex-col justify-end text-[10px] text-white">
+                          <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity p-2 flex flex-col justify-end text-[10px] text-white">
                             <span className="font-bold truncate">{img.productName}</span>
-                            <span className="text-emerald-300">{img.category}</span>
+                            <span className="text-emerald-300 font-semibold">{img.category}</span>
+                            {img.isSet && <span className="text-purple-300 font-semibold">👗 Conjunto</span>}
+                            <div className="flex items-center gap-1 mt-0.5">
+                              {img.detectedColors.map((c, cIdx) => (
+                                <span key={cIdx} className="w-2.5 h-2.5 rounded-full border border-white/40" style={{ backgroundColor: c.hex }} title={c.name} />
+                              ))}
+                            </div>
                           </div>
                         </div>
                       ))}

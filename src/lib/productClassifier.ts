@@ -1,0 +1,195 @@
+/**
+ * Classificador Inteligente de Produtos Aura Fitness
+ * Analisa nomes, títulos e descrições para identificar automaticamente:
+ * - Categoria (Leggings, Tops, Conjuntos, Shorts, Macacões, etc.)
+ * - Cores e Códigos Hexadecimais
+ * - Identificação de Conjuntos / Kits (Look Completo)
+ */
+
+export interface AvailableColor {
+  name: string;
+  hex: string;
+  keywords: string[];
+}
+
+export interface AvailableCategory {
+  name: string;
+  keywords: string[];
+}
+
+export const STORE_COLORS: AvailableColor[] = [
+  { name: 'Preto', hex: '#111111', keywords: ['preto', 'preta', 'black', 'noir', 'onix', 'ônix', 'dark', 'grafite escuro'] },
+  { name: 'Branco', hex: '#FFFFFF', keywords: ['branco', 'branca', 'white', 'off-white', 'off white', 'offwhite', 'gelo', 'neve'] },
+  { name: 'Verde Oliva', hex: '#5F6F3A', keywords: ['oliva', 'militar', 'verde militar', 'verde oliva', 'olive', 'army', 'musgo', 'safari'] },
+  { name: 'Verde Esmeralda', hex: '#1E5E3A', keywords: ['verde', 'green', 'esmeralda', 'menta', 'sage', 'folha', 'pistache', 'abacate'] },
+  { name: 'Azul Marinho', hex: '#1B2A4A', keywords: ['marinho', 'navy', 'azul escuro', 'midnight', 'oceano', 'deep blue'] },
+  { name: 'Azul Celeste', hex: '#5A9BD5', keywords: ['celeste', 'baby blue', 'indigo', 'índigo', 'royal', 'turquesa', 'azul claro', 'azul'] },
+  { name: 'Rosa Claro', hex: '#F4B6C2', keywords: ['rosa claro', 'baby pink', 'blush', 'rosa bebe', 'rosa bebê', 'rosê', 'rose', 'quartz'] },
+  { name: 'Pink / Fúcsia', hex: '#E0218A', keywords: ['pink', 'fucsia', 'fúcsia', 'magenta', 'rosa choque', 'neon pink'] },
+  { name: 'Vinho / Marsala', hex: '#5B1425', keywords: ['vinho', 'marsala', 'bordo', 'bordô', 'burgundy', 'cereja', 'amora'] },
+  { name: 'Lilás / Lavanda', hex: '#9D81BA', keywords: ['lilas', 'lilás', 'lavanda', 'roxo', 'purple', 'violeta', 'amestista'] },
+  { name: 'Terracota / Telha', hex: '#C86D51', keywords: ['terracota', 'telha', 'caramelo', 'argila', 'rust', 'cobre', 'canela'] },
+  { name: 'Cinza Mescla', hex: '#71797E', keywords: ['cinza', 'mescla', 'grafite', 'gray', 'grey', 'chumbo', 'prata', 'silver'] },
+  { name: 'Nude / Bege', hex: '#D2B48C', keywords: ['nude', 'bege', 'areia', 'sand', 'creme', 'cacau', 'pele', 'marfim'] },
+  { name: 'Vermelho', hex: '#C41E3A', keywords: ['vermelho', 'vermelha', 'red', 'escarlate', 'rubi', 'carmim'] },
+  { name: 'Amarelo / Mostarda', hex: '#E5A93C', keywords: ['amarelo', 'mostarda', 'yellow', 'ouro', 'dourado', 'solar'] },
+  { name: 'Marrom / Chocolate', hex: '#4A2E1B', keywords: ['marrom', 'chocolate', 'brown', 'cafe', 'café', 'avelã'] },
+];
+
+export const STORE_CATEGORIES: AvailableCategory[] = [
+  {
+    name: 'Conjuntos',
+    keywords: [
+      'conjunto', 'conjuntos', 'kit', 'combo', 'duo',
+      'top + legging', 'top+legging', 'top e legging',
+      'short + top', 'short+top', 'short e top',
+      'cropped + legging', 'dueto', 'look completo', 'par'
+    ],
+  },
+  {
+    name: 'Leggings',
+    keywords: [
+      'legging', 'leggings', 'leging', 'calca', 'calça',
+      'corsario', 'corsário', 'fusô', 'fuso', 'boca de sino', 'flare',
+      'pant', 'pants', 'tights', 'montaria'
+    ],
+  },
+  {
+    name: 'Tops',
+    keywords: [
+      'top', 'tops', 'sutia', 'sutiã', 'cropped', 'bra',
+      'sports bra', 'sustentacao', 'sustentação', 'nadador',
+      'alça cruzada', 'decote', 'tomara que caia'
+    ],
+  },
+  {
+    name: 'Shorts & Bermudas',
+    keywords: [
+      'short', 'shorts', 'bermuda', 'bermudas', 'ciclista',
+      'shortinho', 'duplo', 'saia short', 'saia-short', 'biker'
+    ],
+  },
+  {
+    name: 'Macacões',
+    keywords: [
+      'macacao', 'macacão', 'macaquinho', 'jumpsuit',
+      'body', 'bodies', 'catsuit', 'one piece', 'maiô'
+    ],
+  },
+  {
+    name: 'Regatas & Camisetas',
+    keywords: [
+      'regata', 'regatas', 'camiseta', 'camisetas', 't-shirt',
+      'tshirt', 'blusa', 't-shirts', 'baby look', 'manga curta',
+      'manga longa', 'dry fit', 'sobreposição'
+    ],
+  },
+  {
+    name: 'Jaquetas',
+    keywords: [
+      'jaqueta', 'jaquetas', 'corta-vento', 'corta vento',
+      'moletom', 'casaco', 'windbreaker', 'bomber', 'agasalho', 'anorak'
+    ],
+  },
+  {
+    name: 'Acessórios',
+    keywords: [
+      'meia', 'meias', 'faixa', 'garrafa', 'squeeze',
+      'bolsa', 'mochila', 'tapete', 'mat', 'elastico',
+      'elástico', 'strap', 'boné', 'viseira', 'caneleira', 'presilha'
+    ],
+  },
+];
+
+export interface ProductClassification {
+  category: string;
+  isSet: boolean;
+  colors: { name: string; hex: string }[];
+  detectedTags: string[];
+}
+
+/**
+ * Normaliza uma string removendo acentos e convertendo para minúsculas
+ */
+function normalizeText(text: string): string {
+  return (text || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+/**
+ * Analisa o nome e descrição do produto para extrair categoria, se é conjunto e cores
+ */
+export function classifyProduct(name: string, description?: string): ProductClassification {
+  const fullText = normalizeText(`${name} ${description || ''}`);
+  const detectedTags: string[] = [];
+
+  // 1. Detectar se é Conjunto
+  const isSetKeywords = [
+    'conjunto', 'conjuntos', 'kit', 'combo', 'duo',
+    'top + legging', 'top+legging', 'top e legging',
+    'short + top', 'short+top', 'short e top',
+    'cropped + legging', 'look completo', 'dueto'
+  ];
+  const isSet = isSetKeywords.some((kw) => fullText.includes(kw));
+  if (isSet) {
+    detectedTags.push('Conjunto');
+  }
+
+  // 2. Detectar Categoria
+  let detectedCategory = isSet ? 'Conjuntos' : 'Leggings';
+  let highestScore = 0;
+
+  for (const cat of STORE_CATEGORIES) {
+    let score = 0;
+    for (const kw of cat.keywords) {
+      if (fullText.includes(kw)) {
+        // Se a palavra exata estiver no nome, pontua mais alto
+        const inName = normalizeText(name).includes(kw);
+        score += inName ? 3 : 1;
+      }
+    }
+
+    // Se detectou conjunto e a categoria for Conjuntos, prioriza
+    if (cat.name === 'Conjuntos' && isSet) {
+      score += 5;
+    }
+
+    if (score > highestScore) {
+      highestScore = score;
+      detectedCategory = cat.name;
+    }
+  }
+
+  // 3. Detectar Cores
+  const detectedColors: { name: string; hex: string }[] = [];
+  const addedColorNames = new Set<string>();
+
+  for (const color of STORE_COLORS) {
+    for (const kw of color.keywords) {
+      // Regex para encontrar palavra inteira ou composta
+      const regex = new RegExp(`\\b${kw}\\b`, 'i');
+      if (regex.test(fullText) || fullText.includes(kw)) {
+        if (!addedColorNames.has(color.name)) {
+          addedColorNames.add(color.name);
+          detectedColors.push({ name: color.name, hex: color.hex });
+          detectedTags.push(`Cor: ${color.name}`);
+        }
+        break;
+      }
+    }
+  }
+
+  // Se nenhuma cor foi detectada, define Preto como padrão clássico Aura
+  if (detectedColors.length === 0) {
+    detectedColors.push({ name: 'Preto', hex: '#111111' });
+  }
+
+  return {
+    category: detectedCategory,
+    isSet,
+    colors: detectedColors,
+    detectedTags,
+  };
+}
