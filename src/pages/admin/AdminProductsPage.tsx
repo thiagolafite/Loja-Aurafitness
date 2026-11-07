@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Plus,
   Edit,
@@ -20,6 +20,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   getProducts,
+  fetchProductsAsync,
   saveProduct,
   deleteProduct,
   aiGenerateProductDescription,
@@ -52,6 +53,16 @@ export const AdminProductsPage: React.FC = () => {
   const [isImporterOpen, setIsImporterOpen] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
+
+  const refreshProducts = () => {
+    fetchProductsAsync().then((prods) => {
+      setProducts([...prods]);
+    });
+  };
+
+  useEffect(() => {
+    refreshProducts();
+  }, []);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -1065,7 +1076,7 @@ export const AdminProductsPage: React.FC = () => {
         isOpen={isImporterOpen}
         onClose={() => setIsImporterOpen(false)}
         onSuccess={() => {
-          setProducts(getProducts());
+          refreshProducts();
           showToast('✓ Importação de produtos processada com sucesso!');
         }}
       />

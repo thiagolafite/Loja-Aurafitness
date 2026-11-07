@@ -193,3 +193,211 @@ export function classifyProduct(name: string, description?: string): ProductClas
     detectedTags,
   };
 }
+
+export interface ParsedItemInfo {
+  productName: string;
+  category: string;
+  price: number;
+  size?: string;
+  colors: { name: string; hex: string }[];
+  isSet: boolean;
+  groupKey: string;
+  tags: string[];
+}
+
+/**
+ * Detecta se o nome do arquivo é genérico (câmera, WhatsApp, print, timestamp)
+ */
+export function isGenericFileName(name: string): boolean {
+  const norm = normalizeText(name);
+  return (
+    norm.startsWith('whatsapp') ||
+    norm.startsWith('image') ||
+    norm.startsWith('img') ||
+    norm.startsWith('dsc') ||
+    norm.startsWith('photo') ||
+    norm.startsWith('foto') ||
+    norm.startsWith('screenshot') ||
+    norm.startsWith('captura') ||
+    norm.startsWith('capture') ||
+    norm.startsWith('pasted') ||
+    /^\d+$/.test(norm.replace(/[-_\s]/g, '')) ||
+    norm.length <= 4
+  );
+}
+
+/**
+ * Analisa o caminho da pasta e nome do arquivo para extrair:
+ * - Nome real do produto
+ * - Categoria oficial Aura
+ * - Preço (ex: 183,00)
+ * - Tamanho (ex: P, M, G, GG)
+ * - Cores
+ * - Chave de agrupamento única para reunir fotos do mesmo produto
+ */
+export function parseProductFromFolderOrFile(
+  relPath: string,
+  fileName: string,
+  defaultCategory = 'Leggings'
+): ParsedItemInfo {
+  // Normalizar barras do caminho (Windows ou POSIX)
+  const parts = (relPath || fileName).split(/[\\/]/).filter(Boolean);
+  const cleanFileName = fileName.replace(/\.[^/.]+$/, '').trim();
+
+  // Pasta pai se existir
+  const folderCandidate = parts.length > 1 ? parts[parts.length - 2].trim() : '';
+  const genericFolderIgnore = ['fotos', 'imagens', 'upload', 'produtos', 'aura', 'photos', 'images', 'downloads'];
+  const hasValidFolder = !!folderCandidate && !genericFolderIgnore.includes(normalizeText(folderCandidate));
+
+  let candidateName = cleanFileName;
+  let rawTextForExtraction = cleanFileName;
+
+  const isCatFolder = hasValidFolder && STORE_CATEGORIES.some(
+    (c) => normalizeText(c.name) === normalizeText(folderCandidate)
+  );
+
+  if (hasValidFolder) {
+    if (isCatFolder && !isGenericFileName(cleanFileName)) {
+      candidateName = cleanFileName;
+      rawTextForExtraction = `${folderCandidate} ${cleanFileName}`;
+    } else {
+      candidateName = folderCandidate;
+      rawTextForExtraction = folderCandidate;
+    }
+  }
+
+  // 1. Extração de Preço (ex: "183,00", "183.00", "R$ 183", "183")
+  let price = 189.9;
+  const priceMatch = rawTextForExtraction.match(/(?:r\$\s*)?(\d{2,4})(?:[,\.](\d{2}))?\b/i);
+  if (priceMatch) {
+    const integerPart = priceMatch[1];
+    const decimalPart = priceMatch[2] || '00';
+    const parsedVal = parseFloat(`${integerPart}.${decimalPart}`);
+    if (!isNaN(parsedVal) && parsedVal > 10) {
+      price = parsedVal;
+    }
+  }
+
+  // 2. Extração de Tamanho (ex: "PP", "P", "M", "G", "GG", "XG")
+  let size: string | undefined = undefined;
+  const sizeMatch = rawTextForExtraction.match(/\b(PP|P|M|G|GG|XG|XGG)\b/i);
+  if (sizeMatch) {
+    size = sizeMatch[1].toUpperCase();
+  }
+
+  // 3. Limpeza do Nome do Produto
+  let cleanName = candidateName;
+  // Remove valor monetário
+  cleanName = cleanName.replace(/(?:r\$\s*)?(\d{2,4})(?:[,\.](\d{2}))?\b/gi, '');
+  // Remove tamanho isolado (ex: " G ", " - G - ")
+  cleanName = cleanName.replace(/\b(PP|P|M|G|GG|XG|XGG)\b/gi, '');
+  // Remove símbolos, hifens e pontuação sobressalente
+  cleanName = cleanName.replace(/[-_–—,:]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+  // Se após a limpeza o nome ficou vazio ou genérico, tenta recuperar
+  if (!cleanName || isGenericFileName(cleanName)) {
+    if (hasValidFolder && !isCatFolder) {
+      cleanName = folderCandidate.replace(/[-_–—,:]+/g, ' ').replace(/\s+/g, ' ').trim();
+    } else {
+      cleanName = `Produto ${cleanFileName}`;
+    }
+  }
+
+  // Capitalização suave
+  cleanName = cleanName
+    .split(' ')
+    .filter(Boolean)
+    .map((w) => (w.length > 2 ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : w.toUpperCase()))
+    .join(' ');
+
+  // 4. Classificação de Categoria, Cores e Conjunto pela IA
+  const classification = classifyProduct(
+    `${cleanName} ${hasValidFolder ? folderCandidate : ''}`,
+    rawTextForExtraction
+  );
+
+  // 5. Categoria final
+  let finalCategory = classification.category;
+  if (hasValidFolder) {
+    const matchingCat = STORE_CATEGORIES.find(
+      (c) => normalizeText(c.name) === normalizeText(folderCandidate)
+    );
+    if (matchingCat) {
+      finalCategory = matchingCat.name;
+    }
+  }
+  if (!finalCategory) {
+    finalCategory = defaultCategory;
+  }
+
+  // 6. Chave de Agrupamento Única (para reunir todas as fotos do mesmo produto)
+  const groupKey = normalizeText(cleanName);
+
+  return {
+    productName: cleanName,
+    category: finalCategory,
+    price,
+    size,
+    colors: classification.colors,
+    isSet: classification.isSet,
+    groupKey,
+    tags: classification.detectedTags,
+  };
+}
+
+/**
+ * Redimensiona e comprime imagens client-side usando Canvas
+ * Reduz fotos de 10MB para ~120KB sem perda perceptível de qualidade
+ */
+export async function resizeImageFile(
+  file: File,
+  maxWidth = 1200,
+  maxHeight = 1200,
+  quality = 0.82
+): Promise<string> {
+  return new Promise((resolve) => {
+    if (!file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve((e.target?.result as string) || '');
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onerror = () => resolve('');
+    reader.onload = (e) => {
+      const dataUrl = (e.target?.result as string) || '';
+      const img = new Image();
+      img.onerror = () => resolve(dataUrl);
+      img.onload = () => {
+        try {
+          let { width, height } = img;
+          if (width > maxWidth || height > maxHeight) {
+            const ratio = Math.min(maxWidth / width, maxHeight / height);
+            width = Math.round(width * ratio);
+            height = Math.round(height * ratio);
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(dataUrl);
+            return;
+          }
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, width, height);
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL('image/jpeg', quality);
+          resolve(compressed);
+        } catch {
+          resolve(dataUrl);
+        }
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+

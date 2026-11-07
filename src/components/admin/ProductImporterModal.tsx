@@ -14,12 +14,22 @@ import {
   Boxes,
   Sparkles,
   Palette,
+  Trash2,
+  Tag,
+  Loader2,
+  ImageIcon,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { bulkImportProducts, getProducts } from '../../lib/dataClient';
+import { bulkImportProductsAsync, getProducts } from '../../lib/dataClient';
 import { Product } from '../../types';
 import { formatCurrency } from '../../lib/utils';
-import { classifyProduct, STORE_CATEGORIES, STORE_COLORS } from '../../lib/productClassifier';
+import {
+  classifyProduct,
+  parseProductFromFolderOrFile,
+  resizeImageFile,
+  STORE_CATEGORIES,
+  STORE_COLORS,
+} from '../../lib/productClassifier';
 
 interface ProductImporterModalProps {
   isOpen: boolean;
@@ -44,13 +54,17 @@ interface ParsedCSVRow {
   existingId?: string;
 }
 
-interface UploadedImageItem {
-  fileName: string;
+interface GroupedProductItem {
+  id?: string;
+  groupKey: string;
+  name: string;
   category: string;
-  productName: string;
-  dataUrl: string;
+  price: number;
+  promotionalPrice?: number;
+  size?: string;
+  colors: { name: string; hex: string }[];
   isSet: boolean;
-  detectedColors: { name: string; hex: string }[];
+  images: string[];
 }
 
 export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
@@ -66,19 +80,31 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
   const [csvError, setCsvError] = useState<string>('');
 
   // Image Import State
-  const [selectedCategory, setSelectedCategory] = useState<string>('Leggings');
-  const [uploadedImages, setUploadedImages] = useState<UploadedImageItem[]>([]);
+  const [selectedDefaultCategory, setSelectedDefaultCategory] = useState<string>('Leggings');
+  const [groupedProducts, setGroupedProducts] = useState<GroupedProductItem[]>([]);
+  const [isProcessingImages, setIsProcessingImages] = useState<boolean>(false);
+  const [processingProgress, setProcessingProgress] = useState<{ current: number; total: number }>({
+    current: 0,
+    total: 0,
+  });
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+
   const folderInputRef = useRef<HTMLInputElement>(null);
+  const filesInputRef = useRef<HTMLInputElement>(null);
 
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
   const [successMessage, setSuccessMessage] = useState<string>('');
 
   // Download Sample CSV Template
   const handleDownloadTemplate = () => {
-    const templateHeader = 'SKU;Nome;Categoria;Preco;PrecoPromocional;Estoque_P;Estoque_M;Estoque_G;Estoque_GG;Descricao\n';
-    const sampleRow1 = 'AUR-LEG-101;Legging High Waist Olive;Leggings;189.90;159.90;10;15;12;5;Legging de alta compressao e cos anatomicamnete ajustado.\n';
-    const sampleRow2 = 'AUR-TOP-102;Top Cross Back Black;Tops & Sports Bras;129.90;99.90;8;14;10;4;Top esportivo com sustentacao firme e alcas cruzadas.\n';
-    const sampleRow3 = 'AUR-CNJ-103;Conjunto Style Olive;Conjuntos;299.90;249.90;5;12;8;2;Conjunto completo top e legging tom verde oliva.\n';
+    const templateHeader =
+      'SKU;Nome;Categoria;Preco;PrecoPromocional;Estoque_P;Estoque_M;Estoque_G;Estoque_GG;Descricao\n';
+    const sampleRow1 =
+      'AUR-LEG-101;Legging High Waist Olive;Leggings;189.90;159.90;10;15;12;5;Legging de alta compressao e cos anatomicamnete ajustado.\n';
+    const sampleRow2 =
+      'AUR-TOP-102;Top Cross Back Black;Tops;129.90;99.90;8;14;10;4;Top esportivo com sustentacao firme e alcas cruzadas.\n';
+    const sampleRow3 =
+      'AUR-CNJ-103;Conjunto Style Olive;Conjuntos;299.90;249.90;5;12;8;2;Conjunto completo top e legging tom verde oliva.\n';
 
     const blob = new Blob([templateHeader + sampleRow1 + sampleRow2 + sampleRow3], {
       type: 'text/csv;charset=utf-8;',
@@ -125,9 +151,10 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
       // Análise Inteligente de Padrões pelo Nome/Descrição
       const classification = classifyProduct(name, description);
       const categoryFromCsv = cols[2]?.trim();
-      const category = (categoryFromCsv && categoryFromCsv !== '' && categoryFromCsv !== 'Geral')
-        ? categoryFromCsv
-        : classification.category;
+      const category =
+        categoryFromCsv && categoryFromCsv !== '' && categoryFromCsv !== 'Geral'
+          ? categoryFromCsv
+          : classification.category;
 
       const price = parseFloat(cols[3]?.replace(',', '.')) || 0;
       const promotionalPrice = cols[4] ? parseFloat(cols[4].replace(',', '.')) : undefined;
@@ -138,7 +165,9 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
       const stock_GG = parseInt(cols[8]) || 0;
 
       const match = existingProducts.find(
-        (p) => p.sku.toLowerCase() === sku.toLowerCase() || p.name.toLowerCase() === name.toLowerCase()
+        (p) =>
+          p.sku.toLowerCase() === sku.toLowerCase() ||
+          p.name.toLowerCase() === name.toLowerCase()
       );
 
       rows.push({
@@ -179,129 +208,161 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
     reader.readAsText(file, 'UTF-8');
   };
 
-  const handleProcessCSVImport = () => {
+  const handleProcessCSVImport = async () => {
     if (parsedRows.length === 0) return;
+    setIsSaving(true);
 
-    const productsToSave: Partial<Product>[] = parsedRows.map((row) => {
-      const primaryColorName = row.detectedColors[0]?.name || 'Padrao';
-      const stockMap: Record<string, number> = {
-        [`P-${primaryColorName}`]: row.stock_P || 5,
-        [`M-${primaryColorName}`]: row.stock_M || 10,
-        [`G-${primaryColorName}`]: row.stock_G || 8,
-        [`GG-${primaryColorName}`]: row.stock_GG || 3,
-      };
+    try {
+      const productsToSave: Partial<Product>[] = parsedRows.map((row) => {
+        const primaryColorName = row.detectedColors[0]?.name || 'Padrao';
+        const stockMap: Record<string, number> = {
+          [`P-${primaryColorName}`]: row.stock_P || 5,
+          [`M-${primaryColorName}`]: row.stock_M || 10,
+          [`G-${primaryColorName}`]: row.stock_G || 8,
+          [`GG-${primaryColorName}`]: row.stock_GG || 3,
+        };
 
-      return {
-        id: row.existingId,
-        sku: row.sku,
-        name: row.name,
-        category: row.category,
-        colors: row.detectedColors,
-        price: row.price,
-        promotionalPrice: row.promotionalPrice,
-        stock: stockMap,
-        description: row.description || `Produto oficial Aura Fitness da categoria ${row.category}.`,
-      };
-    });
+        return {
+          id: row.existingId,
+          sku: row.sku,
+          name: row.name,
+          category: row.category,
+          colors: row.detectedColors,
+          price: row.price,
+          promotionalPrice: row.promotionalPrice,
+          stock: stockMap,
+          description: row.description || `Produto oficial Aura Fitness da categoria ${row.category}.`,
+        };
+      });
 
-    bulkImportProducts(productsToSave);
-    setIsSuccess(true);
-    setSuccessMessage(`${productsToSave.length} produtos/preços/estoques importados com sucesso!`);
-    onSuccess();
+      await bulkImportProductsAsync(productsToSave);
+      setIsSuccess(true);
+      setSuccessMessage(`${productsToSave.length} produtos/preços/estoques sincronizados com sucesso!`);
+      onSuccess();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  // Image Folder Import Handler
-  const handleImageFolderUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
+  // Image Processing & Compression Handler (Folder or Multiple Files)
+  const processImageFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
 
-    const fileList = Array.from(files);
-    const newItems: UploadedImageItem[] = [];
+    const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
+    if (imageFiles.length === 0) return;
 
-    let processedCount = 0;
+    setIsProcessingImages(true);
+    setProcessingProgress({ current: 0, total: imageFiles.length });
 
-    fileList.forEach((file) => {
-      if (!file.type.startsWith('image/')) return;
+    // Use current grouped products as base
+    const productMap = new Map<string, GroupedProductItem>();
+    groupedProducts.forEach((p) => productMap.set(p.groupKey, { ...p }));
 
-      // Extract folder name if available (webkitRelativePath: "Leggings/modelo_01.jpg")
-      const relPath = file.webkitRelativePath || file.name;
-      const pathParts = relPath.split('/');
-      
-      let prodName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+    for (let i = 0; i < imageFiles.length; i++) {
+      const file = imageFiles[i];
+      setProcessingProgress({ current: i + 1, total: imageFiles.length });
 
-      // Análise Inteligente de Padrões por Nome do Arquivo
-      const classification = classifyProduct(prodName);
-      let detectedCategory = selectedCategory;
+      try {
+        // Redimensionamento inteligente no Canvas: de 5-10MB para ~120KB
+        const compressedDataUrl = await resizeImageFile(file, 1200, 1200, 0.82);
+        if (!compressedDataUrl) continue;
 
-      if (pathParts.length > 1 && pathParts[0] !== 'fotos' && pathParts[0] !== 'imagens' && pathParts[0] !== 'upload') {
-        detectedCategory = pathParts[0]; // First folder name
-      } else {
-        detectedCategory = classification.category;
-      }
+        const relPath = file.webkitRelativePath || file.name;
+        const parsed = parseProductFromFolderOrFile(relPath, file.name, selectedDefaultCategory);
 
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        const dataUrl = evt.target?.result as string;
-        newItems.push({
-          fileName: file.name,
-          category: detectedCategory,
-          productName: prodName,
-          dataUrl,
-          isSet: classification.isSet,
-          detectedColors: classification.colors,
-        });
-
-        processedCount++;
-        if (processedCount === fileList.length) {
-          setUploadedImages((prev) => [...prev, ...newItems]);
+        if (productMap.has(parsed.groupKey)) {
+          const existing = productMap.get(parsed.groupKey)!;
+          // Anexa imagem evitando duplicata
+          if (!existing.images.includes(compressedDataUrl)) {
+            existing.images.push(compressedDataUrl);
+          }
+          // Atualiza tamanho se detectado
+          if (!existing.size && parsed.size) {
+            existing.size = parsed.size;
+          }
+          // Mescla cores
+          parsed.colors.forEach((col) => {
+            if (!existing.colors.some((c) => c.name === col.name)) {
+              existing.colors.push(col);
+            }
+          });
+        } else {
+          productMap.set(parsed.groupKey, {
+            groupKey: parsed.groupKey,
+            name: parsed.productName,
+            category: parsed.category,
+            price: parsed.price,
+            size: parsed.size,
+            colors: parsed.colors,
+            isSet: parsed.isSet,
+            images: [compressedDataUrl],
+          });
         }
-      };
-      reader.readAsDataURL(file);
+      } catch (err) {
+        console.error('Erro ao processar imagem:', file.name, err);
+      }
+    }
+
+    setGroupedProducts(Array.from(productMap.values()));
+    setIsProcessingImages(false);
+  };
+
+  const handleUpdateGroupedProduct = (index: number, updates: Partial<GroupedProductItem>) => {
+    setGroupedProducts((prev) => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], ...updates };
+      return copy;
     });
   };
 
-  const handleProcessImageImport = () => {
-    if (uploadedImages.length === 0) return;
+  const handleRemoveGroupedProduct = (index: number) => {
+    setGroupedProducts((prev) => prev.filter((_, i) => i !== index));
+  };
 
-    // Group images by product name or category
-    const productsToCreate: Partial<Product>[] = [];
+  const handleProcessGroupedProductsImport = async () => {
+    if (groupedProducts.length === 0) return;
+    setIsSaving(true);
 
-    // Group by category and product name
-    const grouped: Record<string, UploadedImageItem[]> = {};
-    uploadedImages.forEach((img) => {
-      const key = `${img.category}___${img.productName}`;
-      if (!grouped[key]) grouped[key] = [];
-      grouped[key].push(img);
-    });
+    try {
+      const productsToCreate: Partial<Product>[] = groupedProducts.map((g, idx) => {
+        const primaryColorName = g.colors[0]?.name || 'Preto';
+        const defaultSizes = g.size
+          ? [g.size, 'P', 'M', 'G'].filter((v, i, a) => a.indexOf(v) === i)
+          : ['P', 'M', 'G'];
 
-    Object.entries(grouped).forEach(([key, imgs]) => {
-      const [category, prodName] = key.split('___');
-      const dataUrls = imgs.map((i) => i.dataUrl);
-      const firstItem = imgs[0];
-      const colors = firstItem?.detectedColors || [{ name: 'Preto', hex: '#111111' }];
-      const primaryColorName = colors[0]?.name || 'Preto';
+        const stockMap: Record<string, number> = {};
+        defaultSizes.forEach((s) => {
+          stockMap[`${s}-${primaryColorName}`] = g.size && s === g.size ? 10 : 8;
+        });
 
-      productsToCreate.push({
-        name: prodName,
-        category: category,
-        colors: colors,
-        images: dataUrls,
-        price: 189.90,
-        description: `Peça exclusiva da categoria ${category}. Conforto, modelagem premium e zero transparência.`,
-        sku: `AUR-${category.slice(0, 3).toUpperCase()}-${Date.now().toString().slice(-4)}`,
-        stock: {
-          [`P-${primaryColorName}`]: 10,
-          [`M-${primaryColorName}`]: 15,
-          [`G-${primaryColorName}`]: 8,
-        },
+        return {
+          name: g.name,
+          category: g.category,
+          colors: g.colors,
+          images: g.images,
+          price: g.price,
+          promotionalPrice: g.promotionalPrice,
+          sizes: defaultSizes,
+          stock: stockMap,
+          description: `Peça oficial Aura Fitness da categoria ${g.category}. Tecido de alta compressão, toque aveludado e zero transparência.`,
+          sku: `AUR-${g.category.slice(0, 3).toUpperCase()}-${Date.now().toString().slice(-4)}-${idx + 1}`,
+        };
       });
-    });
 
-    bulkImportProducts(productsToCreate);
-    setIsSuccess(true);
-    setSuccessMessage(`${productsToCreate.length} produtos importados por categoria com imagens!`);
-    setUploadedImages([]);
-    onSuccess();
+      await bulkImportProductsAsync(productsToCreate);
+      setIsSuccess(true);
+      setSuccessMessage(
+        `${productsToCreate.length} produtos cadastrados com sucesso na sua loja!`
+      );
+      setGroupedProducts([]);
+      onSuccess();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -332,7 +393,7 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
               <div>
                 <h3 className="font-serif font-bold text-lg">Central de Importação em Massa</h3>
                 <p className="text-xs text-white/70">
-                  Importe produtos por categoria, tabela de preços, estoque e imagens.
+                  Importe produtos por pasta, fotos do WhatsApp/câmera ou tabela CSV com categorização inteligente por IA.
                 </p>
               </div>
             </div>
@@ -370,7 +431,7 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
               }`}
             >
               <FolderPlus className="w-4 h-4" />
-              <span>2. Importar Pastas/Imagens por Categoria</span>
+              <span>2. Importar Pastas & Fotos (Agrupamento Automático)</span>
             </button>
           </div>
 
@@ -493,8 +554,14 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
                                   </div>
                                   <div className="flex items-center gap-1 flex-wrap">
                                     {row.detectedColors.map((col, cIdx) => (
-                                      <span key={cIdx} className="inline-flex items-center gap-1 text-[10px] bg-background border border-border px-1.5 py-0.5 rounded-md">
-                                        <span className="w-2 h-2 rounded-full border border-black/20" style={{ backgroundColor: col.hex }} />
+                                      <span
+                                        key={cIdx}
+                                        className="inline-flex items-center gap-1 text-[10px] bg-background border border-border px-1.5 py-0.5 rounded-md"
+                                      >
+                                        <span
+                                          className="w-2 h-2 rounded-full border border-black/20"
+                                          style={{ backgroundColor: col.hex }}
+                                        />
                                         <span>{col.name}</span>
                                       </span>
                                     ))}
@@ -516,9 +583,10 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
 
                     <button
                       onClick={handleProcessCSVImport}
-                      className="w-full py-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-lg transition-colors flex items-center justify-center gap-2"
+                      disabled={isSaving}
+                      className="w-full py-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white font-bold text-xs shadow-lg transition-colors flex items-center justify-center gap-2"
                     >
-                      <CheckCircle2 className="w-4 h-4" />
+                      {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
                       <span>Confirmar e Processar Importação de Tabela</span>
                     </button>
                   </div>
@@ -528,104 +596,236 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
 
             {activeTab === 'images' && (
               <div className="space-y-6">
-                <div className="bg-secondary/50 p-4 rounded-xl space-y-3">
-                  <h4 className="text-xs font-bold text-foreground flex items-center gap-2">
+                <div className="bg-secondary/40 p-4 rounded-xl space-y-3 border border-border">
+                  <div className="flex items-center gap-2">
                     <FolderPlus className="w-4 h-4 text-primary" />
-                    <span>Importar Pasta Completa com Imagens por Categoria</span>
-                  </h4>
-                  <p className="text-xs text-muted-foreground">
-                    Selecione uma pasta contendo subpastas com o nome das categorias (ex: Leggings/, Tops/, Conjuntos/), ou selecione várias fotos para uma categoria específica.
+                    <h4 className="text-xs font-bold text-foreground">
+                      Carregamento Inteligente por Pasta ou Fotos Avulsas
+                    </h4>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Você pode selecionar uma <strong>pasta inteira</strong> (ex: <code className="bg-muted px-1.5 py-0.5 rounded text-[11px]">Macaquinho Maya G- 183,00</code>) ou <strong>várias fotos</strong>. O sistema agrupa todas as fotos do mesmo produto em 1 só anúncio, identifica o nome, tamanho, preço e cor automaticamente e otimiza as imagens no navegador!
                   </p>
 
-                  <div className="flex flex-wrap items-center gap-4 pt-2">
+                  <div className="flex flex-wrap items-center gap-3 pt-2">
                     <div className="flex-1 min-w-[200px]">
                       <label className="text-[11px] font-bold text-foreground block mb-1">
-                        Categoria Padrão
+                        Categoria Sugerida (Fallback)
                       </label>
                       <select
-                        value={selectedCategory}
-                        onChange={(e) => setSelectedCategory(e.target.value)}
+                        value={selectedDefaultCategory}
+                        onChange={(e) => setSelectedDefaultCategory(e.target.value)}
                         className="w-full text-xs p-2.5 rounded-xl border border-input bg-card text-foreground"
                       >
-                        <option value="Leggings">Leggings</option>
-                        <option value="Tops & Sports Bras">Tops & Sports Bras</option>
-                        <option value="Conjuntos">Conjuntos</option>
-                        <option value="Macaquinhos">Macaquinhos</option>
-                        <option value="Shorts">Shorts</option>
-                        <option value="Acessórios">Acessórios</option>
+                        {STORE_CATEGORIES.map((c) => (
+                          <option key={c.name} value={c.name}>
+                            {c.name}
+                          </option>
+                        ))}
                       </select>
                     </div>
 
-                    <div className="flex items-end gap-2">
-                      <input
-                        ref={folderInputRef}
-                        type="file"
-                        multiple
-                        accept="image/*"
-                        // @ts-ignore
-                        webkitdirectory=""
-                        directory=""
-                        onChange={handleImageFolderUpload}
-                        className="hidden"
-                      />
+                    {/* Hidden Native File Inputs */}
+                    <input
+                      ref={folderInputRef}
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      // @ts-ignore
+                      webkitdirectory=""
+                      directory=""
+                      onChange={(e) => {
+                        processImageFiles(e.target.files);
+                        e.target.value = '';
+                      }}
+                      className="hidden"
+                    />
 
+                    <input
+                      ref={filesInputRef}
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={(e) => {
+                        processImageFiles(e.target.files);
+                        e.target.value = '';
+                      }}
+                      className="hidden"
+                    />
+
+                    <div className="flex items-end gap-2">
                       <button
                         onClick={() => folderInputRef.current?.click()}
-                        className="px-5 py-2.5 bg-primary text-white font-bold text-xs rounded-xl hover:bg-primary/90 transition-colors flex items-center gap-2 shadow-sm"
+                        disabled={isProcessingImages}
+                        className="px-4 py-2.5 bg-primary text-white font-bold text-xs rounded-xl hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center gap-2 shadow-sm"
                       >
-                        <Upload className="w-4 h-4" />
-                        <span>Selecionar Pasta com Imagens</span>
+                        <FolderPlus className="w-4 h-4" />
+                        <span>Selecionar Pasta</span>
+                      </button>
+
+                      <button
+                        onClick={() => filesInputRef.current?.click()}
+                        disabled={isProcessingImages}
+                        className="px-4 py-2.5 bg-secondary hover:bg-secondary/80 text-foreground font-bold text-xs rounded-xl disabled:opacity-50 transition-colors flex items-center gap-2 border border-border shadow-sm"
+                      >
+                        <ImageIcon className="w-4 h-4 text-primary" />
+                        <span>Selecionar Fotos</span>
                       </button>
                     </div>
                   </div>
+
+                  {isProcessingImages && (
+                    <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center gap-3 text-amber-700 dark:text-amber-300 text-xs">
+                      <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                      <span>
+                        Comprimindo e analisando fotos com IA: {processingProgress.current} de{' '}
+                        {processingProgress.total}...
+                      </span>
+                    </div>
+                  )}
                 </div>
 
-                {/* Uploaded Images Grid Preview */}
-                {uploadedImages.length > 0 && (
-                  <div className="space-y-3">
+                {/* Grouped Products Preview Cards */}
+                {groupedProducts.length > 0 && (
+                  <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-bold text-foreground">
-                        Imagens Carregadas ({uploadedImages.length} fotos)
+                      <h4 className="text-xs font-bold text-foreground flex items-center gap-2">
+                        <span>Produtos Identificados ({groupedProducts.length} itens prontos)</span>
+                        <span className="text-[11px] font-normal text-muted-foreground">
+                          (Total de {groupedProducts.reduce((acc, p) => acc + p.images.length, 0)} fotos)
+                        </span>
                       </h4>
                       <button
-                        onClick={() => setUploadedImages([])}
+                        onClick={() => setGroupedProducts([])}
                         className="text-xs text-destructive hover:underline font-semibold"
                       >
-                        Limpar Fotos
+                        Limpar Lista
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 max-h-64 overflow-y-auto p-1">
-                      {uploadedImages.map((img, idx) => (
+                    <div className="space-y-3 max-h-[360px] overflow-y-auto pr-1">
+                      {groupedProducts.map((prod, idx) => (
                         <div
                           key={idx}
-                          className="relative aspect-square rounded-xl overflow-hidden border border-border group bg-muted"
+                          className="p-3.5 rounded-xl border border-border bg-card shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
                         >
-                          <img
-                            src={img.dataUrl}
-                            alt={img.productName}
-                            className="w-full h-full object-cover"
-                          />
-                          <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity p-2 flex flex-col justify-end text-[10px] text-white">
-                            <span className="font-bold truncate">{img.productName}</span>
-                            <span className="text-emerald-300 font-semibold">{img.category}</span>
-                            {img.isSet && <span className="text-purple-300 font-semibold">👗 Conjunto</span>}
-                            <div className="flex items-center gap-1 mt-0.5">
-                              {img.detectedColors.map((c, cIdx) => (
-                                <span key={cIdx} className="w-2.5 h-2.5 rounded-full border border-white/40" style={{ backgroundColor: c.hex }} title={c.name} />
-                              ))}
+                          {/* Image Thumbnail & Counter */}
+                          <div className="flex items-center gap-3">
+                            <div className="relative w-16 h-16 rounded-lg overflow-hidden bg-muted border border-border shrink-0">
+                              <img
+                                src={prod.images[0]}
+                                alt={prod.name}
+                                className="w-full h-full object-cover"
+                              />
+                              {prod.images.length > 1 && (
+                                <span className="absolute bottom-0 right-0 bg-black/75 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-tl-md">
+                                  +{prod.images.length - 1}
+                                </span>
+                              )}
                             </div>
+
+                            <div className="space-y-1">
+                              {/* Editable Name */}
+                              <input
+                                type="text"
+                                value={prod.name}
+                                onChange={(e) =>
+                                  handleUpdateGroupedProduct(idx, { name: e.target.value })
+                                }
+                                className="font-bold text-xs bg-transparent border-b border-dashed border-border focus:border-primary focus:outline-none w-full max-w-xs text-foreground"
+                                placeholder="Nome do Produto"
+                              />
+
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {prod.size && (
+                                  <span className="px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-700 dark:text-amber-300 text-[10px] font-bold">
+                                    Tam: {prod.size}
+                                  </span>
+                                )}
+                                {prod.isSet && (
+                                  <span className="px-1.5 py-0.5 rounded-md bg-purple-500/20 text-purple-700 dark:text-purple-300 text-[10px] font-bold">
+                                    👗 Conjunto
+                                  </span>
+                                )}
+                                {prod.colors.map((c, cIdx) => (
+                                  <span
+                                    key={cIdx}
+                                    className="inline-flex items-center gap-1 text-[10px] bg-muted px-1.5 py-0.5 rounded-md"
+                                  >
+                                    <span
+                                      className="w-2 h-2 rounded-full border border-black/20"
+                                      style={{ backgroundColor: c.hex }}
+                                    />
+                                    <span>{c.name}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Category and Price Controls */}
+                          <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
+                            <div className="w-36">
+                              <label className="text-[10px] font-bold text-muted-foreground block">
+                                Categoria
+                              </label>
+                              <select
+                                value={prod.category}
+                                onChange={(e) =>
+                                  handleUpdateGroupedProduct(idx, { category: e.target.value })
+                                }
+                                className="w-full text-xs p-1.5 rounded-lg border border-input bg-background text-foreground"
+                              >
+                                {STORE_CATEGORIES.map((c) => (
+                                  <option key={c.name} value={c.name}>
+                                    {c.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div className="w-24">
+                              <label className="text-[10px] font-bold text-muted-foreground block">
+                                Preço (R$)
+                              </label>
+                              <input
+                                type="number"
+                                step="0.10"
+                                value={prod.price}
+                                onChange={(e) =>
+                                  handleUpdateGroupedProduct(idx, {
+                                    price: parseFloat(e.target.value) || 0,
+                                  })
+                                }
+                                className="w-full text-xs p-1.5 rounded-lg border border-input bg-background font-semibold text-foreground"
+                              />
+                            </div>
+
+                            <button
+                              onClick={() => handleRemoveGroupedProduct(idx)}
+                              className="p-2 text-muted-foreground hover:text-destructive rounded-lg hover:bg-muted transition-colors mt-3"
+                              title="Remover este produto"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
                         </div>
                       ))}
                     </div>
 
                     <button
-                      onClick={handleProcessImageImport}
-                      className="w-full py-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-lg transition-colors flex items-center justify-center gap-2"
+                      onClick={handleProcessGroupedProductsImport}
+                      disabled={isSaving}
+                      className="w-full py-3.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white font-bold text-xs shadow-lg transition-colors flex items-center justify-center gap-2"
                     >
-                      <Sparkles className="w-4 h-4" />
-                      <span>Cadastrar Produtos e Imagens nas Categorias</span>
+                      {isSaving ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="w-4 h-4" />
+                      )}
+                      <span>
+                        Cadastrar {groupedProducts.length} Produtos no Catálogo Oficial
+                      </span>
                     </button>
                   </div>
                 )}
