@@ -21,6 +21,7 @@ import {
   X,
   LogOut,
   ChevronRight,
+  FolderTree,
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -61,6 +62,7 @@ export const AdminLayout: React.FC = () => {
   const adminMenu = [
     { name: 'Dashboard', path: '/admin', icon: LayoutDashboard },
     { name: 'Produtos', path: '/admin/produtos', icon: Package },
+    { name: 'Categorias', path: '/admin/categorias', icon: FolderTree },
     { name: 'Pedidos', path: '/admin/pedidos', icon: ShoppingBag },
     { name: 'Clientes', path: '/admin/clientes', icon: Users },
     { name: 'Avaliações', path: '/admin/avaliacoes', icon: MessageSquare },

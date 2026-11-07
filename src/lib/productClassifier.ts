@@ -154,6 +154,35 @@ export function normalizeCategoryName(rawCategory?: string): string {
   return rawCategory;
 }
 
+const CATEGORIES_STORAGE_KEY = 'aura_store_categories_v1';
+
+/**
+ * Obtém a lista dinâmica de categorias da loja salvas pelo administrador
+ */
+export function getStoredCategories(): AvailableCategory[] {
+  try {
+    const raw = localStorage.getItem(CATEGORIES_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {
+    console.error('Error reading categories from localStorage:', e);
+  }
+  return STORE_CATEGORIES;
+}
+
+/**
+ * Salva a lista dinâmica de categorias da loja
+ */
+export function saveStoredCategories(categories: AvailableCategory[]): void {
+  try {
+    localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(categories));
+  } catch (e) {
+    console.error('Error saving categories to localStorage:', e);
+  }
+}
+
 export interface ProductClassification {
   category: string;
   isSet: boolean;
