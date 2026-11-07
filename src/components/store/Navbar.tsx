@@ -1,12 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, ShoppingBag, User, Instagram, Youtube, Menu, X, ShieldAlert, Sun, Moon, LogOut } from 'lucide-react';
+import {
+  Search,
+  ShoppingBag,
+  User,
+  Instagram,
+  Youtube,
+  Menu,
+  X,
+  ShieldAlert,
+  Sun,
+  Moon,
+  LogOut,
+  ChevronDown,
+  ArrowRight,
+  Sparkles,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCart } from '../../contexts/CartContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { SearchModal } from './SearchModal';
 import { AdminLoginModal } from '../admin/AdminLoginModal';
+import { getProducts } from '../../lib/dataClient';
+import { Product } from '../../types';
+import { STORE_CATEGORIES, normalizeCategoryName } from '../../lib/productClassifier';
 
 export const Navbar: React.FC = () => {
   const navigate = useNavigate();
@@ -14,17 +32,24 @@ export const Navbar: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
   const { user, logout, isAdmin, logoutAdmin } = useAuth();
 
+  const [products, setProducts] = useState<Product[]>(() => getProducts());
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isAdminAuthModalOpen, setIsAdminAuthModalOpen] = useState(false);
+  const [isCategoriesDropdownOpen, setIsCategoriesDropdownOpen] = useState(false);
+  const [isCategoriesMobileExpanded, setIsCategoriesMobileExpanded] = useState(false);
+
+  useEffect(() => {
+    setProducts(getProducts());
+  }, []);
 
   const navLinks = [
     { name: 'HOME', path: '/' },
-    { name: 'CATEGORIAS', path: '/catalogo' },
-    { name: 'LANÇAMENTOS', path: '/catalogo?ordenar=novidades' },
+    { name: 'LANÇAMENTOS', path: '/catalogo?ordenar=mais-recentes' },
     { name: 'PROMOÇÃO', path: '/catalogo?promocao=true' },
-    { name: 'MAIS VENDIDOS', path: '/catalogo?ordenar=mais_vendidos' },
-    { name: 'NOVA COLEÇÃO', path: '/catalogo?categoria=CONJUNTOS' },
+    { name: 'MAIS VENDIDOS', path: '/catalogo?ordenar=mais-vendidos' },
+    { name: 'CONJUNTOS', path: '/catalogo?categoria=Conjuntos' },
+    { name: 'MACACÕES', path: '/catalogo?categoria=Macacões' },
     { name: 'BLOG', path: '/blog' },
   ];
 
@@ -207,9 +232,122 @@ export const Navbar: React.FC = () => {
           </div>
         </div>
 
-        {/* Sub-Navigation Row (Lower Header Bar) */}
-        <nav className="bg-[#38672b] text-white hidden lg:flex items-center justify-center gap-8 py-2.5 px-4 text-xs font-semibold uppercase tracking-wider border-t border-[#447a36]">
-          {navLinks.map((link) => (
+        {/* Sub-Navigation Row (Lower Header Bar) with Categories Mega-Menu */}
+        <nav className="bg-[#38672b] text-white hidden lg:flex items-center justify-center gap-7 py-2.5 px-4 text-xs font-semibold uppercase tracking-wider border-t border-[#447a36]">
+          <Link
+            to="/"
+            className="hover:text-amber-200 transition-colors py-0.5 relative hover:after:w-full after:w-0 after:h-0.5 after:bg-amber-200 after:absolute after:bottom-0 after:left-0 after:transition-all"
+          >
+            HOME
+          </Link>
+
+          {/* Interactive Categories Mega-Menu Trigger */}
+          <div
+            className="relative py-1"
+            onMouseEnter={() => setIsCategoriesDropdownOpen(true)}
+            onMouseLeave={() => setIsCategoriesDropdownOpen(false)}
+          >
+            <button
+              onClick={() => {
+                navigate('/catalogo');
+              }}
+              className="flex items-center gap-1.5 hover:text-amber-200 transition-colors py-0.5 text-xs font-semibold uppercase tracking-wider relative group"
+            >
+              <span className="text-amber-300 font-bold">CATEGORIAS</span>
+              <ChevronDown
+                className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                  isCategoriesDropdownOpen ? 'rotate-180 text-amber-200' : 'text-amber-200/70'
+                }`}
+              />
+            </button>
+
+            {/* Mega-Menu Dropdown */}
+            <AnimatePresence>
+              {isCategoriesDropdownOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                  transition={{ duration: 0.16 }}
+                  className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-[580px] bg-[#1a3816] border border-[#3b682d] rounded-2xl shadow-2xl overflow-hidden z-50 text-white p-5 backdrop-blur-md"
+                >
+                  {/* Mega-Menu Header */}
+                  <div className="flex items-center justify-between border-b border-[#2d5624] pb-3 mb-3.5">
+                    <div>
+                      <span className="text-[10px] font-bold tracking-widest uppercase text-amber-200/90 block">
+                        EXPLORE NOSSAS PEÇAS
+                      </span>
+                      <h4 className="font-serif font-bold text-base text-white">
+                        Categorias Aura Fitness
+                      </h4>
+                    </div>
+                    <Link
+                      to="/catalogo"
+                      onClick={() => setIsCategoriesDropdownOpen(false)}
+                      className="text-[11px] font-bold text-amber-300 hover:text-white transition-colors flex items-center gap-1 bg-white/5 px-2.5 py-1 rounded-lg border border-white/10"
+                    >
+                      <span>Ver Tudo ({products.length} peças)</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </Link>
+                  </div>
+
+                  {/* 2-Column Categories Grid */}
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {STORE_CATEGORIES.map((cat) => {
+                      const count = products.filter(
+                        (p) => normalizeCategoryName(p.category) === cat.name
+                      ).length;
+
+                      return (
+                        <Link
+                          key={cat.name}
+                          to={`/catalogo?categoria=${encodeURIComponent(cat.name)}`}
+                          onClick={() => setIsCategoriesDropdownOpen(false)}
+                          className="flex items-start gap-3 p-2.5 rounded-xl bg-white/5 hover:bg-white/15 hover:border-amber-300/40 border border-transparent transition-all group/item text-left"
+                        >
+                          <span className="text-2xl p-2 rounded-xl bg-black/25 shrink-0 group-hover/item:scale-110 transition-transform">
+                            {cat.icon}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="font-bold text-xs text-white group-hover/item:text-amber-200 transition-colors truncate">
+                                {cat.name}
+                              </span>
+                              {count > 0 && (
+                                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
+                                  {count} {count === 1 ? 'peça' : 'peças'}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-white/60 line-clamp-1 mt-0.5">
+                              {cat.description}
+                            </p>
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+
+                  {/* Mega-Menu Footer */}
+                  <div className="mt-4 pt-3 border-t border-[#2d5624] flex items-center justify-between text-xs text-white/70">
+                    <span className="text-[11px] flex items-center gap-1.5 text-[#b2c8a9]">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                      <span>Peças modeladoras com zero transparência</span>
+                    </span>
+                    <Link
+                      to="/catalogo"
+                      onClick={() => setIsCategoriesDropdownOpen(false)}
+                      className="text-[11px] font-bold text-amber-300 hover:underline"
+                    >
+                      Ir para o Catálogo &rarr;
+                    </Link>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {navLinks.slice(1).map((link) => (
             <Link
               key={link.name}
               to={link.path}
@@ -229,8 +367,77 @@ export const Navbar: React.FC = () => {
               exit={{ height: 0, opacity: 0 }}
               className="lg:hidden bg-[#1f3d19] text-white border-t border-[#2d5624] px-6 py-4 space-y-3"
             >
-              <div className="flex flex-col gap-2 font-semibold text-xs uppercase tracking-wider">
-                {navLinks.map((link) => (
+              <div className="flex flex-col gap-1 font-semibold text-xs uppercase tracking-wider">
+                <Link
+                  to="/"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="hover:text-amber-200 py-2 border-b border-[#2b5223]"
+                >
+                  HOME
+                </Link>
+
+                {/* Mobile Categories Accordion */}
+                <div className="border-b border-[#2b5223] py-2">
+                  <button
+                    onClick={() => setIsCategoriesMobileExpanded(!isCategoriesMobileExpanded)}
+                    className="w-full flex items-center justify-between text-xs font-bold uppercase tracking-wider text-left text-amber-300 py-1"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <span>🏷️</span>
+                      <span>CATEGORIAS DA LOJA</span>
+                    </span>
+                    <ChevronDown
+                      className={`w-4 h-4 transition-transform duration-200 ${
+                        isCategoriesMobileExpanded ? 'rotate-180 text-amber-200' : ''
+                      }`}
+                    />
+                  </button>
+
+                  <AnimatePresence>
+                    {isCategoriesMobileExpanded && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="pl-2 pt-2 pb-1 space-y-1.5 border-l border-white/20 ml-2 mt-2"
+                      >
+                        {STORE_CATEGORIES.map((cat) => {
+                          const count = products.filter(
+                            (p) => normalizeCategoryName(p.category) === cat.name
+                          ).length;
+
+                          return (
+                            <Link
+                              key={cat.name}
+                              to={`/catalogo?categoria=${encodeURIComponent(cat.name)}`}
+                              onClick={() => setIsMobileMenuOpen(false)}
+                              className="flex items-center justify-between text-xs text-white/90 hover:text-white py-1.5 px-2 rounded-lg hover:bg-white/10 transition-colors"
+                            >
+                              <span className="flex items-center gap-2">
+                                <span>{cat.icon}</span>
+                                <span className="font-medium">{cat.name}</span>
+                              </span>
+                              {count > 0 && (
+                                <span className="text-[10px] text-emerald-300 font-bold bg-emerald-950/60 px-1.5 py-0.5 rounded-full border border-emerald-500/30">
+                                  {count}
+                                </span>
+                              )}
+                            </Link>
+                          );
+                        })}
+                        <Link
+                          to="/catalogo"
+                          onClick={() => setIsMobileMenuOpen(false)}
+                          className="block text-[11px] text-amber-300 font-bold pt-2 px-2 hover:underline"
+                        >
+                          👉 Ver Todas as Categorias ({products.length} peças)
+                        </Link>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {navLinks.slice(1).map((link) => (
                   <Link
                     key={link.name}
                     to={link.path}

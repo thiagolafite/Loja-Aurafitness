@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, ChevronLeft, ChevronRight, Heart } from 'lucide-react';
+import { ArrowRight, ChevronLeft, ChevronRight, Heart, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ProductCard } from '../../components/store/ProductCard';
 import { TrustBar } from '../../components/store/TrustBar';
 import { getProducts } from '../../lib/dataClient';
 import { Product } from '../../types';
+import { STORE_CATEGORIES, normalizeCategoryName } from '../../lib/productClassifier';
 
 export const HomePage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -173,6 +174,54 @@ export const HomePage: React.FC = () => {
 
       {/* Trust Ticker Bar (Matching Image 2) */}
       <TrustBar />
+
+      {/* Navegue por Categoria Showcase */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+        <div className="flex items-end justify-between border-b border-border pb-4 mb-6">
+          <div className="space-y-1 text-left">
+            <span className="text-[11px] font-bold tracking-widest uppercase text-[#38672b] dark:text-amber-400 block">
+              COLEÇÕES AURA
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-serif font-normal text-foreground flex items-center gap-2">
+              <span>Navegue por Categoria</span>
+              <Sparkles className="w-5 h-5 text-amber-500" />
+            </h2>
+          </div>
+          <Link
+            to="/catalogo"
+            className="text-xs font-semibold uppercase tracking-wider text-[#38672b] hover:text-[#23421b] dark:text-amber-400 flex items-center gap-1 transition-colors"
+          >
+            <span>VER CATÁLOGO COMPLETO</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 sm:gap-4">
+          {STORE_CATEGORIES.slice(0, 5).map((cat) => {
+            const count = products.filter(
+              (p) => normalizeCategoryName(p.category) === cat.name
+            ).length;
+
+            return (
+              <Link
+                key={cat.name}
+                to={`/catalogo?categoria=${encodeURIComponent(cat.name)}`}
+                className="group relative bg-card border border-border hover:border-primary/50 rounded-2xl p-4 sm:p-5 text-center flex flex-col items-center justify-center gap-2 transition-all hover:shadow-lg hover:-translate-y-1"
+              >
+                <span className="text-3xl sm:text-4xl p-3 rounded-2xl bg-primary/10 group-hover:scale-110 transition-transform">
+                  {cat.icon}
+                </span>
+                <h3 className="font-serif font-bold text-sm sm:text-base text-foreground group-hover:text-primary transition-colors">
+                  {cat.name}
+                </h3>
+                <span className="text-[11px] text-muted-foreground font-medium">
+                  {count > 0 ? `${count} ${count === 1 ? 'modelo' : 'modelos'}` : 'Explorar'}
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
 
       {/* As peças mais amadas 💚 (Matching Image 2) */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 pt-4">

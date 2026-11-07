@@ -14,6 +14,9 @@ export interface AvailableColor {
 
 export interface AvailableCategory {
   name: string;
+  slug: string;
+  icon: string;
+  description: string;
   keywords: string[];
 }
 
@@ -39,6 +42,9 @@ export const STORE_COLORS: AvailableColor[] = [
 export const STORE_CATEGORIES: AvailableCategory[] = [
   {
     name: 'Conjuntos',
+    slug: 'conjuntos',
+    icon: '👗',
+    description: 'Looks completos de top e legging/short com alta sustentação e modelagem impecável.',
     keywords: [
       'conjunto', 'conjuntos', 'kit', 'combo', 'duo',
       'top + legging', 'top+legging', 'top e legging',
@@ -47,7 +53,20 @@ export const STORE_CATEGORIES: AvailableCategory[] = [
     ],
   },
   {
+    name: 'Macacões',
+    slug: 'macacoes',
+    icon: '🩱',
+    description: 'Macaquinhos e macacões anatômicos com costas abertas e efeito modelador.',
+    keywords: [
+      'macacao', 'macacão', 'macaquinho', 'macaquinhos', 'jumpsuit',
+      'body', 'bodies', 'catsuit', 'one piece', 'maiô'
+    ],
+  },
+  {
     name: 'Leggings',
+    slug: 'leggings',
+    icon: '👖',
+    description: 'Cós alto anatômico, compressão firme, zero transparência e toque aveludado.',
     keywords: [
       'legging', 'leggings', 'leging', 'calca', 'calça',
       'corsario', 'corsário', 'fusô', 'fuso', 'boca de sino', 'flare',
@@ -56,6 +75,9 @@ export const STORE_CATEGORIES: AvailableCategory[] = [
   },
   {
     name: 'Tops',
+    slug: 'tops',
+    icon: '👚',
+    description: 'Tops esportivos e croppeds com alças reforçadas e sustentação perfeita.',
     keywords: [
       'top', 'tops', 'sutia', 'sutiã', 'cropped', 'bra',
       'sports bra', 'sustentacao', 'sustentação', 'nadador',
@@ -64,20 +86,19 @@ export const STORE_CATEGORIES: AvailableCategory[] = [
   },
   {
     name: 'Shorts & Bermudas',
+    slug: 'shorts-bermudas',
+    icon: '🩳',
+    description: 'Shorts duplos anti-assadura, bermudas ciclistas e modelos de alta mobilidade.',
     keywords: [
       'short', 'shorts', 'bermuda', 'bermudas', 'ciclista',
       'shortinho', 'duplo', 'saia short', 'saia-short', 'biker'
     ],
   },
   {
-    name: 'Macacões',
-    keywords: [
-      'macacao', 'macacão', 'macaquinho', 'jumpsuit',
-      'body', 'bodies', 'catsuit', 'one piece', 'maiô'
-    ],
-  },
-  {
     name: 'Regatas & Camisetas',
+    slug: 'regatas-camisetas',
+    icon: '👕',
+    description: 'Tecidos dry-fit ultra leves, frescos e com respirabilidade avançada.',
     keywords: [
       'regata', 'regatas', 'camiseta', 'camisetas', 't-shirt',
       'tshirt', 'blusa', 't-shirts', 'baby look', 'manga curta',
@@ -86,6 +107,9 @@ export const STORE_CATEGORIES: AvailableCategory[] = [
   },
   {
     name: 'Jaquetas',
+    slug: 'jaquetas',
+    icon: '🧥',
+    description: 'Corta-vento, agasalhos esportivos e jaquetas térmicas para pré e pós treino.',
     keywords: [
       'jaqueta', 'jaquetas', 'corta-vento', 'corta vento',
       'moletom', 'casaco', 'windbreaker', 'bomber', 'agasalho', 'anorak'
@@ -93,6 +117,9 @@ export const STORE_CATEGORIES: AvailableCategory[] = [
   },
   {
     name: 'Acessórios',
+    slug: 'acessorios',
+    icon: '🎒',
+    description: 'Meias esportivas, garrafas, faixas de cabelo e acessórios para seu treino.',
     keywords: [
       'meia', 'meias', 'faixa', 'garrafa', 'squeeze',
       'bolsa', 'mochila', 'tapete', 'mat', 'elastico',
@@ -100,6 +127,32 @@ export const STORE_CATEGORIES: AvailableCategory[] = [
     ],
   },
 ];
+
+/**
+ * Normaliza qualquer nome de categoria para a categoria canônica oficial
+ */
+export function normalizeCategoryName(rawCategory?: string): string {
+  if (!rawCategory) return '';
+  const norm = rawCategory
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+
+  if (norm.includes('conjunto')) return 'Conjuntos';
+  if (norm.includes('macac') || norm.includes('macaquinh')) return 'Macacões';
+  if (norm.includes('legging') || norm.includes('calca')) return 'Leggings';
+  if (norm.includes('top') || norm.includes('sutia') || norm.includes('cropped')) return 'Tops';
+  if (norm.includes('short') || norm.includes('bermuda')) return 'Shorts & Bermudas';
+  if (norm.includes('regata') || norm.includes('camiseta') || norm.includes('t-shirt') || norm.includes('blusa')) return 'Regatas & Camisetas';
+  if (norm.includes('jaqueta') || norm.includes('casaco') || norm.includes('corta')) return 'Jaquetas';
+  if (norm.includes('acessorio') || norm.includes('meia')) return 'Acessórios';
+
+  const exact = STORE_CATEGORIES.find((c) => c.name.toLowerCase() === rawCategory.toLowerCase());
+  if (exact) return exact.name;
+
+  return rawCategory;
+}
 
 export interface ProductClassification {
   category: string;

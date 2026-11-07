@@ -34,6 +34,7 @@ import {
   STORE_CATEGORIES,
   STORE_COLORS,
   AvailableColor,
+  normalizeCategoryName,
 } from '../../lib/productClassifier';
 
 export const AdminProductsPage: React.FC = () => {
@@ -79,7 +80,8 @@ export const AdminProductsPage: React.FC = () => {
       p.category.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesCategory =
-      selectedCategoryFilter === 'todos' || p.category === selectedCategoryFilter;
+      selectedCategoryFilter === 'todos' ||
+      normalizeCategoryName(p.category) === normalizeCategoryName(selectedCategoryFilter);
 
     return matchesSearch && matchesCategory;
   });
@@ -414,7 +416,9 @@ export const AdminProductsPage: React.FC = () => {
             {organizeMode === 'category' && (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                 {STORE_CATEGORIES.map((cat) => {
-                  const count = products.filter((p) => p.category === cat.name).length;
+                  const count = products.filter(
+                    (p) => normalizeCategoryName(p.category) === cat.name
+                  ).length;
                   return (
                     <div
                       key={cat.name}
