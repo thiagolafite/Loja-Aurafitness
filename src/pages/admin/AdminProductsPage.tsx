@@ -16,13 +16,20 @@ import {
   HelpCircle,
   ChevronRight,
   Filter,
+  Maximize2,
+  CheckSquare,
+  Square,
+  AlertTriangle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   getProducts,
   fetchProductsAsync,
   saveProduct,
+  saveProductAsync,
   deleteProduct,
+  bulkDeleteProductsAsync,
+  deleteAllProductsAsync,
   aiGenerateProductDescription,
   aiGenerateSeoMeta,
 } from '../../lib/dataClient';
@@ -36,6 +43,7 @@ import {
   AvailableColor,
   normalizeCategoryName,
 } from '../../lib/productClassifier';
+import { useLightbox } from '../../contexts/LightboxContext';
 
 export const AdminProductsPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>(() => getProducts());
@@ -43,6 +51,13 @@ export const AdminProductsPage: React.FC = () => {
   const [viewMode, setViewMode] = useState<'table' | 'visual'>('table');
   const [organizeMode, setOrganizeMode] = useState<'category' | 'color'>('category');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('todos');
+
+  // Lightbox for image expansion
+  const { openLightbox } = useLightbox();
+
+  // Multi-selection & Bulk Delete states
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   // Drag & Drop Feedback States
   const [draggedProduct, setDraggedProduct] = useState<Product | null>(null);
@@ -72,19 +87,119 @@ export const AdminProductsPage: React.FC = () => {
     }, 3500);
   };
 
-  // Filtered List
+  // Filtered List with safe null-checks
   const filteredProducts = products.filter((p) => {
+    const name = p.name || '';
+    const sku = p.sku || '';
+    const category = p.category || '';
+    const q = searchQuery.toLowerCase().trim();
+
     const matchesSearch =
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.category.toLowerCase().includes(searchQuery.toLowerCase());
+      !q ||
+      name.toLowerCase().includes(q) ||
+      sku.toLowerCase().includes(q) ||
+      category.toLowerCase().includes(q);
 
     const matchesCategory =
       selectedCategoryFilter === 'todos' ||
-      normalizeCategoryName(p.category) === normalizeCategoryName(selectedCategoryFilter);
+      normalizeCategoryName(category) === normalizeCategoryName(selectedCategoryFilter);
 
     return matchesSearch && matchesCategory;
   });
+
+  // Toggle selection for a single product
+  const handleToggleSelectProduct = (id: string) => {
+    setSelectedProductIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  // Toggle select all filtered products
+  const handleToggleSelectAll = () => {
+    if (filteredProducts.length === 0) return;
+    const allFilteredSelected = filteredProducts.every((p) => selectedProductIds.has(p.id));
+    if (allFilteredSelected) {
+      setSelectedProductIds((prev) => {
+        const next = new Set(prev);
+        filteredProducts.forEach((p) => next.delete(p.id));
+        return next;
+      });
+    } else {
+      setSelectedProductIds((prev) => {
+        const next = new Set(prev);
+        filteredProducts.forEach((p) => next.add(p.id));
+        return next;
+      });
+    }
+  };
+
+  // Clear all selections
+  const handleDeselectAll = () => {
+    setSelectedProductIds(new Set());
+  };
+
+  // Bulk delete selected products
+  const handleBulkDeleteSelected = async () => {
+    const count = selectedProductIds.size;
+    if (count === 0) return;
+
+    if (!window.confirm(`Tem certeza que deseja excluir permanentemente os ${count} produtos selecionados?`)) {
+      return;
+    }
+
+    setIsBulkDeleting(true);
+    try {
+      await bulkDeleteProductsAsync(Array.from(selectedProductIds));
+      setSelectedProductIds(new Set());
+      refreshProducts();
+      showToast(`✓ ${count} produto(s) excluído(s) com sucesso.`);
+    } catch (err) {
+      console.error(err);
+      showToast('Erro ao excluir produtos selecionados.');
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
+  // Delete all products in catalog (Catalog Reset)
+  const handleDeleteAllProducts = async () => {
+    if (products.length === 0) {
+      showToast('O catálogo já está vazio.');
+      return;
+    }
+
+    const confirm1 = window.confirm(
+      `⚠️ ATENÇÃO: Você está prestes a excluir TODOS os ${products.length} produtos do catálogo!\n\nEsta ação apagará permanentemente todos os produtos e não poderá ser desfeita.\n\nDeseja continuar?`
+    );
+    if (!confirm1) return;
+
+    const confirm2 = window.prompt(
+      'Para confirmar a exclusão de TODOS os produtos, digite a palavra EXCLUIR abaixo:'
+    );
+    if (confirm2?.trim().toUpperCase() !== 'EXCLUIR') {
+      showToast('Exclusão cancelada (palavra de confirmação não confere).');
+      return;
+    }
+
+    setIsBulkDeleting(true);
+    try {
+      await deleteAllProductsAsync();
+      setSelectedProductIds(new Set());
+      refreshProducts();
+      showToast('✓ Todos os produtos foram excluídos com sucesso. Catálogo limpo!');
+    } catch (err) {
+      console.error(err);
+      showToast('Erro ao limpar catálogo.');
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
 
   const handleOpenNewModal = () => {
     setEditingProduct({
@@ -117,23 +232,39 @@ export const AdminProductsPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (window.confirm('Tem certeza que deseja excluir este produto?')) {
-      deleteProduct(id);
-      setProducts(getProducts());
+      await bulkDeleteProductsAsync([id]);
+      setSelectedProductIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      refreshProducts();
       showToast('Produto excluído com sucesso.');
     }
   };
 
-  const handleSaveSubmit = (e: React.FormEvent) => {
+  const handleSaveSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct?.name) return;
 
-    saveProduct(editingProduct);
-    setProducts(getProducts());
-    setIsModalOpen(false);
-    setEditingProduct(null);
-    showToast(`✓ Produto "${editingProduct.name}" salvo com sucesso!`);
+    try {
+      await saveProductAsync(editingProduct);
+      setSelectedCategoryFilter('todos');
+      setSearchQuery('');
+      refreshProducts();
+      setIsModalOpen(false);
+      setEditingProduct(null);
+      showToast(`✓ Produto "${editingProduct.name}" salvo com sucesso!`);
+    } catch (err) {
+      console.error('Erro ao salvar no Supabase:', err);
+      saveProduct(editingProduct);
+      setProducts(getProducts());
+      setIsModalOpen(false);
+      setEditingProduct(null);
+      showToast(`✓ Produto "${editingProduct.name}" salvo localmente!`);
+    }
   };
 
   // AI Assistant Integration: Generate Product Description & SEO
@@ -288,6 +419,16 @@ export const AdminProductsPage: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-3 self-start sm:self-auto">
+          <button
+            onClick={handleDeleteAllProducts}
+            disabled={isBulkDeleting || products.length === 0}
+            className="bg-destructive/10 hover:bg-destructive text-destructive hover:text-white border border-destructive/20 font-bold text-xs py-3 px-4 rounded-xl shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
+            title="Excluir todos os produtos do catálogo"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span>Limpar Catálogo</span>
+          </button>
+
           <button
             onClick={() => setIsImporterOpen(true)}
             className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs py-3 px-4 rounded-xl shadow-md transition-all flex items-center gap-2"
@@ -506,15 +647,26 @@ export const AdminProductsPage: React.FC = () => {
                   dragTransition={{ bounceStiffness: 600, bounceDamping: 25 }}
                   onDragStart={() => setDraggedProduct(prod)}
                   onDragEnd={(_e, info) => handleDropProduct(prod, info.point.x, info.point.y)}
-                  className="touch-none select-none bg-card border-2 border-border hover:border-primary/50 rounded-3xl p-3.5 shadow-sm hover:shadow-md transition-all cursor-grab active:cursor-grabbing flex flex-col justify-between gap-3 relative group"
+                  className={`touch-none select-none bg-card border-2 ${
+                    selectedProductIds.has(prod.id)
+                      ? 'border-primary ring-2 ring-primary/20'
+                      : 'border-border hover:border-primary/50'
+                  } rounded-3xl p-3.5 shadow-sm hover:shadow-md transition-all cursor-grab active:cursor-grabbing flex flex-col justify-between gap-3 relative group`}
                 >
                   <div className="space-y-2.5">
-                    {/* Imagem e Badge de Categoria */}
-                    <div className="relative aspect-[4/5] rounded-2xl overflow-hidden bg-muted">
+                    {/* Imagem, Checkbox e Lightbox */}
+                    <div
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openLightbox(prod.images, 0, prod.name);
+                      }}
+                      className="relative aspect-[4/5] rounded-2xl overflow-hidden bg-muted cursor-pointer group/zoom"
+                      title="Clique para ampliar a foto do produto"
+                    >
                       <img
-                        src={prod.images[0]}
+                        src={prod.images?.[0] || '/images/look-3103.png'}
                         alt={prod.name}
-                        className="w-full h-full object-cover pointer-events-none"
+                        className="w-full h-full object-cover pointer-events-none transition-transform duration-300 group-hover/zoom:scale-105"
                       />
                       <span className="absolute top-2 left-2 bg-black/75 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-0.5 rounded-lg shadow">
                         {prod.category}
@@ -522,14 +674,41 @@ export const AdminProductsPage: React.FC = () => {
                       <span className="absolute bottom-2 right-2 bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-lg shadow">
                         {formatCurrency(prod.promotionalPrice || prod.price)}
                       </span>
+
+                      {/* Botão de Zoom */}
+                      <div className="absolute top-2 right-2 bg-black/60 hover:bg-black/90 text-white p-1.5 rounded-lg opacity-80 group-hover/zoom:opacity-100 transition-opacity">
+                        <Maximize2 className="w-3.5 h-3.5" />
+                      </div>
                     </div>
 
-                    {/* Nome do Produto */}
-                    <div>
-                      <h4 className="font-serif font-bold text-xs text-foreground line-clamp-1">
-                        {prod.name}
-                      </h4>
-                      <span className="text-[10px] font-mono text-muted-foreground">{prod.sku}</span>
+                    {/* Nome do Produto e Checkbox de Seleção */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h4 className="font-serif font-bold text-xs text-foreground line-clamp-1">
+                          {prod.name}
+                        </h4>
+                        <span className="text-[10px] font-mono text-muted-foreground">{prod.sku}</span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleSelectProduct(prod.id);
+                        }}
+                        className={`p-1.5 rounded-lg border transition-all shrink-0 ${
+                          selectedProductIds.has(prod.id)
+                            ? 'bg-primary text-white border-primary shadow-sm'
+                            : 'bg-muted text-muted-foreground border-border hover:text-foreground'
+                        }`}
+                        title={selectedProductIds.has(prod.id) ? 'Desmarcar produto' : 'Selecionar produto'}
+                      >
+                        {selectedProductIds.has(prod.id) ? (
+                          <CheckSquare className="w-3.5 h-3.5" />
+                        ) : (
+                          <Square className="w-3.5 h-3.5" />
+                        )}
+                      </button>
                     </div>
 
                     {/* Cores Atuais */}
@@ -611,6 +790,18 @@ export const AdminProductsPage: React.FC = () => {
             <table className="w-full text-left text-xs">
               <thead className="bg-muted/50 text-foreground font-semibold border-b border-border">
                 <tr>
+                  <th className="p-3.5 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={
+                        filteredProducts.length > 0 &&
+                        filteredProducts.every((p) => selectedProductIds.has(p.id))
+                      }
+                      onChange={handleToggleSelectAll}
+                      title="Selecionar / Desmarcar todos os produtos listados"
+                      className="w-4 h-4 accent-primary rounded cursor-pointer"
+                    />
+                  </th>
                   <th className="p-3.5">Imagem</th>
                   <th className="p-3.5">Produto</th>
                   <th className="p-3.5">Categoria</th>
@@ -625,14 +816,38 @@ export const AdminProductsPage: React.FC = () => {
               <tbody className="divide-y divide-border">
                 {filteredProducts.map((prod) => {
                   const totalStock = Object.values(prod.stock || {}).reduce((a, b) => a + b, 0);
+                  const isSelected = selectedProductIds.has(prod.id);
                   return (
-                    <tr key={prod.id} className="hover:bg-muted/30 transition-colors">
-                      <td className="p-3.5">
-                        <img
-                          src={prod.images[0]}
-                          alt={prod.name}
-                          className="w-10 h-12 object-cover rounded-lg border border-border"
+                    <tr
+                      key={prod.id}
+                      className={`hover:bg-muted/30 transition-colors ${
+                        isSelected ? 'bg-primary/5' : ''
+                      }`}
+                    >
+                      <td className="p-3.5 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleToggleSelectProduct(prod.id)}
+                          className="w-4 h-4 accent-primary rounded cursor-pointer"
+                          title={isSelected ? 'Desmarcar produto' : 'Selecionar produto'}
                         />
+                      </td>
+                      <td className="p-3.5">
+                        <div
+                          onClick={() => openLightbox(prod.images, 0, prod.name)}
+                          className="relative group w-10 h-12 rounded-lg overflow-hidden border border-border cursor-pointer shrink-0"
+                          title="Clique para ampliar a imagem"
+                        >
+                          <img
+                            src={prod.images?.[0] || '/images/look-3103.png'}
+                            alt={prod.name}
+                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <Maximize2 className="w-3.5 h-3.5 text-white" />
+                          </div>
+                        </div>
                       </td>
                       <td className="p-3.5">
                         <span className="font-serif font-bold text-sm text-foreground block">
@@ -1075,11 +1290,55 @@ export const AdminProductsPage: React.FC = () => {
         </div>
       )}
 
+      {/* Floating Bulk Actions Bar */}
+      <AnimatePresence>
+        {selectedProductIds.size > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 30, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 30, scale: 0.95 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-card/95 backdrop-blur-md border-2 border-primary/40 shadow-2xl rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 max-w-xl w-[92%]"
+          >
+            <div className="flex items-center gap-3">
+              <span className="bg-primary text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-sm">
+                {selectedProductIds.size} selecionado{selectedProductIds.size > 1 ? 's' : ''}
+              </span>
+              <span className="text-xs text-foreground font-semibold hidden sm:inline">
+                de {filteredProducts.length} produto(s) listado(s)
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleDeselectAll}
+                className="px-3.5 py-2 text-xs font-bold text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 rounded-xl transition-colors"
+              >
+                Desmarcar Todos
+              </button>
+              <button
+                type="button"
+                onClick={handleBulkDeleteSelected}
+                disabled={isBulkDeleting}
+                className="px-4 py-2 text-xs font-bold text-white bg-destructive hover:bg-destructive/90 rounded-xl transition-all shadow-md flex items-center gap-2 disabled:opacity-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>
+                  {isBulkDeleting ? 'Excluindo...' : `Excluir (${selectedProductIds.size})`}
+                </span>
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Importer Modal */}
       <ProductImporterModal
         isOpen={isImporterOpen}
         onClose={() => setIsImporterOpen(false)}
         onSuccess={() => {
+          setSelectedCategoryFilter('todos');
+          setSearchQuery('');
           refreshProducts();
           showToast('✓ Importação de produtos processada com sucesso!');
         }}

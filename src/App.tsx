@@ -5,6 +5,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { CartProvider } from './contexts/CartContext';
 import { WishlistProvider } from './contexts/WishlistContext';
 import { AuthProvider } from './contexts/AuthContext';
+import { LightboxProvider } from './contexts/LightboxContext';
 
 // Layouts
 import { StoreLayout } from './layouts/StoreLayout';
@@ -48,9 +49,10 @@ export const App: React.FC = () => {
         <AuthProvider>
           <WishlistProvider>
             <CartProvider>
-              <BrowserRouter>
-                <Routes>
-                  {/* Storefront Routes */}
+              <LightboxProvider>
+                <BrowserRouter>
+                  <Routes>
+                    {/* Storefront Routes */}
                   <Route path="/" element={<StoreLayout />}>
                     <Route index element={<HomePage />} />
                     <Route path="catalogo" element={<CatalogPage />} />
@@ -88,10 +90,11 @@ export const App: React.FC = () => {
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </BrowserRouter>
-            </CartProvider>
-          </WishlistProvider>
-        </AuthProvider>
-      </ThemeProvider>
+            </LightboxProvider>
+          </CartProvider>
+        </WishlistProvider>
+      </AuthProvider>
+    </ThemeProvider>
     </QueryClientProvider>
   );
 };

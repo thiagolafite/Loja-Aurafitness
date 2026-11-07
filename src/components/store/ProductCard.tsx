@@ -1,10 +1,11 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, ShoppingBag } from 'lucide-react';
+import { Heart, ShoppingBag, ZoomIn } from 'lucide-react';
 import { Product } from '../../types';
 import { formatCurrency, calculateDiscount } from '../../lib/utils';
 import { useWishlist } from '../../contexts/WishlistContext';
 import { useCart } from '../../contexts/CartContext';
+import { useLightbox } from '../../contexts/LightboxContext';
 
 interface ProductCardProps {
   product: Product;
@@ -13,6 +14,7 @@ interface ProductCardProps {
 export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   const { isInWishlist, toggleWishlist } = useWishlist();
   const { addToCart } = useCart();
+  const { openLightbox } = useLightbox();
   const isFav = isInWishlist(product.id);
 
   const discountPercent = product.promotionalPrice
@@ -38,8 +40,21 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           )}
         </Link>
 
-        {/* Top-Left Badge */}
-        <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10 pointer-events-none">
+        {/* Zoom Expand Button */}
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            openLightbox(product.images, 0, product.name);
+          }}
+          className="absolute top-3 left-3 z-20 w-8 h-8 rounded-full bg-white/90 dark:bg-slate-900/90 text-foreground flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all opacity-0 group-hover:opacity-100"
+          title="Ver foto em tela cheia (Expandir)"
+        >
+          <ZoomIn className="w-4 h-4 text-slate-700 dark:text-slate-200" />
+        </button>
+
+        {/* Top-Left Badge (offset if zoom button present) */}
+        <div className="absolute top-12 left-3 flex flex-col gap-1.5 z-10 pointer-events-none">
           {discountPercent > 0 ? (
             <span className="bg-[#38672b] text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full shadow-sm">
               -{discountPercent}%

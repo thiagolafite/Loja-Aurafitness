@@ -75,8 +75,14 @@ export async function syncWithSupabase(): Promise<void> {
 
   try {
     // 1. Products
-    const { data: prods } = await supabase.from('products').select('*').order('created_at', { ascending: false });
-    if (prods && prods.length > 0) {
+    const { data: prods, error: prodsError } = await supabase
+      .from('products')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (!prodsError && prods) {
+      const deletedSet = new Set(getStorageItem<string[]>('aura_deleted_product_ids_v1', []));
+
       const dbProducts: Product[] = prods.map((p) => ({
         id: p.id,
         name: p.name,
@@ -86,7 +92,7 @@ export async function syncWithSupabase(): Promise<void> {
         category: p.category,
         price: Number(p.price),
         promotionalPrice: p.promotional_price ? Number(p.promotional_price) : undefined,
-        sku: p.sku,
+        sku: p.sku || `SKU-${Date.now()}`,
         barcode: p.barcode || '7890000000000',
         weight: Number(p.weight) || 200,
         brand: p.brand || 'Aura Fitness',
@@ -106,38 +112,20 @@ export async function syncWithSupabase(): Promise<void> {
         createdAt: p.created_at,
       }));
 
-      // Combinação resiliente: mantém integridade e evita que produtos sumam
-      const productMap = new Map<string, Product>();
+      // Apenas produtos que não foram excluídos pelo usuário
+      const cleanDbProducts = dbProducts.filter((p) => !deletedSet.has(p.id));
 
-      // 1. Catálogo inicial padrão Aura
-      initialProducts.forEach((p) => {
-        productMap.set(p.id, p);
-        productMap.set(p.name.toLowerCase().trim(), p);
-      });
+      // Preserva itens locais temporários criados offline que ainda não subiram
+      const pendingLocalProducts = cachedProducts.filter(
+        (p) =>
+          p.id.startsWith('prod-') &&
+          !deletedSet.has(p.id) &&
+          !cleanDbProducts.some(
+            (db) => db.name.toLowerCase().trim() === p.name.toLowerCase().trim()
+          )
+      );
 
-      // 2. Cache local atual (incluindo produtos criados offline/recentes)
-      cachedProducts.forEach((p) => {
-        productMap.set(p.id, p);
-        productMap.set(p.name.toLowerCase().trim(), p);
-      });
-
-      // 3. Supabase (fonte definitiva na nuvem)
-      dbProducts.forEach((p) => {
-        const normName = p.name.toLowerCase().trim();
-        for (const [k, v] of productMap.entries()) {
-          if (v.name.toLowerCase().trim() === normName && v.id !== p.id) {
-            productMap.delete(k);
-          }
-        }
-        productMap.set(normName, p);
-        productMap.set(p.id, p);
-      });
-
-      const uniqueMerged = Array.from(new Set(Array.from(productMap.values()).map((p) => p.id)))
-        .map((id) => Array.from(productMap.values()).find((p) => p.id === id)!)
-        .filter(Boolean);
-
-      cachedProducts = uniqueMerged;
+      cachedProducts = [...cleanDbProducts, ...pendingLocalProducts];
       setStorageItem(STORAGE_KEYS.PRODUCTS, cachedProducts);
     }
 
@@ -289,6 +277,12 @@ export async function saveProductAsync(productData: Partial<Product>): Promise<P
   const { data, error } = await supabase.from('products').upsert(payload).select().single();
   if (error) throw error;
 
+  const deletedSet = new Set(getStorageItem<string[]>('aura_deleted_product_ids_v1', []));
+  if (data?.id && deletedSet.has(data.id)) {
+    deletedSet.delete(data.id);
+    setStorageItem('aura_deleted_product_ids_v1', Array.from(deletedSet));
+  }
+
   await syncWithSupabase();
   return getProductById(data.id) || (productData as Product);
 }
@@ -349,12 +343,56 @@ export function saveProduct(productData: Partial<Product>): Product {
   return updatedProduct;
 }
 
-export function deleteProduct(id: string): void {
-  if (isSupabaseConfigured()) {
-    supabase.from('products').delete().eq('id', id).then(() => syncWithSupabase());
-  }
-  cachedProducts = cachedProducts.filter((p) => p.id !== id);
+export async function bulkDeleteProductsAsync(ids: string[]): Promise<void> {
+  if (!ids || ids.length === 0) return;
+
+  // 1. Marca no histórico de exclusões para nunca reviver
+  const deletedSet = new Set(getStorageItem<string[]>('aura_deleted_product_ids_v1', []));
+  ids.forEach((id) => deletedSet.add(id));
+  setStorageItem('aura_deleted_product_ids_v1', Array.from(deletedSet));
+
+  // 2. Remove do cache local e localStorage imediatamente
+  cachedProducts = cachedProducts.filter((p) => !ids.includes(p.id));
   setStorageItem(STORAGE_KEYS.PRODUCTS, cachedProducts);
+
+  // 3. Exclui do banco Supabase
+  if (isSupabaseConfigured()) {
+    try {
+      const { error } = await supabase.from('products').delete().in('id', ids);
+      if (error) console.error('Erro ao excluir produtos do Supabase:', error);
+    } catch (e) {
+      console.error('Exceção ao excluir produtos do Supabase:', e);
+    }
+  }
+}
+
+export async function deleteAllProductsAsync(): Promise<void> {
+  // 1. Marca todos os itens atuais e iniciais como excluídos
+  const deletedSet = new Set(getStorageItem<string[]>('aura_deleted_product_ids_v1', []));
+  cachedProducts.forEach((p) => deletedSet.add(p.id));
+  initialProducts.forEach((p) => deletedSet.add(p.id));
+  setStorageItem('aura_deleted_product_ids_v1', Array.from(deletedSet));
+
+  // 2. Esvazia cache local
+  cachedProducts = [];
+  setStorageItem(STORAGE_KEYS.PRODUCTS, []);
+
+  // 3. Exclui todas as linhas da tabela products no Supabase
+  if (isSupabaseConfigured()) {
+    try {
+      const { error } = await supabase
+        .from('products')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000');
+      if (error) console.error('Erro ao excluir todos os produtos no Supabase:', error);
+    } catch (e) {
+      console.error('Exceção ao excluir todos os produtos no Supabase:', e);
+    }
+  }
+}
+
+export function deleteProduct(id: string): void {
+  bulkDeleteProductsAsync([id]).catch(console.error);
 }
 
 export async function bulkImportProductsAsync(items: Partial<Product>[]): Promise<Product[]> {

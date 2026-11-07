@@ -339,10 +339,12 @@ export function parseProductFromFolderOrFile(
   );
 
   if (hasValidFolder) {
-    if (isCatFolder && !isGenericFileName(cleanFileName)) {
+    if (!isGenericFileName(cleanFileName)) {
+      // O arquivo possui nome próprio e específico de produto
       candidateName = cleanFileName;
       rawTextForExtraction = `${folderCandidate} ${cleanFileName}`;
     } else {
+      // O arquivo possui nome genérico (WhatsApp, IMG, etc.), então a pasta define o produto
       candidateName = folderCandidate;
       rawTextForExtraction = folderCandidate;
     }
@@ -412,8 +414,9 @@ export function parseProductFromFolderOrFile(
     finalCategory = defaultCategory;
   }
 
-  // 6. Chave de Agrupamento Única (para reunir todas as fotos do mesmo produto)
-  const groupKey = normalizeText(cleanName);
+  // 6. Chave de Agrupamento Única (reúne fotos numeradas como 'Top 1.jpg', 'Top 2.jpg' no mesmo produto)
+  const cleanNameForGroup = cleanName.replace(/[\s\-_]+(?:foto|img|imagem)?\s*\(?\d{1,2}\)?$/i, '').trim();
+  const groupKey = normalizeText(cleanNameForGroup || cleanName);
 
   return {
     productName: cleanName,

@@ -25,6 +25,7 @@ import {
   TrendingUp,
   DollarSign,
   Filter,
+  Maximize2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -46,6 +47,7 @@ import {
   saveStoredCategories,
 } from '../../lib/productClassifier';
 import { ProductImporterModal } from '../../components/admin/ProductImporterModal';
+import { useLightbox } from '../../contexts/LightboxContext';
 
 export const AdminCategoriesPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>(() => getProducts());
@@ -53,6 +55,9 @@ export const AdminCategoriesPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategoryTab, setSelectedCategoryTab] = useState<string>('todos');
   const [hideEmptyCategories, setHideEmptyCategories] = useState(false);
+
+  // Lightbox for image expansion
+  const { openLightbox } = useLightbox();
 
   // Toast feedback
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -627,12 +632,19 @@ export const AdminCategoriesPage: React.FC = () => {
                               {/* Product Info & Thumb */}
                               <td className="py-3.5 pl-2">
                                 <div className="flex items-center gap-3">
-                                  <div className="relative w-12 h-12 rounded-xl overflow-hidden bg-muted border border-border shrink-0">
+                                  <div
+                                    onClick={() => openLightbox(prod.images, 0, prod.name)}
+                                    className="relative w-12 h-12 rounded-xl overflow-hidden bg-muted border border-border shrink-0 cursor-pointer group/zoom"
+                                    title="Clique para ampliar a foto do produto"
+                                  >
                                     <img
                                       src={prod.images?.[0] || '/images/look-3103.png'}
                                       alt={prod.name}
-                                      className="w-full h-full object-cover"
+                                      className="w-full h-full object-cover transition-transform duration-300 group-hover/zoom:scale-110"
                                     />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/zoom:opacity-100 transition-opacity flex items-center justify-center">
+                                      <Maximize2 className="w-3.5 h-3.5 text-white" />
+                                    </div>
                                     {prod.images && prod.images.length > 1 && (
                                       <span className="absolute bottom-0 right-0 bg-black/80 text-white text-[8px] font-bold px-1 rounded-tl">
                                         +{prod.images.length - 1}

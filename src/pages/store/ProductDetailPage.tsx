@@ -20,6 +20,7 @@ import { useWishlist } from '../../contexts/WishlistContext';
 import { SizeGuideModal } from '../../components/store/SizeGuideModal';
 import { ReviewSection } from '../../components/store/ReviewSection';
 import { ProductCard } from '../../components/store/ProductCard';
+import { useLightbox } from '../../contexts/LightboxContext';
 
 export const ProductDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -28,6 +29,7 @@ export const ProductDetailPage: React.FC = () => {
 
   const { addToCart } = useCart();
   const { isInWishlist, toggleWishlist } = useWishlist();
+  const { openLightbox } = useLightbox();
 
   if (!product) {
     return (
@@ -91,11 +93,21 @@ export const ProductDetailPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
         {/* Left: Image Gallery */}
         <div className="lg:col-span-7 space-y-4">
-          <div className="relative aspect-[4/5] rounded-3xl overflow-hidden bg-muted border border-border group shadow-lg">
+          <div
+            onClick={() =>
+              openLightbox(
+                product.images,
+                Math.max(0, product.images.indexOf(activeImage)),
+                product.name
+              )
+            }
+            className="relative aspect-[4/5] rounded-3xl overflow-hidden bg-muted border border-border group shadow-lg cursor-zoom-in"
+            title="Clique para expandir a imagem"
+          >
             <img
               src={activeImage}
               alt={product.name}
-              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 cursor-zoom-in"
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             />
             {discountPercent > 0 && (
               <span className="absolute top-4 left-4 bg-destructive text-white text-xs font-bold px-3 py-1 rounded-full shadow-md">
