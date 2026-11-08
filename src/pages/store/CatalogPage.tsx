@@ -20,12 +20,26 @@ import {
   normalizeCategoryName,
   AvailableCategory,
   getCategoryPhoto,
+  getStoredCategories,
 } from '../../lib/productClassifier';
 import { Product } from '../../types';
 
 export const CatalogPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const allProducts = getProducts();
+  const [categories, setCategories] = useState<AvailableCategory[]>(() => getStoredCategories());
+
+  // Sync categories if changed
+  useEffect(() => {
+    setCategories(getStoredCategories());
+    const syncCats = () => setCategories(getStoredCategories());
+    window.addEventListener('aura_categories_updated', syncCats);
+    window.addEventListener('storage', syncCats);
+    return () => {
+      window.removeEventListener('aura_categories_updated', syncCats);
+      window.removeEventListener('storage', syncCats);
+    };
+  }, []);
 
   // Read URL params
   const initialSearch = searchParams.get('search') || '';
@@ -199,7 +213,7 @@ export const CatalogPage: React.FC = () => {
   const groupedByCategory = useMemo(() => {
     const groups: { category: AvailableCategory; items: Product[] }[] = [];
 
-    STORE_CATEGORIES.forEach((cat) => {
+    categories.forEach((cat) => {
       const items = filteredProducts.filter(
         (p) => normalizeCategoryName(p.category) === cat.name
       );
@@ -231,7 +245,7 @@ export const CatalogPage: React.FC = () => {
   const currentCategoryObj = useMemo(() => {
     if (!selectedCategory) return null;
     return (
-      STORE_CATEGORIES.find((c) => c.name === selectedCategory) || {
+      categories.find((c) => c.name === selectedCategory) || {
         name: selectedCategory,
         slug: 'categoria',
         icon: '🏷️',
@@ -239,7 +253,7 @@ export const CatalogPage: React.FC = () => {
         keywords: [],
       }
     );
-  }, [selectedCategory]);
+  }, [selectedCategory, categories]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
@@ -330,7 +344,7 @@ export const CatalogPage: React.FC = () => {
           </button>
 
           {/* Individual Category Pills */}
-          {STORE_CATEGORIES.map((cat) => {
+          {categories.map((cat) => {
             const count = allProducts.filter(
               (p) => normalizeCategoryName(p.category) === cat.name
             ).length;
@@ -422,7 +436,7 @@ export const CatalogPage: React.FC = () => {
                 <span className="text-[10px] opacity-75">{allProducts.length}</span>
               </button>
 
-              {STORE_CATEGORIES.map((cat) => {
+              {categories.map((cat) => {
                 const count = allProducts.filter(
                   (p) => normalizeCategoryName(p.category) === cat.name
                 ).length;

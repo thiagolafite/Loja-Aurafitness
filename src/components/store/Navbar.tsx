@@ -24,7 +24,13 @@ import { SearchModal } from './SearchModal';
 import { AdminLoginModal } from '../admin/AdminLoginModal';
 import { getProducts } from '../../lib/dataClient';
 import { Product } from '../../types';
-import { STORE_CATEGORIES, normalizeCategoryName, getCategoryPhoto } from '../../lib/productClassifier';
+import {
+  STORE_CATEGORIES,
+  normalizeCategoryName,
+  getCategoryPhoto,
+  getStoredCategories,
+  AvailableCategory,
+} from '../../lib/productClassifier';
 
 export const Navbar: React.FC = () => {
   const navigate = useNavigate();
@@ -33,6 +39,7 @@ export const Navbar: React.FC = () => {
   const { user, logout, isAdmin, logoutAdmin } = useAuth();
 
   const [products, setProducts] = useState<Product[]>(() => getProducts());
+  const [categories, setCategories] = useState<AvailableCategory[]>(() => getStoredCategories());
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isAdminAuthModalOpen, setIsAdminAuthModalOpen] = useState(false);
@@ -41,6 +48,14 @@ export const Navbar: React.FC = () => {
 
   useEffect(() => {
     setProducts(getProducts());
+    setCategories(getStoredCategories());
+    const syncCats = () => setCategories(getStoredCategories());
+    window.addEventListener('aura_categories_updated', syncCats);
+    window.addEventListener('storage', syncCats);
+    return () => {
+      window.removeEventListener('aura_categories_updated', syncCats);
+      window.removeEventListener('storage', syncCats);
+    };
   }, []);
 
   const navLinks = [
@@ -293,7 +308,7 @@ export const Navbar: React.FC = () => {
 
                   {/* 2-Column Categories Grid */}
                   <div className="grid grid-cols-2 gap-2.5">
-                    {STORE_CATEGORIES.map((cat) => {
+                    {categories.map((cat) => {
                       const count = products.filter(
                         (p) => normalizeCategoryName(p.category) === cat.name
                       ).length;
@@ -405,7 +420,7 @@ export const Navbar: React.FC = () => {
                         exit={{ opacity: 0, height: 0 }}
                         className="pl-2 pt-2 pb-1 space-y-1.5 border-l border-white/20 ml-2 mt-2"
                       >
-                        {STORE_CATEGORIES.map((cat) => {
+                        {categories.map((cat) => {
                           const count = products.filter(
                             (p) => normalizeCategoryName(p.category) === cat.name
                           ).length;

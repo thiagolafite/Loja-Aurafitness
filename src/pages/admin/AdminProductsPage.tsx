@@ -41,12 +41,15 @@ import {
   STORE_CATEGORIES,
   STORE_COLORS,
   AvailableColor,
+  AvailableCategory,
   normalizeCategoryName,
+  getStoredCategories,
 } from '../../lib/productClassifier';
 import { useLightbox } from '../../contexts/LightboxContext';
 
 export const AdminProductsPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>(() => getProducts());
+  const [categories, setCategories] = useState<AvailableCategory[]>(() => getStoredCategories());
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'table' | 'visual'>('table');
   const [organizeMode, setOrganizeMode] = useState<'category' | 'color'>('category');
@@ -78,6 +81,17 @@ export const AdminProductsPage: React.FC = () => {
 
   useEffect(() => {
     refreshProducts();
+    setCategories(getStoredCategories());
+
+    const handleCategoriesUpdate = () => {
+      setCategories(getStoredCategories());
+    };
+    window.addEventListener('aura_categories_updated', handleCategoriesUpdate);
+    window.addEventListener('storage', handleCategoriesUpdate);
+    return () => {
+      window.removeEventListener('aura_categories_updated', handleCategoriesUpdate);
+      window.removeEventListener('storage', handleCategoriesUpdate);
+    };
   }, []);
 
   const showToast = (msg: string) => {
@@ -498,7 +512,7 @@ export const AdminProductsPage: React.FC = () => {
             className="bg-card border border-border rounded-xl px-3 py-2 text-xs font-semibold text-foreground outline-none"
           >
             <option value="todos">Todas as Categorias</option>
-            {STORE_CATEGORIES.map((cat) => (
+            {categories.map((cat) => (
               <option key={cat.name} value={cat.name}>
                 {cat.name}
               </option>
@@ -556,7 +570,7 @@ export const AdminProductsPage: React.FC = () => {
             {/* DROP ZONES: CATEGORIAS */}
             {organizeMode === 'category' && (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
-                {STORE_CATEGORIES.map((cat) => {
+                {categories.map((cat) => {
                   const count = products.filter(
                     (p) => normalizeCategoryName(p.category) === cat.name
                   ).length;
@@ -758,7 +772,7 @@ export const AdminProductsPage: React.FC = () => {
                           + Mover rápido
                         </option>
                         <optgroup label="Associar Categoria">
-                          {STORE_CATEGORIES.map((cat) => (
+                          {categories.map((cat) => (
                             <option key={`cat-${cat.name}`} value={`cat:${cat.name}`}>
                               {cat.name}
                             </option>
@@ -1033,13 +1047,13 @@ export const AdminProductsPage: React.FC = () => {
                 <div>
                   <label className="block font-semibold text-foreground mb-1">Categoria *</label>
                   <select
-                    value={editingProduct.category || 'Leggings'}
+                    value={editingProduct.category || (categories[0]?.name || 'Leggings')}
                     onChange={(e) =>
                       setEditingProduct({ ...editingProduct, category: e.target.value })
                     }
                     className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs font-semibold focus:ring-2 focus:ring-primary outline-none"
                   >
-                    {STORE_CATEGORIES.map((cat) => (
+                    {categories.map((cat) => (
                       <option key={cat.name} value={cat.name}>
                         {cat.name}
                       </option>

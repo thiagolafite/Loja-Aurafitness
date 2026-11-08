@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   X,
   Upload,
@@ -29,6 +29,8 @@ import {
   resizeImageFile,
   STORE_CATEGORIES,
   STORE_COLORS,
+  getStoredCategories,
+  AvailableCategory,
 } from '../../lib/productClassifier';
 
 interface ProductImporterModalProps {
@@ -79,8 +81,24 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
   const [parsedRows, setParsedRows] = useState<ParsedCSVRow[]>([]);
   const [csvError, setCsvError] = useState<string>('');
 
+  // Categories
+  const [categories, setCategories] = useState<AvailableCategory[]>(() => getStoredCategories());
+
+  useEffect(() => {
+    setCategories(getStoredCategories());
+    const handleCats = () => setCategories(getStoredCategories());
+    window.addEventListener('aura_categories_updated', handleCats);
+    window.addEventListener('storage', handleCats);
+    return () => {
+      window.removeEventListener('aura_categories_updated', handleCats);
+      window.removeEventListener('storage', handleCats);
+    };
+  }, []);
+
   // Image Import State
-  const [selectedDefaultCategory, setSelectedDefaultCategory] = useState<string>('Leggings');
+  const [selectedDefaultCategory, setSelectedDefaultCategory] = useState<string>(
+    () => getStoredCategories()[0]?.name || 'Leggings'
+  );
   const [groupedProducts, setGroupedProducts] = useState<GroupedProductItem[]>([]);
   const [isProcessingImages, setIsProcessingImages] = useState<boolean>(false);
   const [processingProgress, setProcessingProgress] = useState<{ current: number; total: number }>({
@@ -617,7 +635,7 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
                         onChange={(e) => setSelectedDefaultCategory(e.target.value)}
                         className="w-full text-xs p-2.5 rounded-xl border border-input bg-card text-foreground"
                       >
-                        {STORE_CATEGORIES.map((c) => (
+                        {categories.map((c) => (
                           <option key={c.name} value={c.name}>
                             {c.name}
                           </option>
@@ -776,7 +794,7 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
                                 }
                                 className="w-full text-xs p-1.5 rounded-lg border border-input bg-background text-foreground"
                               >
-                                {STORE_CATEGORIES.map((c) => (
+                                {categories.map((c) => (
                                   <option key={c.name} value={c.name}>
                                     {c.name}
                                   </option>

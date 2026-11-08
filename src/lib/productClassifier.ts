@@ -161,7 +161,7 @@ export function getCategoryPhoto(
   }
 
   // 2. Imagem cadastrada na categoria
-  const catDef = STORE_CATEGORIES.find((c) => normalizeCategoryName(c.name) === norm);
+  const catDef = getStoredCategories().find((c) => normalizeCategoryName(c.name) === norm);
   if (catDef?.image) {
     return catDef.image;
   }
@@ -189,7 +189,8 @@ export function normalizeCategoryName(rawCategory?: string): string {
   if (norm.includes('jaqueta') || norm.includes('casaco') || norm.includes('corta')) return 'Jaquetas';
   if (norm.includes('acessorio') || norm.includes('meia')) return 'Acessórios';
 
-  const exact = STORE_CATEGORIES.find((c) => c.name.toLowerCase() === rawCategory.toLowerCase());
+  const allCategories = getStoredCategories();
+  const exact = allCategories.find((c) => c.name.toLowerCase() === rawCategory.toLowerCase());
   if (exact) return exact.name;
 
   return rawCategory;
@@ -201,16 +202,53 @@ const CATEGORIES_STORAGE_KEY = 'aura_store_categories_v1';
  * Obtém a lista dinâmica de categorias da loja salvas pelo administrador
  */
 export function getStoredCategories(): AvailableCategory[] {
+  let categories: AvailableCategory[] = [];
   try {
-    const raw = localStorage.getItem(CATEGORIES_STORAGE_KEY);
+    const raw = typeof window !== 'undefined' ? localStorage.getItem(CATEGORIES_STORAGE_KEY) : null;
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        categories = parsed;
+      }
     }
   } catch (e) {
     console.error('Error reading categories from localStorage:', e);
   }
-  return STORE_CATEGORIES;
+
+  if (categories.length === 0) {
+    categories = [...STORE_CATEGORIES];
+  }
+
+  // Auto-descoberta: se existirem produtos com categorias que ainda não estão na lista, inclui dinamicamente
+  try {
+    const rawProducts = typeof window !== 'undefined' ? localStorage.getItem('aura_products_v1') : null;
+    if (rawProducts) {
+      const parsedProds = JSON.parse(rawProducts);
+      if (Array.isArray(parsedProds)) {
+        parsedProds.forEach((p: { category?: string }) => {
+          if (p.category && typeof p.category === 'string' && p.category.trim()) {
+            const catName = p.category.trim();
+            const alreadyExists = categories.some(
+              (c) => c.name.toLowerCase() === catName.toLowerCase()
+            );
+            if (!alreadyExists) {
+              categories.push({
+                name: catName,
+                slug: catName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, ''),
+                icon: '🏷️',
+                description: `Peças exclusivas da categoria ${catName}.`,
+                keywords: [catName.toLowerCase()],
+              });
+            }
+          }
+        });
+      }
+    }
+  } catch {
+    // fallback seguro
+  }
+
+  return categories;
 }
 
 /**
@@ -218,7 +256,10 @@ export function getStoredCategories(): AvailableCategory[] {
  */
 export function saveStoredCategories(categories: AvailableCategory[]): void {
   try {
-    localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(categories));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(categories));
+      window.dispatchEvent(new CustomEvent('aura_categories_updated', { detail: categories }));
+    }
   } catch (e) {
     console.error('Error saving categories to localStorage:', e);
   }
@@ -264,9 +305,11 @@ export function classifyProduct(name: string, description?: string): ProductClas
   let detectedCategory = isSet ? 'Conjuntos' : 'Leggings';
   let highestScore = 0;
 
-  for (const cat of STORE_CATEGORIES) {
+  const currentCategories = getStoredCategories();
+  for (const cat of currentCategories) {
     let score = 0;
-    for (const kw of cat.keywords) {
+    const kws = Array.isArray(cat.keywords) && cat.keywords.length > 0 ? cat.keywords : [cat.name.toLowerCase()];
+    for (const kw of kws) {
       if (fullText.includes(kw)) {
         // Se a palavra exata estiver no nome, pontua mais alto
         const inName = normalizeText(name).includes(kw);
@@ -375,7 +418,7 @@ export function parseProductFromFolderOrFile(
   let candidateName = cleanFileName;
   let rawTextForExtraction = cleanFileName;
 
-  const isCatFolder = hasValidFolder && STORE_CATEGORIES.some(
+  const isCatFolder = hasValidFolder && getStoredCategories().some(
     (c) => normalizeText(c.name) === normalizeText(folderCandidate)
   );
 
@@ -444,7 +487,7 @@ export function parseProductFromFolderOrFile(
   // 5. Categoria final
   let finalCategory = classification.category;
   if (hasValidFolder) {
-    const matchingCat = STORE_CATEGORIES.find(
+    const matchingCat = getStoredCategories().find(
       (c) => normalizeText(c.name) === normalizeText(folderCandidate)
     );
     if (matchingCat) {

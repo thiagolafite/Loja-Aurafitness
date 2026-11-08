@@ -6,19 +6,35 @@ import { ProductCard } from '../../components/store/ProductCard';
 import { TrustBar } from '../../components/store/TrustBar';
 import { getProducts, fetchProductsAsync } from '../../lib/dataClient';
 import { Product } from '../../types';
-import { STORE_CATEGORIES, normalizeCategoryName, getCategoryPhoto } from '../../lib/productClassifier';
+import {
+  STORE_CATEGORIES,
+  normalizeCategoryName,
+  getCategoryPhoto,
+  getStoredCategories,
+  AvailableCategory,
+} from '../../lib/productClassifier';
 
 export const HomePage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<AvailableCategory[]>(() => getStoredCategories());
   const [currentSlide, setCurrentSlide] = useState(0);
 
   useEffect(() => {
     setProducts(getProducts());
+    setCategories(getStoredCategories());
     fetchProductsAsync().then((prods) => {
       if (prods && prods.length > 0) {
         setProducts([...prods]);
       }
     });
+
+    const syncCats = () => setCategories(getStoredCategories());
+    window.addEventListener('aura_categories_updated', syncCats);
+    window.addEventListener('storage', syncCats);
+    return () => {
+      window.removeEventListener('aura_categories_updated', syncCats);
+      window.removeEventListener('storage', syncCats);
+    };
   }, []);
 
   const heroSlides = [
@@ -202,7 +218,7 @@ export const HomePage: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 sm:gap-5">
-          {STORE_CATEGORIES.slice(0, 5).map((cat) => {
+          {categories.slice(0, 5).map((cat) => {
             const count = products.filter(
               (p) => normalizeCategoryName(p.category) === cat.name
             ).length;
