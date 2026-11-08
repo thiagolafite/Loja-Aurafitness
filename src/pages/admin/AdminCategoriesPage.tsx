@@ -45,6 +45,7 @@ import {
   normalizeCategoryName,
   getStoredCategories,
   saveStoredCategories,
+  getCategoryPhoto,
 } from '../../lib/productClassifier';
 import { ProductImporterModal } from '../../components/admin/ProductImporterModal';
 import { useLightbox } from '../../contexts/LightboxContext';
@@ -491,7 +492,11 @@ export const AdminCategoriesPage: React.FC = () => {
                     : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'
                 }`}
               >
-                <span>{cat.icon}</span>
+                <img
+                  src={getCategoryPhoto(cat.name, products)}
+                  alt={cat.name}
+                  className="w-4 h-4 rounded-full object-cover shrink-0 border border-white/20"
+                />
                 <span>{cat.name}</span>
                 {count > 0 && (
                   <span
@@ -532,9 +537,13 @@ export const AdminCategoriesPage: React.FC = () => {
               {/* Category Header Card */}
               <div className="bg-secondary/40 border-b border-border p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-start sm:items-center gap-3.5">
-                  <span className="text-3xl p-2.5 rounded-2xl bg-card border border-border shadow-sm shrink-0">
-                    {category.icon}
-                  </span>
+                  <div className="w-14 h-14 rounded-2xl overflow-hidden bg-card border border-border shadow-sm shrink-0">
+                    <img
+                      src={getCategoryPhoto(category.name, products)}
+                      alt={category.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
 
                   <div>
                     <div className="flex items-center gap-2.5 flex-wrap">

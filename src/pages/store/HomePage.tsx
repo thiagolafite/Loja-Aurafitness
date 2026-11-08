@@ -4,9 +4,9 @@ import { ArrowRight, ChevronLeft, ChevronRight, Heart, Sparkles } from 'lucide-r
 import { motion } from 'framer-motion';
 import { ProductCard } from '../../components/store/ProductCard';
 import { TrustBar } from '../../components/store/TrustBar';
-import { getProducts } from '../../lib/dataClient';
+import { getProducts, fetchProductsAsync } from '../../lib/dataClient';
 import { Product } from '../../types';
-import { STORE_CATEGORIES, normalizeCategoryName } from '../../lib/productClassifier';
+import { STORE_CATEGORIES, normalizeCategoryName, getCategoryPhoto } from '../../lib/productClassifier';
 
 export const HomePage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -14,6 +14,11 @@ export const HomePage: React.FC = () => {
 
   useEffect(() => {
     setProducts(getProducts());
+    fetchProductsAsync().then((prods) => {
+      if (prods && prods.length > 0) {
+        setProducts([...prods]);
+      }
+    });
   }, []);
 
   const heroSlides = [
@@ -196,27 +201,52 @@ export const HomePage: React.FC = () => {
           </Link>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 sm:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 sm:gap-5">
           {STORE_CATEGORIES.slice(0, 5).map((cat) => {
             const count = products.filter(
               (p) => normalizeCategoryName(p.category) === cat.name
             ).length;
+            const photo = getCategoryPhoto(cat.name, products);
 
             return (
               <Link
                 key={cat.name}
                 to={`/catalogo?categoria=${encodeURIComponent(cat.name)}`}
-                className="group relative bg-card border border-border hover:border-primary/50 rounded-2xl p-4 sm:p-5 text-center flex flex-col items-center justify-center gap-2 transition-all hover:shadow-lg hover:-translate-y-1"
+                className="group relative h-[300px] sm:h-[350px] rounded-3xl overflow-hidden shadow-sm hover:shadow-2xl transition-all duration-500 flex flex-col justify-between p-4 sm:p-5 border border-border/40 hover:border-emerald-600/70"
               >
-                <span className="text-3xl sm:text-4xl p-3 rounded-2xl bg-primary/10 group-hover:scale-110 transition-transform">
-                  {cat.icon}
-                </span>
-                <h3 className="font-serif font-bold text-sm sm:text-base text-foreground group-hover:text-primary transition-colors">
-                  {cat.name}
-                </h3>
-                <span className="text-[11px] text-muted-foreground font-medium">
-                  {count > 0 ? `${count} ${count === 1 ? 'modelo' : 'modelos'}` : 'Explorar'}
-                </span>
+                {/* Imagem Real de Produto de Acordo com a Categoria */}
+                <img
+                  src={photo}
+                  alt={cat.name}
+                  className="absolute inset-0 w-full h-full object-cover object-top group-hover:scale-108 transition-transform duration-700 ease-out filter brightness-[0.92]"
+                />
+
+                {/* Gradiente Elegante para Máxima Leitura */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/15 group-hover:from-black/95 group-hover:via-black/45 transition-colors duration-500" />
+
+                {/* Badge Superior: Quantidade de Peças */}
+                <div className="relative z-10 flex items-center justify-between">
+                  <span className="bg-black/50 backdrop-blur-md border border-white/20 text-white text-[10px] font-bold tracking-wider uppercase px-3 py-1 rounded-full shadow-sm">
+                    {count > 0 ? `${count} ${count === 1 ? 'modelo' : 'modelos'}` : 'Explorar'}
+                  </span>
+                  <span className="w-7 h-7 rounded-full bg-white/20 backdrop-blur-md text-white flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:scale-110 transition-all duration-300 shadow">
+                    <ArrowRight className="w-3.5 h-3.5 text-white" />
+                  </span>
+                </div>
+
+                {/* Informações da Categoria no Rodapé do Card */}
+                <div className="relative z-10 space-y-1 text-left">
+                  <span className="text-[10px] uppercase tracking-widest font-bold text-emerald-300/90 block">
+                    Coleções Aura
+                  </span>
+                  <h3 className="font-serif font-bold text-lg sm:text-xl text-white tracking-wide group-hover:text-emerald-200 transition-colors drop-shadow-md">
+                    {cat.name}
+                  </h3>
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-white/90 group-hover:text-white pt-0.5">
+                    <span>Ver Coleção</span>
+                    <ArrowRight className="w-3.5 h-3.5 text-emerald-400 group-hover:translate-x-1 transition-transform" />
+                  </div>
+                </div>
               </Link>
             );
           })}

@@ -15,7 +15,8 @@ export interface AvailableColor {
 export interface AvailableCategory {
   name: string;
   slug: string;
-  icon: string;
+  icon?: string;
+  image?: string;
   description: string;
   keywords: string[];
 }
@@ -44,6 +45,7 @@ export const STORE_CATEGORIES: AvailableCategory[] = [
     name: 'Conjuntos',
     slug: 'conjuntos',
     icon: '👗',
+    image: '/images/look-3103.png',
     description: 'Looks completos de top e legging/short com alta sustentação e modelagem impecável.',
     keywords: [
       'conjunto', 'conjuntos', 'kit', 'combo', 'duo',
@@ -56,6 +58,7 @@ export const STORE_CATEGORIES: AvailableCategory[] = [
     name: 'Macacões',
     slug: 'macacoes',
     icon: '🩱',
+    image: '/images/macaco-bless.png',
     description: 'Macaquinhos e macacões anatômicos com costas abertas e efeito modelador.',
     keywords: [
       'macacao', 'macacão', 'macaquinho', 'macaquinhos', 'jumpsuit',
@@ -66,6 +69,7 @@ export const STORE_CATEGORIES: AvailableCategory[] = [
     name: 'Leggings',
     slug: 'leggings',
     icon: '👖',
+    image: '/images/look-3656.png',
     description: 'Cós alto anatômico, compressão firme, zero transparência e toque aveludado.',
     keywords: [
       'legging', 'leggings', 'leging', 'calca', 'calça',
@@ -77,6 +81,7 @@ export const STORE_CATEGORIES: AvailableCategory[] = [
     name: 'Tops',
     slug: 'tops',
     icon: '👚',
+    image: '/images/look-3603.png',
     description: 'Tops esportivos e croppeds com alças reforçadas e sustentação perfeita.',
     keywords: [
       'top', 'tops', 'sutia', 'sutiã', 'cropped', 'bra',
@@ -88,6 +93,7 @@ export const STORE_CATEGORIES: AvailableCategory[] = [
     name: 'Shorts & Bermudas',
     slug: 'shorts-bermudas',
     icon: '🩳',
+    image: '/images/look-3214.png',
     description: 'Shorts duplos anti-assadura, bermudas ciclistas e modelos de alta mobilidade.',
     keywords: [
       'short', 'shorts', 'bermuda', 'bermudas', 'ciclista',
@@ -98,6 +104,7 @@ export const STORE_CATEGORIES: AvailableCategory[] = [
     name: 'Regatas & Camisetas',
     slug: 'regatas-camisetas',
     icon: '👕',
+    image: 'https://images.unsplash.com/photo-1518310383802-640c2de311b2?auto=format&fit=crop&w=800&q=80',
     description: 'Tecidos dry-fit ultra leves, frescos e com respirabilidade avançada.',
     keywords: [
       'regata', 'regatas', 'camiseta', 'camisetas', 't-shirt',
@@ -109,6 +116,7 @@ export const STORE_CATEGORIES: AvailableCategory[] = [
     name: 'Jaquetas',
     slug: 'jaquetas',
     icon: '🧥',
+    image: 'https://images.unsplash.com/photo-1548690312-e3b507d8c110?auto=format&fit=crop&w=800&q=80',
     description: 'Corta-vento, agasalhos esportivos e jaquetas térmicas para pré e pós treino.',
     keywords: [
       'jaqueta', 'jaquetas', 'corta-vento', 'corta vento',
@@ -119,6 +127,7 @@ export const STORE_CATEGORIES: AvailableCategory[] = [
     name: 'Acessórios',
     slug: 'acessorios',
     icon: '🎒',
+    image: 'https://images.unsplash.com/photo-1584735935682-2f2b69dff9d2?auto=format&fit=crop&w=800&q=80',
     description: 'Meias esportivas, garrafas, faixas de cabelo e acessórios para seu treino.',
     keywords: [
       'meia', 'meias', 'faixa', 'garrafa', 'squeeze',
@@ -127,6 +136,38 @@ export const STORE_CATEGORIES: AvailableCategory[] = [
     ],
   },
 ];
+
+/**
+ * Obtém dinamicamente a foto real do primeiro produto cadastrado na categoria
+ * ou a imagem padrão editorial da categoria.
+ */
+export function getCategoryPhoto(
+  categoryName: string,
+  productsList: { category?: string; images?: string[] }[] = []
+): string {
+  const norm = normalizeCategoryName(categoryName);
+
+  // 1. Procura produto real nessa categoria com imagem válida
+  if (Array.isArray(productsList) && productsList.length > 0) {
+    const productWithImg = productsList.find((p) => {
+      const matchCat = normalizeCategoryName(p.category) === norm;
+      const hasImg = Array.isArray(p.images) && p.images.length > 0 && Boolean(p.images[0]);
+      return matchCat && hasImg;
+    });
+
+    if (productWithImg?.images?.[0]) {
+      return productWithImg.images[0];
+    }
+  }
+
+  // 2. Imagem cadastrada na categoria
+  const catDef = STORE_CATEGORIES.find((c) => normalizeCategoryName(c.name) === norm);
+  if (catDef?.image) {
+    return catDef.image;
+  }
+
+  return '/images/look-3103.png';
+}
 
 /**
  * Normaliza qualquer nome de categoria para a categoria canônica oficial

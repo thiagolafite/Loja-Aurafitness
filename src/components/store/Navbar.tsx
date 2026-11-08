@@ -24,7 +24,7 @@ import { SearchModal } from './SearchModal';
 import { AdminLoginModal } from '../admin/AdminLoginModal';
 import { getProducts } from '../../lib/dataClient';
 import { Product } from '../../types';
-import { STORE_CATEGORIES, normalizeCategoryName } from '../../lib/productClassifier';
+import { STORE_CATEGORIES, normalizeCategoryName, getCategoryPhoto } from '../../lib/productClassifier';
 
 export const Navbar: React.FC = () => {
   const navigate = useNavigate();
@@ -305,9 +305,13 @@ export const Navbar: React.FC = () => {
                           onClick={() => setIsCategoriesDropdownOpen(false)}
                           className="flex items-start gap-3 p-2.5 rounded-xl bg-white/5 hover:bg-white/15 hover:border-amber-300/40 border border-transparent transition-all group/item text-left"
                         >
-                          <span className="text-2xl p-2 rounded-xl bg-black/25 shrink-0 group-hover/item:scale-110 transition-transform">
-                            {cat.icon}
-                          </span>
+                          <div className="w-11 h-11 rounded-xl overflow-hidden bg-black/40 border border-white/10 shrink-0 group-hover/item:scale-105 transition-transform shadow-sm">
+                            <img
+                              src={getCategoryPhoto(cat.name, products)}
+                              alt={cat.name}
+                              className="w-full h-full object-cover object-top"
+                            />
+                          </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-1">
                               <span className="font-bold text-xs text-white group-hover/item:text-amber-200 transition-colors truncate">
@@ -413,8 +417,12 @@ export const Navbar: React.FC = () => {
                               onClick={() => setIsMobileMenuOpen(false)}
                               className="flex items-center justify-between text-xs text-white/90 hover:text-white py-1.5 px-2 rounded-lg hover:bg-white/10 transition-colors"
                             >
-                              <span className="flex items-center gap-2">
-                                <span>{cat.icon}</span>
+                              <span className="flex items-center gap-2.5">
+                                <img
+                                  src={getCategoryPhoto(cat.name, products)}
+                                  alt={cat.name}
+                                  className="w-6 h-6 rounded-md object-cover object-top border border-white/20 shrink-0"
+                                />
                                 <span className="font-medium">{cat.name}</span>
                               </span>
                               {count > 0 && (

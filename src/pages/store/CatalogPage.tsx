@@ -19,6 +19,7 @@ import {
   STORE_CATEGORIES,
   normalizeCategoryName,
   AvailableCategory,
+  getCategoryPhoto,
 } from '../../lib/productClassifier';
 import { Product } from '../../types';
 
@@ -345,7 +346,11 @@ export const CatalogPage: React.FC = () => {
                     : 'bg-card text-muted-foreground border-border hover:border-primary/40 hover:text-foreground'
                 }`}
               >
-                <span>{cat.icon}</span>
+                <img
+                  src={getCategoryPhoto(cat.name, allProducts)}
+                  alt={cat.name}
+                  className="w-5 h-5 rounded-full object-cover object-top border border-black/10 dark:border-white/20 shrink-0"
+                />
                 <span>{cat.name}</span>
                 {count > 0 && (
                   <span
@@ -433,8 +438,12 @@ export const CatalogPage: React.FC = () => {
                         : 'hover:bg-muted text-muted-foreground'
                     }`}
                   >
-                    <span className="flex items-center gap-1.5">
-                      <span>{cat.icon}</span>
+                    <span className="flex items-center gap-2">
+                      <img
+                        src={getCategoryPhoto(cat.name, allProducts)}
+                        alt={cat.name}
+                        className="w-4 h-4 rounded-full object-cover object-top border border-black/10 dark:border-white/20 shrink-0"
+                      />
                       <span>{cat.name}</span>
                     </span>
                     {count > 0 && (
