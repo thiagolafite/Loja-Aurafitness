@@ -22,8 +22,8 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { SearchModal } from './SearchModal';
 import { AdminLoginModal } from '../admin/AdminLoginModal';
-import { getProducts } from '../../lib/dataClient';
-import { Product } from '../../types';
+import { getProducts, getStoreSections } from '../../lib/dataClient';
+import { Product, StoreSection } from '../../types';
 import {
   STORE_CATEGORIES,
   normalizeCategoryName,
@@ -40,6 +40,7 @@ export const Navbar: React.FC = () => {
 
   const [products, setProducts] = useState<Product[]>(() => getProducts());
   const [categories, setCategories] = useState<AvailableCategory[]>(() => getStoredCategories());
+  const [storeSections, setStoreSections] = useState<StoreSection[]>(() => getStoreSections());
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isAdminAuthModalOpen, setIsAdminAuthModalOpen] = useState(false);
@@ -49,12 +50,18 @@ export const Navbar: React.FC = () => {
   useEffect(() => {
     setProducts(getProducts());
     setCategories(getStoredCategories());
+    setStoreSections(getStoreSections());
     const syncCats = () => setCategories(getStoredCategories());
+    const syncSections = () => setStoreSections(getStoreSections());
     window.addEventListener('aura_categories_updated', syncCats);
+    window.addEventListener('aura_sections_updated', syncSections);
     window.addEventListener('storage', syncCats);
+    window.addEventListener('storage', syncSections);
     return () => {
       window.removeEventListener('aura_categories_updated', syncCats);
+      window.removeEventListener('aura_sections_updated', syncSections);
       window.removeEventListener('storage', syncCats);
+      window.removeEventListener('storage', syncSections);
     };
   }, []);
 
@@ -366,6 +373,24 @@ export const Navbar: React.FC = () => {
             </AnimatePresence>
           </div>
 
+          {/* Seções da Loja em Destaque nos Menus (ex: Moda Verão, Black Friday) */}
+          {storeSections
+            .filter((s) => s.active && s.showInMenu)
+            .map((sec) => (
+              <Link
+                key={sec.id}
+                to={`/catalogo?secao=${encodeURIComponent(sec.slug)}`}
+                className="hover:text-white text-amber-300 font-bold transition-all py-0.5 relative flex items-center gap-1.5 group"
+              >
+                <span>{sec.name}</span>
+                {sec.badge && (
+                  <span className="bg-amber-400 text-slate-950 text-[9px] font-extrabold px-1.5 py-0.5 rounded shadow-sm uppercase">
+                    {sec.badge}
+                  </span>
+                )}
+              </Link>
+            ))}
+
           {navLinks.slice(1).map((link) => (
             <Link
               key={link.name}
@@ -394,6 +419,25 @@ export const Navbar: React.FC = () => {
                 >
                   HOME
                 </Link>
+
+                {/* Seções em Destaque no Menu Mobile (Moda Verão, Black Friday) */}
+                {storeSections
+                  .filter((sec) => sec.active && sec.showInMenu)
+                  .map((sec) => (
+                    <Link
+                      key={sec.id}
+                      to={`/catalogo?secao=${encodeURIComponent(sec.slug)}`}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="text-amber-300 font-bold py-2 border-b border-[#2b5223] flex items-center justify-between"
+                    >
+                      <span>{sec.name}</span>
+                      {sec.badge && (
+                        <span className="bg-amber-400 text-slate-950 text-[9px] font-extrabold px-2 py-0.5 rounded-full">
+                          {sec.badge}
+                        </span>
+                      )}
+                    </Link>
+                  ))}
 
                 {/* Mobile Categories Accordion */}
                 <div className="border-b border-[#2b5223] py-2">
@@ -460,7 +504,25 @@ export const Navbar: React.FC = () => {
                   </AnimatePresence>
                 </div>
 
-                {navLinks.slice(1).map((link) => (
+                {/* Seções da Loja em Destaque nos Menus (ex: Moda Verão, Black Friday) */}
+          {storeSections
+            .filter((s) => s.active && s.showInMenu)
+            .map((sec) => (
+              <Link
+                key={sec.id}
+                to={`/catalogo?secao=${encodeURIComponent(sec.slug)}`}
+                className="hover:text-white text-amber-300 font-bold transition-all py-0.5 relative flex items-center gap-1.5 group"
+              >
+                <span>{sec.name}</span>
+                {sec.badge && (
+                  <span className="bg-amber-400 text-slate-950 text-[9px] font-extrabold px-1.5 py-0.5 rounded shadow-sm uppercase">
+                    {sec.badge}
+                  </span>
+                )}
+              </Link>
+            ))}
+
+          {navLinks.slice(1).map((link) => (
                   <Link
                     key={link.name}
                     to={link.path}

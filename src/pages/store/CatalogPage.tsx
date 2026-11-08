@@ -13,7 +13,7 @@ import {
   Check,
 } from 'lucide-react';
 import { ProductCard } from '../../components/store/ProductCard';
-import { getProducts } from '../../lib/dataClient';
+import { getProducts, getStoreSections } from '../../lib/dataClient';
 import { formatCurrency } from '../../lib/utils';
 import {
   STORE_CATEGORIES,
@@ -22,22 +22,29 @@ import {
   getCategoryPhoto,
   getStoredCategories,
 } from '../../lib/productClassifier';
-import { Product } from '../../types';
+import { Product, StoreSection } from '../../types';
 
 export const CatalogPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const allProducts = getProducts();
   const [categories, setCategories] = useState<AvailableCategory[]>(() => getStoredCategories());
+  const [storeSections, setStoreSections] = useState<StoreSection[]>(() => getStoreSections());
 
-  // Sync categories if changed
+  // Sync categories and sections if changed
   useEffect(() => {
     setCategories(getStoredCategories());
+    setStoreSections(getStoreSections());
     const syncCats = () => setCategories(getStoredCategories());
+    const syncSections = () => setStoreSections(getStoreSections());
     window.addEventListener('aura_categories_updated', syncCats);
+    window.addEventListener('aura_sections_updated', syncSections);
     window.addEventListener('storage', syncCats);
+    window.addEventListener('storage', syncSections);
     return () => {
       window.removeEventListener('aura_categories_updated', syncCats);
+      window.removeEventListener('aura_sections_updated', syncSections);
       window.removeEventListener('storage', syncCats);
+      window.removeEventListener('storage', syncSections);
     };
   }, []);
 
@@ -45,6 +52,17 @@ export const CatalogPage: React.FC = () => {
   const initialSearch = searchParams.get('search') || '';
   const initialCategoryParam = searchParams.get('categoria') || '';
   const initialPromo = searchParams.get('promocao') === 'true';
+  const secaoParam = searchParams.get('secao') || searchParams.get('colecao') || '';
+
+  const activeSection = useMemo(() => {
+    if (!secaoParam) return null;
+    const norm = secaoParam.toLowerCase().trim();
+    return (
+      storeSections.find(
+        (s) => s.slug.toLowerCase() === norm || s.id.toLowerCase() === norm || s.name.toLowerCase() === norm
+      ) || null
+    );
+  }, [secaoParam, storeSections]);
 
   const [searchQuery, setSearchQuery] = useState(initialSearch);
   const [selectedCategory, setSelectedCategory] = useState<string>(
@@ -129,6 +147,17 @@ export const CatalogPage: React.FC = () => {
   const filteredProducts = useMemo(() => {
     return allProducts
       .filter((product) => {
+        // Filter by Store Section (ex: 'Moda Verão', 'Black Friday')
+        if (activeSection) {
+          const isDirectlyIncluded = (activeSection.productIds || []).includes(product.id);
+          const isCategoryIncluded = (activeSection.includedCategories || []).some(
+            (c) => normalizeCategoryName(c) === normalizeCategoryName(product.category)
+          );
+          if (!isDirectlyIncluded && !isCategoryIncluded) {
+            return false;
+          }
+        }
+
         // Search term
         if (searchQuery.trim()) {
           const query = searchQuery.toLowerCase();
@@ -257,6 +286,43 @@ export const CatalogPage: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      {/* Active Section Banner (ex: Moda Verão, Black Friday) */}
+      {activeSection && (
+        <div className="bg-gradient-to-r from-[#17381d] via-[#234d2b] to-[#15341a] text-white p-6 sm:p-8 rounded-3xl mb-8 shadow-xl relative overflow-hidden border border-[#3e6f4e]">
+          <div className="relative z-10 space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="bg-amber-400 text-slate-950 font-extrabold text-[10px] uppercase px-3 py-1 rounded-full shadow-sm">
+                {activeSection.badge || 'COLEÇÃO EM EXPOSIÇÃO'}
+              </span>
+              <span className="text-emerald-200 text-xs font-semibold">
+                {filteredProducts.length} peças nesta seleção
+              </span>
+            </div>
+            <h1 className="font-serif font-bold text-2xl sm:text-4xl text-white tracking-wide">
+              {activeSection.name}
+            </h1>
+            {activeSection.description && (
+              <p className="text-xs sm:text-sm text-white/80 max-w-xl">
+                {activeSection.description}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={() => {
+              setSearchParams((prev) => {
+                const next = new URLSearchParams(prev);
+                next.delete('secao');
+                next.delete('colecao');
+                return next;
+              });
+            }}
+            className="mt-4 sm:mt-0 sm:absolute sm:top-6 sm:right-6 text-xs font-bold bg-white/10 hover:bg-white/20 text-white px-3.5 py-2 rounded-xl transition-all border border-white/20 flex items-center gap-1.5"
+          >
+            <span>✕ Ver Catálogo Completo</span>
+          </button>
+        </div>
+      )}
+
       {/* Header & Title */}
       <div className="border-b border-border pb-6 mb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>

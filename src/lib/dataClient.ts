@@ -11,6 +11,8 @@ import {
   InventoryMovement,
   PaymentLog,
   NotificationItem,
+  StoreSection,
+  HeroBannerSlide,
 } from '../types';
 import {
   initialProducts,
@@ -38,7 +40,84 @@ const STORAGE_KEYS = {
   INVENTORY_LOGS: 'aura_inventory_logs_v1',
   PAYMENT_LOGS: 'aura_payment_logs_v1',
   NOTIFICATIONS: 'aura_notifications_v1',
+  SECTIONS: 'aura_store_sections_v1',
+  HERO_BANNERS: 'aura_hero_banners_v1',
 };
+
+export const initialStoreSections: StoreSection[] = [
+  {
+    id: 'sec-moda-verao',
+    name: 'Moda Verão',
+    slug: 'moda-verao',
+    badge: '☀️ VERÃO 2026',
+    description: 'Peças frescas, ultra leves e com proteção UV para treinos impecáveis no calor.',
+    bannerImage: '/images/banner-style.png',
+    showInMenu: true,
+    showInHome: true,
+    active: true,
+    order: 1,
+    productIds: ['prod-1', 'prod-2', 'prod-4'],
+    includedCategories: ['Conjuntos', 'Tops'],
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'sec-black-friday',
+    name: 'Black Friday',
+    slug: 'black-friday',
+    badge: '🔥 BLACK FRIDAY',
+    description: 'As melhores ofertas da temporada em conjuntos de alta compressão e macacões fitness.',
+    bannerImage: '/images/macaco-bless.png',
+    showInMenu: true,
+    showInHome: true,
+    active: true,
+    order: 2,
+    productIds: ['prod-3', 'prod-5', 'prod-6'],
+    includedCategories: ['Conjuntos', 'Macacões'],
+    createdAt: new Date().toISOString(),
+  },
+];
+
+export const initialHeroBanners: HeroBannerSlide[] = [
+  {
+    id: 'banner-1',
+    badge: 'NOVA COLEÇÃO',
+    title: 'FORÇA & ESTILO',
+    subtitle: 'Conjuntos que abraçam seu movimento com toque aveludado e zero transparência',
+    buttonText: 'VER CONJUNTOS',
+    link: '/catalogo?categoria=Conjuntos',
+    leftImage: '/images/look-3214.png',
+    rightImage: '/images/macaco-bless.png',
+    centerBgColor: '#163923',
+    active: true,
+    order: 1,
+  },
+  {
+    id: 'banner-2',
+    badge: '☀️ MODA VERÃO',
+    title: 'BRILHO & LEVEZA',
+    subtitle: 'Tecidos em poliamida respirável para você treinar com máxima performance no verão',
+    buttonText: 'VER MODA VERÃO',
+    link: '/catalogo?secao=moda-verao',
+    leftImage: '/images/look-3656.png',
+    rightImage: '/images/banner-style.png',
+    centerBgColor: '#1a3c26',
+    active: true,
+    order: 2,
+  },
+  {
+    id: 'banner-3',
+    badge: '🔥 BLACK FRIDAY',
+    title: 'BLACK FRIDAY AURA',
+    subtitle: 'Aproveite as maiores ofertas do ano com descontos imperdíveis e pronta entrega',
+    buttonText: 'APROVEITAR BLACK FRIDAY',
+    link: '/catalogo?secao=black-friday',
+    leftImage: '/images/look-3603.png',
+    rightImage: '/images/look-3103.png',
+    centerBgColor: '#182b1d',
+    active: true,
+    order: 3,
+  },
+];
 
 function getStorageItem<T>(key: string, defaultValue: T): T {
   try {
@@ -68,6 +147,8 @@ let cachedCoupons: Coupon[] = getStorageItem<Coupon[]>(STORAGE_KEYS.COUPONS, ini
 let cachedPromotions: Promotion[] = getStorageItem<Promotion[]>(STORAGE_KEYS.PROMOTIONS, initialPromotions);
 let cachedLookSets: LookSet[] = getStorageItem<LookSet[]>(STORAGE_KEYS.LOOK_SETS, initialLookSets);
 let cachedSettings: StoreSettings = getStorageItem<StoreSettings>(STORAGE_KEYS.SETTINGS, initialStoreSettings);
+let cachedSections: StoreSection[] = getStorageItem<StoreSection[]>(STORAGE_KEYS.SECTIONS, initialStoreSections);
+let cachedHeroBanners: HeroBannerSlide[] = getStorageItem<HeroBannerSlide[]>(STORAGE_KEYS.HERO_BANNERS, initialHeroBanners);
 
 // Synchronize Supabase in background
 export async function syncWithSupabase(): Promise<void> {
@@ -1119,4 +1200,201 @@ export async function aiGenerateSeoMeta(title: string, _content: string): Promis
     seoDescription: `Confira ${title} na Aura Fitness. Peças esportivas com tecnologia de compressão sem transparência e frete rápido para todo o Brasil.`,
     keywords: ['aura fitness', 'moda fitness', 'legging compressão', 'top fitness', 'roupa de academia feminina'],
   };
+}
+
+// ==========================================
+// SEÇÕES DA LOJA EM EXPOSIÇÃO (MENUS & HOME)
+// ==========================================
+
+export function getStoreSections(): StoreSection[] {
+  return getStorageItem<StoreSection[]>(STORAGE_KEYS.SECTIONS, cachedSections);
+}
+
+export function saveStoreSection(sectionData: Partial<StoreSection>): StoreSection {
+  const sections = getStoreSections();
+  let updatedSection: StoreSection;
+
+  if (sectionData.id) {
+    const idx = sections.findIndex((s) => s.id === sectionData.id);
+    if (idx !== -1) {
+      updatedSection = { ...sections[idx], ...sectionData };
+      sections[idx] = updatedSection;
+    } else {
+      updatedSection = sectionData as StoreSection;
+      sections.push(updatedSection);
+    }
+  } else {
+    const slug = (sectionData.name || 'Nova Secao')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)+/g, '');
+
+    updatedSection = {
+      id: `sec-${Date.now()}`,
+      name: sectionData.name || 'Nova Seção',
+      slug: sectionData.slug || slug,
+      badge: sectionData.badge || 'DESTAQUE',
+      description: sectionData.description || '',
+      bannerImage: sectionData.bannerImage || '/images/banner-style.png',
+      showInMenu: sectionData.showInMenu ?? true,
+      showInHome: sectionData.showInHome ?? true,
+      active: sectionData.active ?? true,
+      order: sectionData.order ?? sections.length + 1,
+      productIds: sectionData.productIds || [],
+      includedCategories: sectionData.includedCategories || [],
+      createdAt: new Date().toISOString(),
+      ...sectionData,
+    };
+    sections.push(updatedSection);
+  }
+
+  cachedSections = sections;
+  setStorageItem(STORAGE_KEYS.SECTIONS, sections);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('aura_sections_updated', { detail: sections }));
+  }
+  return updatedSection;
+}
+
+export function deleteStoreSection(id: string): void {
+  const sections = getStoreSections().filter((s) => s.id !== id);
+  cachedSections = sections;
+  setStorageItem(STORAGE_KEYS.SECTIONS, sections);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('aura_sections_updated', { detail: sections }));
+  }
+}
+
+export function addProductToSection(sectionId: string, productId: string): StoreSection | null {
+  const sections = getStoreSections();
+  const idx = sections.findIndex((s) => s.id === sectionId);
+  if (idx === -1) return null;
+
+  const currentIds = sections[idx].productIds || [];
+  if (!currentIds.includes(productId)) {
+    sections[idx] = {
+      ...sections[idx],
+      productIds: [...currentIds, productId],
+    };
+    cachedSections = sections;
+    setStorageItem(STORAGE_KEYS.SECTIONS, sections);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('aura_sections_updated', { detail: sections }));
+    }
+  }
+  return sections[idx];
+}
+
+export function removeProductFromSection(sectionId: string, productId: string): StoreSection | null {
+  const sections = getStoreSections();
+  const idx = sections.findIndex((s) => s.id === sectionId);
+  if (idx === -1) return null;
+
+  sections[idx] = {
+    ...sections[idx],
+    productIds: (sections[idx].productIds || []).filter((id) => id !== productId),
+  };
+  cachedSections = sections;
+  setStorageItem(STORAGE_KEYS.SECTIONS, sections);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('aura_sections_updated', { detail: sections }));
+  }
+  return sections[idx];
+}
+
+export function addCategoryProductsToSection(sectionId: string, categoryName: string): StoreSection | null {
+  const sections = getStoreSections();
+  const idx = sections.findIndex((s) => s.id === sectionId);
+  if (idx === -1) return null;
+
+  const products = getProducts();
+  const normCategory = categoryName.trim().toLowerCase();
+  const matchingProductIds = products
+    .filter((p) => (p.category || '').trim().toLowerCase() === normCategory)
+    .map((p) => p.id);
+
+  const existingIds = new Set(sections[idx].productIds || []);
+  matchingProductIds.forEach((id) => existingIds.add(id));
+
+  const existingCats = new Set(sections[idx].includedCategories || []);
+  existingCats.add(categoryName);
+
+  sections[idx] = {
+    ...sections[idx],
+    productIds: Array.from(existingIds),
+    includedCategories: Array.from(existingCats),
+  };
+  cachedSections = sections;
+  setStorageItem(STORAGE_KEYS.SECTIONS, sections);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('aura_sections_updated', { detail: sections }));
+  }
+  return sections[idx];
+}
+
+// ==========================================
+// BANNERS DO CARROSSEL PRINCIPAL (HERO SLIDES)
+// ==========================================
+
+export function getHeroBanners(): HeroBannerSlide[] {
+  return getStorageItem<HeroBannerSlide[]>(STORAGE_KEYS.HERO_BANNERS, cachedHeroBanners);
+}
+
+export function saveHeroBanner(bannerData: Partial<HeroBannerSlide>): HeroBannerSlide {
+  const banners = getHeroBanners();
+  let updatedBanner: HeroBannerSlide;
+
+  if (bannerData.id) {
+    const idx = banners.findIndex((b) => b.id === bannerData.id);
+    if (idx !== -1) {
+      updatedBanner = { ...banners[idx], ...bannerData };
+      banners[idx] = updatedBanner;
+    } else {
+      updatedBanner = bannerData as HeroBannerSlide;
+      banners.push(updatedBanner);
+    }
+  } else {
+    updatedBanner = {
+      id: `banner-${Date.now()}`,
+      badge: bannerData.badge || 'DESTAQUE',
+      title: bannerData.title || 'NOVO BANNER AURA',
+      subtitle: bannerData.subtitle || 'Moda fitness de alta performance e elegância',
+      buttonText: bannerData.buttonText || 'VER PRODUTOS',
+      link: bannerData.link || '/catalogo',
+      leftImage: bannerData.leftImage || '/images/look-3214.png',
+      rightImage: bannerData.rightImage || '/images/macaco-bless.png',
+      centerBgColor: bannerData.centerBgColor || '#163923',
+      active: bannerData.active ?? true,
+      order: bannerData.order ?? banners.length + 1,
+      ...bannerData,
+    };
+    banners.push(updatedBanner);
+  }
+
+  cachedHeroBanners = banners;
+  setStorageItem(STORAGE_KEYS.HERO_BANNERS, banners);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('aura_banners_updated', { detail: banners }));
+  }
+  return updatedBanner;
+}
+
+export function deleteHeroBanner(id: string): void {
+  const banners = getHeroBanners().filter((b) => b.id !== id);
+  cachedHeroBanners = banners;
+  setStorageItem(STORAGE_KEYS.HERO_BANNERS, banners);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('aura_banners_updated', { detail: banners }));
+  }
+}
+
+export function reorderHeroBanners(newBanners: HeroBannerSlide[]): void {
+  const reordered = newBanners.map((b, idx) => ({ ...b, order: idx + 1 }));
+  cachedHeroBanners = reordered;
+  setStorageItem(STORAGE_KEYS.HERO_BANNERS, reordered);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('aura_banners_updated', { detail: reordered }));
+  }
 }

@@ -4,8 +4,13 @@ import { ArrowRight, ChevronLeft, ChevronRight, Heart, Sparkles } from 'lucide-r
 import { motion } from 'framer-motion';
 import { ProductCard } from '../../components/store/ProductCard';
 import { TrustBar } from '../../components/store/TrustBar';
-import { getProducts, fetchProductsAsync } from '../../lib/dataClient';
-import { Product } from '../../types';
+import {
+  getProducts,
+  fetchProductsAsync,
+  getHeroBanners,
+  getStoreSections,
+} from '../../lib/dataClient';
+import { Product, HeroBannerSlide, StoreSection } from '../../types';
 import {
   STORE_CATEGORIES,
   normalizeCategoryName,
@@ -17,11 +22,16 @@ import {
 export const HomePage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<AvailableCategory[]>(() => getStoredCategories());
+  const [heroBanners, setHeroBanners] = useState<HeroBannerSlide[]>(() => getHeroBanners());
+  const [storeSections, setStoreSections] = useState<StoreSection[]>(() => getStoreSections());
   const [currentSlide, setCurrentSlide] = useState(0);
 
   useEffect(() => {
     setProducts(getProducts());
     setCategories(getStoredCategories());
+    setHeroBanners(getHeroBanners());
+    setStoreSections(getStoreSections());
+
     fetchProductsAsync().then((prods) => {
       if (prods && prods.length > 0) {
         setProducts([...prods]);
@@ -29,34 +39,28 @@ export const HomePage: React.FC = () => {
     });
 
     const syncCats = () => setCategories(getStoredCategories());
+    const syncBanners = () => setHeroBanners(getHeroBanners());
+    const syncSections = () => setStoreSections(getStoreSections());
+
     window.addEventListener('aura_categories_updated', syncCats);
+    window.addEventListener('aura_banners_updated', syncBanners);
+    window.addEventListener('aura_sections_updated', syncSections);
     window.addEventListener('storage', syncCats);
+    window.addEventListener('storage', syncBanners);
+    window.addEventListener('storage', syncSections);
+
     return () => {
       window.removeEventListener('aura_categories_updated', syncCats);
+      window.removeEventListener('aura_banners_updated', syncBanners);
+      window.removeEventListener('aura_sections_updated', syncSections);
       window.removeEventListener('storage', syncCats);
+      window.removeEventListener('storage', syncBanners);
+      window.removeEventListener('storage', syncSections);
     };
   }, []);
 
-  const heroSlides = [
-    {
-      badge: 'NOVA COLEÇÃO',
-      title: 'FORÇA & ESTILO',
-      subtitle: 'Conjuntos que abraçam seu movimento',
-      buttonText: 'VER CONJUNTOS',
-      link: '/catalogo?categoria=CONJUNTOS',
-      leftImage: '/images/look-3214.png',
-      rightImage: '/images/macaco-bless.png',
-    },
-    {
-      badge: 'AURA NAVY',
-      title: 'PERFORMANCE & ELEGÂNCIA',
-      subtitle: 'Sofisticação e zero transparência para cada treino',
-      buttonText: 'VER LEGGINGS',
-      link: '/catalogo?categoria=LEGGINGS',
-      leftImage: '/images/look-3656.png',
-      rightImage: '/images/banner-style.png',
-    },
-  ];
+  const activeBanners = heroBanners.filter((b) => b.active);
+  const heroSlides = activeBanners.length > 0 ? activeBanners : getHeroBanners();
 
   const handleNextSlide = () => {
     setCurrentSlide((prev) => (prev + 1) % heroSlides.length);
@@ -66,7 +70,8 @@ export const HomePage: React.FC = () => {
     setCurrentSlide((prev) => (prev - 1 + heroSlides.length) % heroSlides.length);
   };
 
-  const slide = heroSlides[currentSlide];
+  const safeSlideIndex = currentSlide < heroSlides.length ? currentSlide : 0;
+  const slide = heroSlides[safeSlideIndex];
 
   return (
     <div className="space-y-12 pb-16">
@@ -102,7 +107,10 @@ export const HomePage: React.FC = () => {
           </div>
 
           {/* Center Card: Dark Forest Green Box with Arcs */}
-          <div className="w-full md:w-2/4 h-[440px] lg:h-[500px] bg-[#163923] rounded-2xl p-8 lg:p-12 flex flex-col items-center justify-center text-center text-white relative shadow-2xl overflow-hidden border border-[#275336]">
+          <div
+            style={{ backgroundColor: slide.centerBgColor || '#163923' }}
+            className="w-full md:w-2/4 h-[440px] lg:h-[500px] rounded-2xl p-8 lg:p-12 flex flex-col items-center justify-center text-center text-white relative shadow-2xl overflow-hidden border border-[#275336]"
+          >
             {/* Decorative Arcs */}
             <svg
               className="absolute top-4 right-4 w-20 h-12 text-emerald-400/20"
@@ -268,6 +276,56 @@ export const HomePage: React.FC = () => {
           })}
         </div>
       </section>
+
+      {/* Vitrines de Seções em Exposição (ex: Moda Verão, Black Friday) */}
+      {storeSections
+        .filter((sec) => sec.active && sec.showInHome)
+        .map((sec) => {
+          const secProducts = (sec.productIds || [])
+            .map((id) => products.find((p) => p.id === id))
+            .filter((p): p is Product => Boolean(p));
+
+          if (secProducts.length === 0) return null;
+
+          return (
+            <section
+              key={sec.id}
+              className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 pt-6"
+            >
+              <div className="flex items-end justify-between border-b border-border pb-4">
+                <div className="space-y-1 text-left">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold tracking-widest uppercase text-[#38672b] dark:text-amber-400 block">
+                      {sec.badge || 'COLEÇÃO EXCLUSIVA'}
+                    </span>
+                  </div>
+                  <h2 className="text-2xl sm:text-3xl font-serif font-normal text-foreground flex items-center gap-2">
+                    <span>{sec.name}</span>
+                    <Sparkles className="w-5 h-5 text-amber-500" />
+                  </h2>
+                  {sec.description && (
+                    <p className="text-xs text-muted-foreground">{sec.description}</p>
+                  )}
+                </div>
+
+                <Link
+                  to={`/catalogo?secao=${encodeURIComponent(sec.slug)}`}
+                  className="text-xs font-semibold uppercase tracking-wider text-[#38672b] hover:text-[#23421b] dark:text-amber-400 flex items-center gap-1 transition-colors"
+                >
+                  <span>VER COLEÇÃO COMPLETA ({secProducts.length})</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+
+              {/* 4-Column Products Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
+                {secProducts.slice(0, 4).map((product) => (
+                  <ProductCard key={product.id} product={product} />
+                ))}
+              </div>
+            </section>
+          );
+        })}
 
       {/* As peças mais amadas 💚 (Matching Image 2) */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 pt-4">

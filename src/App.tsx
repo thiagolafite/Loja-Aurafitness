@@ -29,6 +29,7 @@ import { CustomerAuthPage } from './pages/store/CustomerAuthPage';
 import { AdminDashboardPage } from './pages/admin/AdminDashboardPage';
 import { AdminProductsPage } from './pages/admin/AdminProductsPage';
 import { AdminCategoriesPage } from './pages/admin/AdminCategoriesPage';
+import { AdminSectionsBannersPage } from './pages/admin/AdminSectionsBannersPage';
 import { AdminOrdersPage } from './pages/admin/AdminOrdersPage';
 import { AdminCustomersPage } from './pages/admin/AdminCustomersPage';
 import { AdminReviewsPage } from './pages/admin/AdminReviewsPage';
@@ -74,6 +75,7 @@ export const App: React.FC = () => {
                     <Route index element={<AdminDashboardPage />} />
                     <Route path="produtos" element={<AdminProductsPage />} />
                     <Route path="categorias" element={<AdminCategoriesPage />} />
+                    <Route path="secoes-banners" element={<AdminSectionsBannersPage />} />
                     <Route path="pedidos" element={<AdminOrdersPage />} />
                     <Route path="clientes" element={<AdminCustomersPage />} />
                     <Route path="avaliacoes" element={<AdminReviewsPage />} />

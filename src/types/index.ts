@@ -294,3 +294,33 @@ export interface NotificationItem {
   timestamp: string;
   actionUrl?: string;
 }
+
+export interface StoreSection {
+  id: string;
+  name: string; // Ex: 'Moda Verão', 'Black Friday', 'Lançamentos'
+  slug: string; // Ex: 'moda-verao', 'black-friday'
+  badge?: string; // Ex: '☀️ VERÃO 2026', '🔥 BLACK FRIDAY', '50% OFF'
+  description?: string;
+  bannerImage?: string;
+  showInMenu: boolean; // Se aparece no menu/navbar da loja
+  showInHome: boolean; // Se aparece em exposição na home da loja
+  active: boolean;
+  order: number;
+  productIds: string[]; // IDs dos produtos incluídos
+  includedCategories?: string[]; // Categorias inteiras incluídas (ex: ['Conjuntos'])
+  createdAt: string;
+}
+
+export interface HeroBannerSlide {
+  id: string;
+  title: string;
+  subtitle: string;
+  badge: string;
+  buttonText: string;
+  link: string; // Ex: '/catalogo?secao=moda-verao' ou '/catalogo?categoria=Conjuntos'
+  leftImage: string; // Foto da modelo / esquerda
+  rightImage?: string; // Foto da modelo / direita
+  centerBgColor?: string; // Cor de fundo (#163923)
+  active: boolean;
+  order: number;
+}
