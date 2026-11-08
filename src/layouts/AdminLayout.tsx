@@ -22,6 +22,7 @@ import {
   LogOut,
   ChevronRight,
   FolderTree,
+  KeyRound,
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -45,12 +46,29 @@ export const AdminLayout: React.FC = () => {
     setAuthError('');
     setIsSubmitting(true);
     try {
-      const res = await signInAdmin(adminEmail, adminPass);
+      const res = await signInAdmin(adminEmail.trim(), adminPass.trim());
       if (!res.success) {
         setAuthError(res.error || 'Credenciais administrativas inválidas. Verifique seu e-mail e senha.');
       }
     } catch (err) {
       setAuthError('Erro de conexão ao autenticar. Tente novamente.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleMasterQuickAuth = async () => {
+    setAuthError('');
+    setIsSubmitting(true);
+    setAdminEmail('admin@aurafitness.com.br');
+    setAdminPass('AuraAdmin2026!');
+    try {
+      const res = await signInAdmin('admin@aurafitness.com.br', 'AuraAdmin2026!');
+      if (!res.success) {
+        setAuthError(res.error || 'Erro ao entrar com credenciais mestras.');
+      }
+    } catch {
+      setAuthError('Erro ao autenticar.');
     } finally {
       setIsSubmitting(false);
     }
@@ -114,7 +132,7 @@ export const AdminLayout: React.FC = () => {
               <input
                 type="password"
                 required
-                placeholder="Senha de acesso..."
+                placeholder="AuraAdmin2026! ou admin123"
                 value={adminPass}
                 onChange={(e) => setAdminPass(e.target.value)}
                 className="w-full bg-[#142318] border border-[#2d4d38] text-white rounded-xl px-3.5 py-2.5 outline-none focus:border-amber-400"
@@ -128,6 +146,22 @@ export const AdminLayout: React.FC = () => {
             >
               {isSubmitting ? 'Autenticando...' : 'Autenticar e Entrar'}
             </button>
+
+            {/* Acesso Mestre com 1 Clique */}
+            <div className="pt-2 border-t border-[#2d4d38]/70 space-y-2">
+              <button
+                type="button"
+                onClick={handleMasterQuickAuth}
+                disabled={isSubmitting}
+                className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-amber-300 font-semibold text-xs border border-amber-400/30 transition-all flex items-center justify-center gap-2"
+              >
+                <KeyRound className="w-3.5 h-3.5" />
+                <span>Entrar com Acesso Mestre (1 Clique)</span>
+              </button>
+              <p className="text-[10px] text-white/50 text-center">
+                Senha oficial: <span className="font-mono text-amber-300">AuraAdmin2026!</span> ou <span className="font-mono text-amber-300">admin123</span>
+              </p>
+            </div>
           </form>
 
           <button

@@ -265,6 +265,35 @@ export function saveStoredCategories(categories: AvailableCategory[]): void {
   }
 }
 
+/**
+ * Adiciona uma nova categoria e notifica toda a loja em tempo real
+ */
+export function saveNewCategory(name: string): AvailableCategory[] {
+  const current = getStoredCategories();
+  const trimmed = name.trim();
+  if (!trimmed) return current;
+
+  const exists = current.some((c) => c.name.toLowerCase() === trimmed.toLowerCase());
+  if (!exists) {
+    const newCat: AvailableCategory = {
+      name: trimmed,
+      slug: trimmed
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)+/g, ''),
+      icon: '🏷️',
+      description: `Peças e modelos exclusivos da coleção ${trimmed}.`,
+      keywords: [trimmed.toLowerCase()],
+    };
+    const updated = [...current, newCat];
+    saveStoredCategories(updated);
+    return updated;
+  }
+  return current;
+}
+
 export interface ProductClassification {
   category: string;
   isSet: boolean;

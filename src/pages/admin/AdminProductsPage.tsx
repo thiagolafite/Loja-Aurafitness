@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Plus,
   Edit,
@@ -20,6 +20,12 @@ import {
   CheckSquare,
   Square,
   AlertTriangle,
+  ArrowLeft,
+  ArrowRight,
+  Upload,
+  Star,
+  Eye,
+  ImageIcon,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -36,6 +42,7 @@ import {
 import { formatCurrency } from '../../lib/utils';
 import { Product, ProductColor } from '../../types';
 import { ProductImporterModal } from '../../components/admin/ProductImporterModal';
+import { ProductCard } from '../../components/store/ProductCard';
 import {
   classifyProduct,
   STORE_CATEGORIES,
@@ -44,6 +51,8 @@ import {
   AvailableCategory,
   normalizeCategoryName,
   getStoredCategories,
+  saveNewCategory,
+  resizeImageFile,
 } from '../../lib/productClassifier';
 import { useLightbox } from '../../contexts/LightboxContext';
 
@@ -72,6 +81,131 @@ export const AdminProductsPage: React.FC = () => {
   const [isImporterOpen, setIsImporterOpen] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
+
+  // Image organizer & Live Preview states
+  const [newImageUrl, setNewImageUrl] = useState('');
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Helper to reorder images in carousel
+  const handleMoveImage = (index: number, direction: -1 | 1) => {
+    if (!editingProduct?.images) return;
+    const newIdx = index + direction;
+    if (newIdx < 0 || newIdx >= editingProduct.images.length) return;
+
+    const updated = [...editingProduct.images];
+    const temp = updated[index];
+    updated[index] = updated[newIdx];
+    updated[newIdx] = temp;
+
+    setEditingProduct({
+      ...editingProduct,
+      images: updated,
+    });
+  };
+
+  // Helper to set image as main cover (position 0)
+  const handleSetCoverImage = (index: number) => {
+    if (!editingProduct?.images || index === 0) return;
+    const updated = [...editingProduct.images];
+    const [selected] = updated.splice(index, 1);
+    updated.unshift(selected);
+
+    setEditingProduct({
+      ...editingProduct,
+      images: updated,
+    });
+    showToast('✓ Foto definida como Capa Principal da vitrine!');
+  };
+
+  // Helper to remove an image
+  const handleRemoveImage = (index: number) => {
+    if (!editingProduct?.images) return;
+    if (editingProduct.images.length <= 1) {
+      alert('O produto precisa ter pelo menos 1 foto.');
+      return;
+    }
+    const updated = editingProduct.images.filter((_, idx) => idx !== index);
+    setEditingProduct({
+      ...editingProduct,
+      images: updated,
+    });
+  };
+
+  // Helper to add an image by URL
+  const handleAddImageUrl = () => {
+    if (!newImageUrl.trim() || !editingProduct) return;
+    const updated = [...(editingProduct.images || []), newImageUrl.trim()];
+    setEditingProduct({
+      ...editingProduct,
+      images: updated,
+    });
+    setNewImageUrl('');
+    showToast('✓ Foto adicionada ao carrossel!');
+  };
+
+  // Helper to upload images from local computer / device
+  const handleUploadPhotoFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !editingProduct) return;
+
+    setIsUploadingPhoto(true);
+    try {
+      const processedDataUrls: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const dataUrl = await resizeImageFile(file, 1200, 1200, 0.85);
+        processedDataUrls.push(dataUrl);
+      }
+
+      setEditingProduct({
+        ...editingProduct,
+        images: [...(editingProduct.images || []), ...processedDataUrls],
+      });
+      showToast(`✓ ${processedDataUrls.length} foto(s) adicionada(s) ao carrossel!`);
+    } catch (err) {
+      console.error('Erro ao processar fotos:', err);
+      showToast('Erro ao carregar fotos.');
+    } finally {
+      setIsUploadingPhoto(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // Live preview product object matching storefront ProductCard
+  const previewProduct: Product = {
+    id: editingProduct?.id || 'preview-temp',
+    name: editingProduct?.name || 'Nome do Produto',
+    slug: editingProduct?.slug || 'produto-preview',
+    description: editingProduct?.description || 'Descrição do produto na vitrine...',
+    fullDescription: editingProduct?.fullDescription || '',
+    category: editingProduct?.category || categories[0]?.name || 'Leggings',
+    price: editingProduct?.price || 149.9,
+    promotionalPrice: editingProduct?.promotionalPrice,
+    sku: editingProduct?.sku || 'AUR-SKU-001',
+    barcode: editingProduct?.barcode || '7890000000000',
+    weight: editingProduct?.weight || 250,
+    brand: editingProduct?.brand || 'Aura Fitness',
+    images:
+      Array.isArray(editingProduct?.images) && editingProduct.images.length > 0
+        ? editingProduct.images
+        : ['/images/look-3103.png'],
+    sizes: editingProduct?.sizes || ['P', 'M', 'G', 'GG'],
+    colors:
+      Array.isArray(editingProduct?.colors) && editingProduct.colors.length > 0
+        ? editingProduct.colors
+        : [{ name: 'Preto', hex: '#111111' }],
+    materials: editingProduct?.materials || ['Poliamida', 'Elastano'],
+    stock: editingProduct?.stock || { 'P-Preto': 10 },
+    isFeatured: editingProduct?.isFeatured || false,
+    isNewArrival: editingProduct?.isNewArrival ?? true,
+    isBestSeller: editingProduct?.isBestSeller || false,
+    isActive: editingProduct?.isActive ?? true,
+    rating: editingProduct?.rating || 5.0,
+    reviewCount: editingProduct?.reviewCount || 18,
+    seo: editingProduct?.seo || { title: '', description: '', keywords: [] },
+    createdAt: editingProduct?.createdAt || new Date().toISOString(),
+  };
 
   const refreshProducts = () => {
     fetchProductsAsync().then((prods) => {
@@ -218,7 +352,7 @@ export const AdminProductsPage: React.FC = () => {
   const handleOpenNewModal = () => {
     setEditingProduct({
       name: '',
-      category: 'Leggings',
+      category: categories[0]?.name || 'Leggings',
       price: 149.9,
       promotionalPrice: 129.9,
       sku: `AUR-${Date.now().toString().slice(-4)}`,
@@ -227,7 +361,7 @@ export const AdminProductsPage: React.FC = () => {
       brand: 'Aura Fitness',
       description: '',
       fullDescription: '',
-      images: ['https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=800&q=80'],
+      images: ['/images/look-3103.png'],
       sizes: ['P', 'M', 'G', 'GG'],
       colors: [{ name: 'Preto', hex: '#111111' }],
       materials: ['Poliamida', 'Elastano'],
@@ -238,11 +372,19 @@ export const AdminProductsPage: React.FC = () => {
       isActive: true,
       seo: { title: '', description: '', keywords: [] },
     });
+    setNewImageUrl('');
     setIsModalOpen(true);
   };
 
   const handleEdit = (prod: Product) => {
-    setEditingProduct({ ...prod });
+    setEditingProduct({
+      ...prod,
+      images:
+        Array.isArray(prod.images) && prod.images.length > 0
+          ? [...prod.images]
+          : ['/images/look-3103.png'],
+    });
+    setNewImageUrl('');
     setIsModalOpen(true);
   };
 
@@ -951,350 +1093,596 @@ export const AdminProductsPage: React.FC = () => {
       )}
 
       {/* ============================================================== */}
-      {/* MODAL DE CADASTRO E EDIÇÃO COM RECONHECIMENTO DE PADRÕES POR NOME */}
+      {/* MODAL DE CADASTRO E EDIÇÃO COM ORGANIZADOR DE CARROSSEL E PRÉVIA */}
       {/* ============================================================== */}
       {isModalOpen && editingProduct && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-card border border-border w-full max-w-3xl rounded-3xl p-6 space-y-6 max-h-[90vh] overflow-y-auto shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-card border border-border w-full max-w-6xl rounded-3xl p-5 sm:p-7 space-y-6 max-h-[92vh] overflow-y-auto shadow-2xl">
+            {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-border pb-4">
               <div>
                 <span className="text-xs text-primary font-bold uppercase tracking-wider">
                   Catálogo Aura Fitness
                 </span>
-                <h3 className="font-serif font-bold text-xl text-foreground">
-                  {editingProduct.id ? 'Editar Produto' : 'Cadastrar Novo Produto'}
+                <h3 className="font-serif font-bold text-xl sm:text-2xl text-foreground">
+                  {editingProduct.id ? 'Editar Produto & Carrossel' : 'Cadastrar Novo Produto'}
                 </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Organize as fotos do carrossel da vitrine e visualize em tempo real como o cliente verá o produto.
+                </p>
               </div>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="text-muted-foreground hover:text-foreground"
+                className="text-muted-foreground hover:text-foreground p-2 rounded-xl hover:bg-muted transition-colors"
+                title="Fechar"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveSubmit} className="space-y-4 text-xs">
-              {/* Nome do Produto com Reconhecimento em Tempo Real */}
-              <div>
-                <label className="block font-semibold text-foreground mb-1">
-                  Nome do Produto * (ex: Conjunto Top e Legging Style Black)
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={editingProduct.name || ''}
-                  onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
-                  placeholder="Digite o nome do produto..."
-                  className="w-full bg-background border border-border rounded-xl px-3.5 py-2.5 text-xs focus:ring-2 focus:ring-primary outline-none"
-                />
+            <form onSubmit={handleSaveSubmit} className="space-y-6 text-xs">
+              <div className="lg:grid lg:grid-cols-12 gap-8 items-start">
+                {/* ============================================================== */}
+                {/* COLUNA 1: DADOS DO PRODUTO & ORGANIZADOR DE FOTOS (7 COLS)    */}
+                {/* ============================================================== */}
+                <div className="lg:col-span-7 space-y-5">
+                  {/* Nome do Produto com Reconhecimento em Tempo Real */}
+                  <div>
+                    <label className="block font-semibold text-foreground mb-1">
+                      Nome do Produto * (ex: Conjunto Top e Legging Style Black)
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editingProduct.name || ''}
+                      onChange={(e) =>
+                        setEditingProduct({ ...editingProduct, name: e.target.value })
+                      }
+                      placeholder="Digite o nome do produto..."
+                      className="w-full bg-background border border-border rounded-xl px-3.5 py-2.5 text-xs focus:ring-2 focus:ring-primary outline-none"
+                    />
 
-                {/* Banner de Reconhecimento Automático de Padrões */}
-                {modalClassification && editingProduct.name && editingProduct.name.length >= 3 && (
-                  <div className="mt-2.5 p-3.5 bg-primary/10 border border-primary/30 rounded-2xl space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-primary flex items-center gap-1.5">
-                        <Sparkles className="w-4 h-4 text-accent animate-pulse" />
-                        Padrões Detectados Automaticamente pelo Nome:
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingProduct({
-                            ...editingProduct,
-                            category: modalClassification.category,
-                            colors: modalClassification.colors,
-                          });
-                          showToast('✓ Padrões de categoria e cores aplicados ao produto!');
-                        }}
-                        className="bg-primary hover:bg-primary-hover text-white text-[11px] font-bold px-3 py-1 rounded-lg shadow-sm transition-colors"
-                      >
-                        ✨ Aplicar Padrões no Produto
-                      </button>
-                    </div>
+                    {/* Banner de Reconhecimento Automático de Padrões */}
+                    {modalClassification &&
+                      editingProduct.name &&
+                      editingProduct.name.length >= 3 && (
+                        <div className="mt-2.5 p-3.5 bg-primary/10 border border-primary/30 rounded-2xl space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-primary flex items-center gap-1.5">
+                              <Sparkles className="w-4 h-4 text-accent animate-pulse" />
+                              Padrões Detectados Automaticamente pelo Nome:
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingProduct({
+                                  ...editingProduct,
+                                  category: modalClassification.category,
+                                  colors: modalClassification.colors,
+                                });
+                                showToast('✓ Padrões de categoria e cores aplicados ao produto!');
+                              }}
+                              className="bg-primary hover:bg-primary-hover text-white text-[11px] font-bold px-3 py-1 rounded-lg shadow-sm transition-colors"
+                            >
+                              ✨ Aplicar Padrões no Produto
+                            </button>
+                          </div>
 
-                    <div className="flex items-center gap-2 flex-wrap text-[11px]">
-                      <span className="text-muted-foreground">Categoria detectada:</span>
-                      <span className="bg-background font-bold text-foreground px-2 py-0.5 rounded-lg border border-border">
-                        {modalClassification.category}
-                      </span>
+                          <div className="flex items-center gap-2 flex-wrap text-[11px]">
+                            <span className="text-muted-foreground">Categoria detectada:</span>
+                            <span className="bg-background font-bold text-foreground px-2 py-0.5 rounded-lg border border-border">
+                              {modalClassification.category}
+                            </span>
 
-                      {modalClassification.isSet && (
-                        <span className="bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 font-bold px-2 py-0.5 rounded-lg border border-purple-300">
-                          👗 Conjunto Identificado
-                        </span>
+                            {modalClassification.isSet && (
+                              <span className="bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 font-bold px-2 py-0.5 rounded-lg border border-purple-300">
+                                👗 Conjunto Identificado
+                              </span>
+                            )}
+
+                            <span className="text-muted-foreground ml-2">Cores detectadas:</span>
+                            {modalClassification.colors.map((c, i) => (
+                              <span
+                                key={i}
+                                className="inline-flex items-center gap-1 bg-background font-semibold px-2 py-0.5 rounded-lg border border-border"
+                              >
+                                <span
+                                  className="w-2.5 h-2.5 rounded-full border border-black/20"
+                                  style={{ backgroundColor: c.hex }}
+                                />
+                                <span>{c.name}</span>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
                       )}
-
-                      <span className="text-muted-foreground ml-2">Cores detectadas:</span>
-                      {modalClassification.colors.map((c, i) => (
-                        <span
-                          key={i}
-                          className="inline-flex items-center gap-1 bg-background font-semibold px-2 py-0.5 rounded-lg border border-border"
-                        >
-                          <span
-                            className="w-2.5 h-2.5 rounded-full border border-black/20"
-                            style={{ backgroundColor: c.hex }}
-                          />
-                          <span>{c.name}</span>
-                        </span>
-                      ))}
-                    </div>
                   </div>
-                )}
-              </div>
 
-              {/* Categorias & Cores */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-semibold text-foreground mb-1">Categoria *</label>
-                  <select
-                    value={editingProduct.category || (categories[0]?.name || 'Leggings')}
-                    onChange={(e) =>
-                      setEditingProduct({ ...editingProduct, category: e.target.value })
-                    }
-                    className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs font-semibold focus:ring-2 focus:ring-primary outline-none"
-                  >
-                    {categories.map((cat) => (
-                      <option key={cat.name} value={cat.name}>
-                        {cat.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-foreground mb-1">SKU</label>
-                  <input
-                    type="text"
-                    value={editingProduct.sku || ''}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, sku: e.target.value })}
-                    className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs font-mono outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Seletor Rápido de Cores Disponíveis */}
-              <div className="p-3 bg-muted/30 border border-border rounded-2xl space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="font-semibold text-foreground flex items-center gap-1.5">
-                    <Palette className="w-3.5 h-3.5 text-primary" />
-                    <span>Cores Associadas a este Produto:</span>
-                  </label>
-                  <span className="text-[10px] text-muted-foreground">
-                    Clique abaixo para ativar ou desativar cores
-                  </span>
-                </div>
-
-                {/* Cores ativas */}
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {editingProduct.colors && editingProduct.colors.length > 0 ? (
-                    editingProduct.colors.map((c, i) => (
-                      <span
-                        key={i}
-                        className="inline-flex items-center gap-1.5 bg-primary/10 text-primary font-bold px-2.5 py-1 rounded-xl border border-primary/30"
-                      >
-                        <span
-                          className="w-3 h-3 rounded-full border border-black/20"
-                          style={{ backgroundColor: c.hex }}
-                        />
-                        <span>{c.name}</span>
+                  {/* Categorias & SKU */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="font-semibold text-foreground">
+                          Categoria *
+                        </label>
                         <button
                           type="button"
                           onClick={() => {
-                            const newCols = editingProduct.colors?.filter((_, idx) => idx !== i);
-                            setEditingProduct({ ...editingProduct, colors: newCols });
-                          }}
-                          className="hover:text-destructive ml-1"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-muted-foreground italic">Nenhuma cor selecionada.</span>
-                  )}
-                </div>
-
-                {/* Paleta rápida de cores da AuraFitness */}
-                <div className="pt-2 border-t border-border/50">
-                  <span className="text-[10px] text-muted-foreground block mb-1">
-                    Adicionar cor rápida com 1 clique:
-                  </span>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {STORE_COLORS.map((col) => {
-                      const isSelected = editingProduct.colors?.some(
-                        (c) => c.name.toLowerCase() === col.name.toLowerCase()
-                      );
-                      return (
-                        <button
-                          key={col.name}
-                          type="button"
-                          onClick={() => {
-                            if (isSelected) {
-                              setEditingProduct({
-                                ...editingProduct,
-                                colors: editingProduct.colors?.filter((c) => c.name !== col.name),
-                              });
-                            } else {
-                              setEditingProduct({
-                                ...editingProduct,
-                                colors: [
-                                  ...(editingProduct.colors || []),
-                                  { name: col.name, hex: col.hex },
-                                ],
-                              });
+                            const newCatName = window.prompt('Digite o nome da nova categoria (ex: Bodies, Macaquinhos, Bolsas):');
+                            if (newCatName && newCatName.trim()) {
+                              const trimmed = newCatName.trim();
+                              const updated = saveNewCategory(trimmed);
+                              setCategories(updated);
+                              setEditingProduct({ ...editingProduct, category: trimmed });
                             }
                           }}
-                          className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-lg border transition-all ${
-                            isSelected
-                              ? 'bg-primary text-white border-primary font-bold'
-                              : 'bg-background hover:bg-muted text-foreground border-border'
+                          className="text-[10px] text-primary hover:underline font-bold"
+                        >
+                          + Nova Categoria
+                        </button>
+                      </div>
+                      <select
+                        value={editingProduct.category || (categories[0]?.name || 'Leggings')}
+                        onChange={(e) => {
+                          if (e.target.value === '__NEW__') {
+                            const newCatName = window.prompt('Digite o nome da nova categoria:');
+                            if (newCatName && newCatName.trim()) {
+                              const trimmed = newCatName.trim();
+                              const updated = saveNewCategory(trimmed);
+                              setCategories(updated);
+                              setEditingProduct({ ...editingProduct, category: trimmed });
+                            }
+                          } else {
+                            setEditingProduct({ ...editingProduct, category: e.target.value });
+                          }
+                        }}
+                        className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs font-semibold focus:ring-2 focus:ring-primary outline-none"
+                      >
+                        {/* Inclui a categoria atual se porventura não constar ainda na lista salva */}
+                        {editingProduct.category &&
+                          !categories.some(
+                            (c) => c.name.toLowerCase() === editingProduct.category?.toLowerCase()
+                          ) && (
+                            <option value={editingProduct.category}>
+                              {editingProduct.category} (Personalizada)
+                            </option>
+                          )}
+                        {categories.map((cat) => (
+                          <option key={cat.name} value={cat.name}>
+                            {cat.name}
+                          </option>
+                        ))}
+                        <option value="__NEW__" className="text-primary font-bold">
+                          + Adicionar nova categoria...
+                        </option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-foreground mb-1">SKU</label>
+                      <input
+                        type="text"
+                        value={editingProduct.sku || ''}
+                        onChange={(e) =>
+                          setEditingProduct({ ...editingProduct, sku: e.target.value })
+                        }
+                        className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs font-mono outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Preços */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block font-semibold text-foreground mb-1">
+                        Preço De (R$) *
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        required
+                        value={editingProduct.price || 0}
+                        onChange={(e) =>
+                          setEditingProduct({
+                            ...editingProduct,
+                            price: parseFloat(e.target.value) || 0,
+                          })
+                        }
+                        className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-primary outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-foreground mb-1">
+                        Preço Promocional (R$)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={editingProduct.promotionalPrice || ''}
+                        onChange={(e) =>
+                          setEditingProduct({
+                            ...editingProduct,
+                            promotionalPrice: parseFloat(e.target.value) || undefined,
+                          })
+                        }
+                        placeholder="Opcional..."
+                        className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-primary outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* ========================================================== */}
+                  {/* ORGANIZADOR DE FOTOS DO CARROSSEL (ORDENAÇÃO & CAPA)       */}
+                  {/* ========================================================== */}
+                  <div className="bg-muted/40 border border-border rounded-2xl p-4 sm:p-5 space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/70 pb-3">
+                      <div>
+                        <h4 className="font-bold text-xs text-foreground flex items-center gap-2">
+                          <Layers className="w-4 h-4 text-primary" />
+                          <span>Organizador de Fotos do Carrossel</span>
+                          <span className="bg-primary/10 text-primary text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                            {(editingProduct.images || []).length}{' '}
+                            {(editingProduct.images || []).length === 1 ? 'foto' : 'fotos'}
+                          </span>
+                        </h4>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          A foto <strong>#1</strong> é a <strong>Capa Principal</strong> na vitrine.
+                          Use <strong>←</strong> e <strong>→</strong> para mudar a ordem ou clique em{' '}
+                          <strong>Tornar Capa</strong>.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2 self-start sm:self-auto">
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          multiple
+                          accept="image/*"
+                          onChange={handleUploadPhotoFiles}
+                          className="hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={isUploadingPhoto}
+                          className="bg-primary hover:bg-primary-hover text-white text-[11px] font-bold px-3 py-2 rounded-xl transition-all shadow-sm flex items-center gap-1.5 disabled:opacity-50"
+                        >
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>
+                            {isUploadingPhoto ? 'Processando...' : '+ Upload do Computador'}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Galeria de Miniaturas Reordenáveis */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                      {(editingProduct.images || []).map((img, idx) => (
+                        <div
+                          key={idx}
+                          className={`relative group/photo rounded-2xl overflow-hidden border-2 bg-card transition-all ${
+                            idx === 0
+                              ? 'border-emerald-500 ring-2 ring-emerald-500/20 shadow-md'
+                              : 'border-border hover:border-primary/50 shadow-sm'
                           }`}
                         >
+                          {/* Miniatura da Imagem */}
+                          <div className="relative aspect-[3/4] bg-muted overflow-hidden">
+                            <img
+                              src={img}
+                              alt={`Foto ${idx + 1}`}
+                              className="w-full h-full object-cover object-top"
+                            />
+
+                            {/* Badge de Posição / Capa */}
+                            <div className="absolute top-1.5 left-1.5 z-10">
+                              {idx === 0 ? (
+                                <span className="bg-emerald-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-md shadow flex items-center gap-1">
+                                  <Star className="w-2.5 h-2.5 fill-white" />
+                                  <span>Capa</span>
+                                </span>
+                              ) : (
+                                <span className="bg-black/75 backdrop-blur-sm text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shadow">
+                                  #{idx + 1}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Botão de Excluir Foto */}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveImage(idx)}
+                              className="absolute top-1.5 right-1.5 z-10 w-6 h-6 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover/photo:opacity-100 hover:scale-110 active:scale-95 transition-all shadow"
+                              title="Remover foto do carrossel"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+
+                          {/* Ações de Reordenação e Capa */}
+                          <div className="p-1.5 flex items-center justify-between gap-1 border-t border-border bg-card">
+                            <button
+                              type="button"
+                              onClick={() => handleMoveImage(idx, -1)}
+                              disabled={idx === 0}
+                              className="p-1 rounded-md hover:bg-muted text-foreground disabled:opacity-20 disabled:hover:bg-transparent"
+                              title="Mover foto para trás (←)"
+                            >
+                              <ArrowLeft className="w-3.5 h-3.5" />
+                            </button>
+
+                            {idx !== 0 ? (
+                              <button
+                                type="button"
+                                onClick={() => handleSetCoverImage(idx)}
+                                className="px-1.5 py-0.5 rounded bg-primary/10 hover:bg-primary text-primary hover:text-white font-bold text-[9px] transition-colors truncate"
+                                title="Definir esta foto como a capa da vitrine"
+                              >
+                                Tornar Capa
+                              </button>
+                            ) : (
+                              <span className="text-[9px] font-bold text-emerald-600">
+                                Principal
+                              </span>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => handleMoveImage(idx, 1)}
+                              disabled={idx === (editingProduct.images?.length || 1) - 1}
+                              className="p-1 rounded-md hover:bg-muted text-foreground disabled:opacity-20 disabled:hover:bg-transparent"
+                              title="Mover foto para frente (→)"
+                            >
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Adicionar Foto por URL */}
+                    <div className="flex flex-col sm:flex-row items-center gap-2 pt-2 border-t border-border/50">
+                      <input
+                        type="text"
+                        placeholder="Ou digite/cole a URL de uma foto..."
+                        value={newImageUrl}
+                        onChange={(e) => setNewImageUrl(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddImageUrl();
+                          }
+                        }}
+                        className="flex-1 w-full bg-background border border-border rounded-xl px-3 py-2 text-xs outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddImageUrl}
+                        className="w-full sm:w-auto bg-muted hover:bg-muted/80 text-foreground text-xs font-bold px-4 py-2 rounded-xl transition-colors shrink-0"
+                      >
+                        + Adicionar Foto por Link
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Seletor Rápido de Cores Disponíveis */}
+                  <div className="p-3.5 bg-muted/30 border border-border rounded-2xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="font-semibold text-foreground flex items-center gap-1.5">
+                        <Palette className="w-3.5 h-3.5 text-primary" />
+                        <span>Cores Ativas:</span>
+                      </label>
+                      <span className="text-[10px] text-muted-foreground">
+                        Clique abaixo para ativar ou desativar cores
+                      </span>
+                    </div>
+
+                    {/* Cores ativas */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {editingProduct.colors && editingProduct.colors.length > 0 ? (
+                        editingProduct.colors.map((c, i) => (
                           <span
-                            className="w-2.5 h-2.5 rounded-full border border-black/20"
-                            style={{ backgroundColor: col.hex }}
-                          />
-                          <span>{col.name}</span>
-                        </button>
-                      );
-                    })}
+                            key={i}
+                            className="inline-flex items-center gap-1.5 bg-primary/10 text-primary font-bold px-2.5 py-1 rounded-xl border border-primary/30"
+                          >
+                            <span
+                              className="w-3 h-3 rounded-full border border-black/20"
+                              style={{ backgroundColor: c.hex }}
+                            />
+                            <span>{c.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newCols = editingProduct.colors?.filter((_, idx) => idx !== i);
+                                setEditingProduct({ ...editingProduct, colors: newCols });
+                              }}
+                              className="hover:text-destructive ml-1"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-muted-foreground italic">Nenhuma cor selecionada.</span>
+                      )}
+                    </div>
+
+                    {/* Paleta rápida de cores da AuraFitness */}
+                    <div className="pt-2 border-t border-border/50">
+                      <span className="text-[10px] text-muted-foreground block mb-1">
+                        Adicionar cor com 1 clique:
+                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {STORE_COLORS.map((col) => {
+                          const isSelected = editingProduct.colors?.some(
+                            (c) => c.name.toLowerCase() === col.name.toLowerCase()
+                          );
+                          return (
+                            <button
+                              key={col.name}
+                              type="button"
+                              onClick={() => {
+                                if (isSelected) {
+                                  setEditingProduct({
+                                    ...editingProduct,
+                                    colors: editingProduct.colors?.filter((c) => c.name !== col.name),
+                                  });
+                                } else {
+                                  setEditingProduct({
+                                    ...editingProduct,
+                                    colors: [
+                                      ...(editingProduct.colors || []),
+                                      { name: col.name, hex: col.hex },
+                                    ],
+                                  });
+                                }
+                              }}
+                              className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-lg border transition-all ${
+                                isSelected
+                                  ? 'bg-primary text-white border-primary font-bold'
+                                  : 'bg-background hover:bg-muted text-foreground border-border'
+                              }`}
+                            >
+                              <span
+                                className="w-2.5 h-2.5 rounded-full border border-black/20"
+                                style={{ backgroundColor: col.hex }}
+                              />
+                              <span>{col.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Descrições */}
+                  <div>
+                    <label className="block font-semibold text-foreground mb-1">
+                      Descrição Curta
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={editingProduct.description || ''}
+                      onChange={(e) =>
+                        setEditingProduct({ ...editingProduct, description: e.target.value })
+                      }
+                      className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs outline-none resize-none"
+                    />
+                  </div>
+
+                  {/* Assistente IA */}
+                  <div className="p-3.5 bg-primary/5 border border-primary/20 rounded-2xl flex items-center justify-between gap-3">
+                    <div>
+                      <h5 className="font-bold text-primary flex items-center gap-1.5 text-xs">
+                        <Sparkles className="w-3.5 h-3.5 text-accent" /> Assistente de Descrição IA
+                      </h5>
+                      <p className="text-[10px] text-muted-foreground">
+                        Gera texto técnico e palavras-chave de SEO automaticamente para o nome digitado.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleGenerateAiDescription}
+                      disabled={isAiLoading}
+                      className="bg-primary hover:bg-primary-hover text-white text-[11px] font-bold px-3 py-1.5 rounded-xl shadow-sm disabled:opacity-50"
+                    >
+                      {isAiLoading ? 'Gerando...' : 'Gerar com IA'}
+                    </button>
+                  </div>
+
+                  {/* Toggles */}
+                  <div className="flex flex-wrap gap-4 pt-2 border-t border-border">
+                    <label className="flex items-center gap-2 font-semibold cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingProduct.isFeatured || false}
+                        onChange={(e) =>
+                          setEditingProduct({ ...editingProduct, isFeatured: e.target.checked })
+                        }
+                        className="accent-primary"
+                      />
+                      <span>Produto em Destaque</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 font-semibold cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingProduct.isNewArrival || false}
+                        onChange={(e) =>
+                          setEditingProduct({ ...editingProduct, isNewArrival: e.target.checked })
+                        }
+                        className="accent-primary"
+                      />
+                      <span>Novidade</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 font-semibold cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingProduct.isActive ?? true}
+                        onChange={(e) =>
+                          setEditingProduct({ ...editingProduct, isActive: e.target.checked })
+                        }
+                        className="accent-primary"
+                      />
+                      <span>Ativo na Loja</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* ============================================================== */}
+                {/* COLUNA 2: PRÉ-VISUALIZAÇÃO NA VITRINE DA LOJA (5 COLS)        */}
+                {/* ============================================================== */}
+                <div className="lg:col-span-5 lg:sticky lg:top-4 space-y-4 pt-4 lg:pt-0">
+                  <div className="bg-muted/40 border-2 border-primary/20 rounded-3xl p-5 shadow-sm space-y-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="p-1.5 rounded-xl bg-primary text-white shadow-sm">
+                          <Eye className="w-4 h-4" />
+                        </span>
+                        <h4 className="font-serif font-bold text-sm text-foreground">
+                          Pré-visualização na Vitrine (Ao Vivo)
+                        </h4>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Veja exatamente como este produto e o carrossel de fotos agrupadas aparecerão
+                        para os clientes na loja:
+                      </p>
+                    </div>
+
+                    {/* Card Real da Vitrine com Carrossel */}
+                    <div className="max-w-[270px] mx-auto bg-card rounded-2xl p-2.5 shadow-xl border border-border">
+                      <ProductCard product={previewProduct} />
+                    </div>
+
+                    {/* Informações da Vitrine */}
+                    <div className="bg-background/90 border border-border rounded-2xl p-3.5 text-[11px] text-muted-foreground space-y-2">
+                      <div className="font-bold text-foreground flex items-center gap-1.5 text-xs">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                        <span>Carrossel de Fotos ({previewProduct.images.length})</span>
+                      </div>
+                      <p className="leading-relaxed">
+                        Passe o mouse ou use as setas do card acima para navegar entre as fotos agrupadas.
+                        A foto <strong>#1</strong> é a capa que o cliente verá primeiro na loja.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Preços e Fotos */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block font-semibold text-foreground mb-1">Preço De (R$) *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    value={editingProduct.price || 0}
-                    onChange={(e) =>
-                      setEditingProduct({
-                        ...editingProduct,
-                        price: parseFloat(e.target.value) || 0,
-                      })
-                    }
-                    className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-primary outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-foreground mb-1">
-                    Preço Promocional (R$)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={editingProduct.promotionalPrice || ''}
-                    onChange={(e) =>
-                      setEditingProduct({
-                        ...editingProduct,
-                        promotionalPrice: parseFloat(e.target.value) || undefined,
-                      })
-                    }
-                    className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-primary outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-foreground mb-1">URL da Imagem</label>
-                  <input
-                    type="text"
-                    value={editingProduct.images?.[0] || ''}
-                    onChange={(e) =>
-                      setEditingProduct({ ...editingProduct, images: [e.target.value] })
-                    }
-                    className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Descrições */}
-              <div>
-                <label className="block font-semibold text-foreground mb-1">Descrição Curta</label>
-                <textarea
-                  rows={2}
-                  value={editingProduct.description || ''}
-                  onChange={(e) =>
-                    setEditingProduct({ ...editingProduct, description: e.target.value })
-                  }
-                  className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs outline-none resize-none"
-                />
-              </div>
-
-              {/* Assistente IA */}
-              <div className="p-3.5 bg-primary/5 border border-primary/20 rounded-2xl flex items-center justify-between gap-3">
-                <div>
-                  <h5 className="font-bold text-primary flex items-center gap-1.5 text-xs">
-                    <Sparkles className="w-3.5 h-3.5 text-accent" /> Assistente de Descrição IA
-                  </h5>
-                  <p className="text-[10px] text-muted-foreground">
-                    Gera texto técnico e palavras-chave de SEO automaticamente para o nome digitado.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleGenerateAiDescription}
-                  disabled={isAiLoading}
-                  className="bg-primary hover:bg-primary-hover text-white text-[11px] font-bold px-3 py-1.5 rounded-xl shadow-sm disabled:opacity-50"
-                >
-                  {isAiLoading ? 'Gerando...' : 'Gerar com IA'}
-                </button>
-              </div>
-
-              {/* Toggles */}
-              <div className="flex flex-wrap gap-4 pt-2 border-t border-border">
-                <label className="flex items-center gap-2 font-semibold cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={editingProduct.isFeatured || false}
-                    onChange={(e) =>
-                      setEditingProduct({ ...editingProduct, isFeatured: e.target.checked })
-                    }
-                    className="accent-primary"
-                  />
-                  <span>Produto em Destaque</span>
-                </label>
-
-                <label className="flex items-center gap-2 font-semibold cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={editingProduct.isNewArrival || false}
-                    onChange={(e) =>
-                      setEditingProduct({ ...editingProduct, isNewArrival: e.target.checked })
-                    }
-                    className="accent-primary"
-                  />
-                  <span>Novidade</span>
-                </label>
-
-                <label className="flex items-center gap-2 font-semibold cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={editingProduct.isActive ?? true}
-                    onChange={(e) =>
-                      setEditingProduct({ ...editingProduct, isActive: e.target.checked })
-                    }
-                    className="accent-primary"
-                  />
-                  <span>Ativo na Loja</span>
-                </label>
-              </div>
-
+              {/* Botões do Formulário */}
               <div className="pt-4 border-t border-border flex justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="bg-secondary text-foreground px-4 py-2.5 rounded-xl font-semibold"
+                  className="bg-secondary text-foreground px-4 py-2.5 rounded-xl font-semibold hover:bg-secondary/80 transition-colors"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="bg-primary hover:bg-primary-hover text-white px-6 py-2.5 rounded-xl font-bold shadow-md"
+                  className="bg-primary hover:bg-primary-hover text-white px-6 py-2.5 rounded-xl font-bold shadow-md transition-all"
                 >
                   Salvar Produto
                 </button>

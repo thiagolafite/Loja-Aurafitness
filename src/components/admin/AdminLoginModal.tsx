@@ -128,6 +128,34 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
               )}
               <span>{isLoading ? 'Autenticando...' : 'Entrar no Painel Admin'}</span>
             </button>
+
+            <button
+              type="button"
+              onClick={async () => {
+                setEmail('admin@aurafitness.com.br');
+                setPassword('AuraAdmin2026!');
+                setErrorMsg('');
+                setIsLoading(true);
+                try {
+                  const res = await signInAdmin('admin@aurafitness.com.br', 'AuraAdmin2026!');
+                  if (res.success) {
+                    if (onSuccess) onSuccess();
+                    onClose();
+                    navigate('/admin');
+                  } else {
+                    setErrorMsg(res.error || 'Falha ao autenticar.');
+                  }
+                } catch {
+                  setErrorMsg('Erro de conexão ao autenticar.');
+                } finally {
+                  setIsLoading(false);
+                }
+              }}
+              className="w-full py-2 rounded-xl bg-muted hover:bg-muted/80 text-foreground font-semibold text-xs border border-border transition-colors flex items-center justify-center gap-1.5"
+            >
+              <KeyRound className="w-3.5 h-3.5 text-primary" />
+              <span>Acesso Rápido Mestre (AuraAdmin2026!)</span>
+            </button>
           </form>
         </motion.div>
       </div>

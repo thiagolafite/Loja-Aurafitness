@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, ShoppingBag, ZoomIn } from 'lucide-react';
+import { Heart, ShoppingBag, ZoomIn, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Product } from '../../types';
 import { formatCurrency, calculateDiscount } from '../../lib/utils';
 import { useWishlist } from '../../contexts/WishlistContext';
@@ -12,10 +12,30 @@ interface ProductCardProps {
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
+  const [currentImgIndex, setCurrentImgIndex] = useState(0);
   const { isInWishlist, toggleWishlist } = useWishlist();
   const { addToCart } = useCart();
   const { openLightbox } = useLightbox();
   const isFav = isInWishlist(product.id);
+
+  const images =
+    Array.isArray(product.images) && product.images.length > 0
+      ? product.images
+      : ['/images/look-3103.png'];
+
+  const safeIndex = currentImgIndex < images.length ? currentImgIndex : 0;
+
+  const handlePrev = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCurrentImgIndex((prev) => (prev - 1 + images.length) % images.length);
+  };
+
+  const handleNext = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCurrentImgIndex((prev) => (prev + 1) % images.length);
+  };
 
   const discountPercent = product.promotionalPrice
     ? calculateDiscount(product.price, product.promotionalPrice)
@@ -23,29 +43,62 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
 
   return (
     <div className="group relative flex flex-col bg-transparent overflow-hidden transition-all duration-300">
-      {/* Image Container with Badges */}
+      {/* Image Container with Badges & Carrossel */}
       <div className="relative aspect-[3/4] w-full rounded-2xl overflow-hidden bg-[#dbe0dc] dark:bg-muted/40">
-        <Link to={`/produto/${product.id}`} className="block w-full h-full">
+        <Link to={`/produto/${product.id}`} className="block w-full h-full relative">
           <img
-            src={product.images[0]}
+            src={images[safeIndex]}
             alt={product.name}
             className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
           />
-          {product.images[1] && (
-            <img
-              src={product.images[1]}
-              alt={`${product.name} - foto 2`}
-              className="absolute inset-0 w-full h-full object-cover object-top opacity-0 group-hover:opacity-100 transition-opacity duration-500"
-            />
-          )}
         </Link>
+
+        {/* Carousel Navigation Arrows */}
+        {images.length > 1 && (
+          <>
+            <button
+              onClick={handlePrev}
+              className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-7 h-7 rounded-full bg-white/90 dark:bg-slate-900/90 text-foreground flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all opacity-0 group-hover:opacity-100"
+              title="Foto anterior"
+            >
+              <ChevronLeft className="w-4 h-4 text-slate-800 dark:text-slate-100" />
+            </button>
+            <button
+              onClick={handleNext}
+              className="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-7 h-7 rounded-full bg-white/90 dark:bg-slate-900/90 text-foreground flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all opacity-0 group-hover:opacity-100"
+              title="Próxima foto"
+            >
+              <ChevronRight className="w-4 h-4 text-slate-800 dark:text-slate-100" />
+            </button>
+
+            {/* Pagination Dots */}
+            <div className="absolute bottom-12 left-0 right-0 z-20 flex justify-center items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+              {images.map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setCurrentImgIndex(idx);
+                  }}
+                  className={`h-1.5 rounded-full transition-all ${
+                    idx === safeIndex
+                      ? 'w-4 bg-white shadow-md'
+                      : 'w-1.5 bg-white/60 hover:bg-white'
+                  }`}
+                  title={`Foto ${idx + 1}`}
+                />
+              ))}
+            </div>
+          </>
+        )}
 
         {/* Zoom Expand Button */}
         <button
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            openLightbox(product.images, 0, product.name);
+            openLightbox(images, safeIndex, product.name);
           }}
           className="absolute top-3 left-3 z-20 w-8 h-8 rounded-full bg-white/90 dark:bg-slate-900/90 text-foreground flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all opacity-0 group-hover:opacity-100"
           title="Ver foto em tela cheia (Expandir)"
