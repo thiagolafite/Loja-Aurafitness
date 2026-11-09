@@ -18,6 +18,8 @@ import {
   Tag,
   Loader2,
   ImageIcon,
+  RefreshCw,
+  ShieldCheck,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { bulkImportProductsAsync, getProducts } from '../../lib/dataClient';
@@ -26,11 +28,18 @@ import { formatCurrency } from '../../lib/utils';
 import {
   classifyProduct,
   parseProductFromFolderOrFile,
+  cleanModelName,
+  normalizeText,
   resizeImageFile,
   STORE_CATEGORIES,
   STORE_COLORS,
   getStoredCategories,
   AvailableCategory,
+  isFileAlreadyImported,
+  getImportedFilesRegistry,
+  registerImportedFiles,
+  generateFileSignature,
+  ImportedFileRecord,
 } from '../../lib/productClassifier';
 
 interface ProductImporterModalProps {
@@ -67,6 +76,9 @@ interface GroupedProductItem {
   colors: { name: string; hex: string }[];
   isSet: boolean;
   images: string[];
+  isExisting?: boolean;
+  existingSku?: string;
+  newImagesCount?: number;
 }
 
 export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
@@ -106,6 +118,19 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
     total: 0,
   });
   const [isSaving, setIsSaving] = useState<boolean>(false);
+
+  // Deduplication & Smart Batch State
+  const [ignoreAlreadyImported, setIgnoreAlreadyImported] = useState<boolean>(true);
+  const [importStats, setImportStats] = useState<{
+    totalScanned: number;
+    alreadyImported: number;
+    newFiles: number;
+    existingProductsUpdated: number;
+    newProductsCreated: number;
+  } | null>(null);
+  const [allAlreadyImported, setAllAlreadyImported] = useState<boolean>(false);
+  const [filesToRegisterOnSave, setFilesToRegisterOnSave] = useState<ImportedFileRecord[]>([]);
+  const [lastSelectedFiles, setLastSelectedFiles] = useState<File[]>([]);
 
   const folderInputRef = useRef<HTMLInputElement>(null);
   const filesInputRef = useRef<HTMLInputElement>(null);
@@ -265,57 +290,119 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
   };
 
   // Image Processing & Compression Handler (Folder or Multiple Files)
-  const processImageFiles = async (files: FileList | null) => {
+  const processImageFiles = async (files: FileList | File[] | null, forceReimport = false) => {
     if (!files || files.length === 0) return;
 
     const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
     if (imageFiles.length === 0) return;
 
+    setLastSelectedFiles(imageFiles);
     setIsProcessingImages(true);
+    setAllAlreadyImported(false);
     setProcessingProgress({ current: 0, total: imageFiles.length });
 
-    // Use current grouped products as base
-    const productMap = new Map<string, GroupedProductItem>();
-    groupedProducts.forEach((p) => productMap.set(p.groupKey, { ...p }));
+    const registry = getImportedFilesRegistry();
+    const existingStoreProducts = getProducts();
 
-    for (let i = 0; i < imageFiles.length; i++) {
-      const file = imageFiles[i];
-      setProcessingProgress({ current: i + 1, total: imageFiles.length });
+    // 1. Identificação precisa de imagens novas vs imagens já importadas
+    const existingFiles: File[] = [];
+    const newFiles: File[] = [];
+
+    for (const f of imageFiles) {
+      const already = isFileAlreadyImported(f, registry, existingStoreProducts);
+      if (already) {
+        existingFiles.push(f);
+      } else {
+        newFiles.push(f);
+      }
+    }
+
+    const shouldIgnore = ignoreAlreadyImported && !forceReimport;
+    const filesToProcess = shouldIgnore ? newFiles : imageFiles;
+
+    setImportStats({
+      totalScanned: imageFiles.length,
+      alreadyImported: existingFiles.length,
+      newFiles: newFiles.length,
+      existingProductsUpdated: 0,
+      newProductsCreated: 0,
+    });
+
+    if (shouldIgnore && newFiles.length === 0 && existingFiles.length > 0) {
+      setAllAlreadyImported(true);
+      setIsProcessingImages(false);
+      return;
+    }
+
+    // Mapa para agrupar produtos pelo padrão do modelo
+    const productMap = new Map<string, GroupedProductItem>();
+    const recordsToRegister: ImportedFileRecord[] = [];
+
+    for (let i = 0; i < filesToProcess.length; i++) {
+      const file = filesToProcess[i];
+      setProcessingProgress({ current: i + 1, total: filesToProcess.length });
 
       try {
-        // Redimensionamento inteligente no Canvas: de 5-10MB para ~120KB
         const compressedDataUrl = await resizeImageFile(file, 1200, 1200, 0.82);
         if (!compressedDataUrl) continue;
 
         const relPath = file.webkitRelativePath || file.name;
         const parsed = parseProductFromFolderOrFile(relPath, file.name, selectedDefaultCategory);
 
+        // Verifica se o modelo já existe no catálogo da loja
+        const storeMatch = existingStoreProducts.find((p) => {
+          const matchKey = cleanModelName(p.name).groupKey;
+          return matchKey === parsed.groupKey || normalizeText(p.name) === parsed.groupKey;
+        });
+
+        const sig = generateFileSignature(file);
+        recordsToRegister.push({
+          signature: sig,
+          fileName: file.name,
+          fileSize: file.size,
+          lastModified: file.lastModified,
+          groupKey: parsed.groupKey,
+          targetProductId: storeMatch?.id,
+          targetProductName: storeMatch?.name || parsed.productName,
+          importedAt: new Date().toISOString(),
+        });
+
         if (productMap.has(parsed.groupKey)) {
           const existing = productMap.get(parsed.groupKey)!;
-          // Anexa imagem evitando duplicata
           if (!existing.images.includes(compressedDataUrl)) {
             existing.images.push(compressedDataUrl);
+            existing.newImagesCount = (existing.newImagesCount || 0) + 1;
           }
-          // Atualiza tamanho se detectado
-          if (!existing.size && parsed.size) {
-            existing.size = parsed.size;
-          }
-          // Mescla cores
+          if (!existing.size && parsed.size) existing.size = parsed.size;
           parsed.colors.forEach((col) => {
-            if (!existing.colors.some((c) => c.name === col.name)) {
+            if (!existing.colors.some((c) => c.name.toLowerCase() === col.name.toLowerCase())) {
               existing.colors.push(col);
             }
           });
         } else {
+          // Se o produto já existe no catálogo, adiciona a foto ao carrossel dele
+          const initialImages = storeMatch ? [...(storeMatch.images || [])] : [];
+          let isNewImg = true;
+          if (initialImages.includes(compressedDataUrl)) {
+            isNewImg = false;
+          } else {
+            initialImages.push(compressedDataUrl);
+          }
+
           productMap.set(parsed.groupKey, {
+            id: storeMatch?.id,
             groupKey: parsed.groupKey,
-            name: parsed.productName,
-            category: parsed.category,
-            price: parsed.price,
-            size: parsed.size,
-            colors: parsed.colors,
+            name: storeMatch ? storeMatch.name : parsed.productName,
+            category: storeMatch ? storeMatch.category : parsed.category,
+            price: storeMatch ? storeMatch.price : parsed.price,
+            promotionalPrice: storeMatch?.promotionalPrice,
+            size: parsed.size || storeMatch?.sizes?.[0],
+            colors: storeMatch && storeMatch.colors && storeMatch.colors.length > 0 ? storeMatch.colors : parsed.colors,
             isSet: parsed.isSet,
-            images: [compressedDataUrl],
+            images: initialImages,
+            isExisting: !!storeMatch,
+            existingSku: storeMatch?.sku,
+            newImagesCount: isNewImg ? 1 : 0,
           });
         }
       } catch (err) {
@@ -323,8 +410,28 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
       }
     }
 
-    setGroupedProducts(Array.from(productMap.values()));
+    setFilesToRegisterOnSave(recordsToRegister);
+    const resultList = Array.from(productMap.values());
+    setGroupedProducts(resultList);
+
+    const existingCount = resultList.filter((p) => p.isExisting).length;
+    const newCount = resultList.filter((p) => !p.isExisting).length;
+    setImportStats((prev) =>
+      prev
+        ? {
+            ...prev,
+            existingProductsUpdated: existingCount,
+            newProductsCreated: newCount,
+          }
+        : null
+    );
+
     setIsProcessingImages(false);
+  };
+
+  const handleForceReimportAll = () => {
+    if (lastSelectedFiles.length === 0) return;
+    processImageFiles(lastSelectedFiles, true);
   };
 
   const handleUpdateGroupedProduct = (index: number, updates: Partial<GroupedProductItem>) => {
@@ -356,6 +463,7 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
         });
 
         return {
+          id: g.id, // Se o produto já existe, preserva ID para atualização direta sem duplicar!
           name: g.name,
           category: g.category,
           colors: g.colors,
@@ -365,16 +473,33 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
           sizes: defaultSizes,
           stock: stockMap,
           description: `Peça oficial Aura Fitness da categoria ${g.category}. Tecido de alta compressão, toque aveludado e zero transparência.`,
-          sku: `AUR-${g.category.slice(0, 3).toUpperCase()}-${Date.now().toString().slice(-4)}-${idx + 1}`,
+          sku: g.existingSku || `AUR-${g.category.slice(0, 3).toUpperCase()}-${Date.now().toString().slice(-4)}-${idx + 1}`,
         };
       });
 
       await bulkImportProductsAsync(productsToCreate);
+
+      // Registra os arquivos importados no histórico de assinaturas
+      if (filesToRegisterOnSave.length > 0) {
+        registerImportedFiles(filesToRegisterOnSave);
+      }
+
       setIsSuccess(true);
-      setSuccessMessage(
-        `${productsToCreate.length} produtos cadastrados com sucesso na sua loja!`
-      );
+      const updatedCount = groupedProducts.filter((p) => p.isExisting).length;
+      const createdCount = groupedProducts.filter((p) => !p.isExisting).length;
+
+      let msg = '';
+      if (createdCount > 0 && updatedCount > 0) {
+        msg = `✓ ${createdCount} novo(s) modelo(s) cadastrado(s) e ${updatedCount} produto(s) existente(s) atualizados com novas fotos!`;
+      } else if (createdCount > 0) {
+        msg = `✓ ${createdCount} novo(s) produto(s) cadastrado(s) com sucesso na sua loja!`;
+      } else {
+        msg = `✓ ${updatedCount} produto(s) existente(s) atualizado(s) com as novas fotos no carrossel!`;
+      }
+
+      setSuccessMessage(msg);
       setGroupedProducts([]);
+      setFilesToRegisterOnSave([]);
       onSuccess();
     } catch (err) {
       console.error(err);
@@ -615,14 +740,31 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
             {activeTab === 'images' && (
               <div className="space-y-6">
                 <div className="bg-secondary/40 p-4 rounded-xl space-y-3 border border-border">
-                  <div className="flex items-center gap-2">
-                    <FolderPlus className="w-4 h-4 text-primary" />
-                    <h4 className="text-xs font-bold text-foreground">
-                      Carregamento Inteligente por Pasta ou Fotos Avulsas
-                    </h4>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <FolderPlus className="w-4 h-4 text-primary" />
+                      <h4 className="text-xs font-bold text-foreground">
+                        Carregamento Inteligente por Pasta ou Fotos Avulsas
+                      </h4>
+                    </div>
+
+                    {/* Toggle Anti-Duplicação */}
+                    <label className="flex items-center gap-2 cursor-pointer bg-card px-3 py-1.5 rounded-xl border border-border text-xs text-foreground font-semibold shadow-sm self-start sm:self-auto">
+                      <input
+                        type="checkbox"
+                        checked={ignoreAlreadyImported}
+                        onChange={(e) => setIgnoreAlreadyImported(e.target.checked)}
+                        className="rounded text-primary focus:ring-0"
+                      />
+                      <span className="flex items-center gap-1 text-[11px]">
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Evitar duplicatas ao selecionar as mesmas pastas</span>
+                      </span>
+                    </label>
                   </div>
+
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    Você pode selecionar uma <strong>pasta inteira</strong> (ex: <code className="bg-muted px-1.5 py-0.5 rounded text-[11px]">Macaquinho Maya G- 183,00</code>) ou <strong>várias fotos</strong>. O sistema agrupa todas as fotos do mesmo produto em 1 só anúncio, identifica o nome, tamanho, preço e cor automaticamente e otimiza as imagens no navegador!
+                    Você pode selecionar uma <strong>pasta inteira</strong> ou <strong>várias fotos</strong> mesmo que já as tenha selecionado antes. O sistema <strong>detecta fotos novas</strong>, <strong>evita imagens duplicadas</strong> e <strong>reconhece o padrão do modelo</strong> para agrupar todas as fotos da mesma peça no mesmo anúncio!
                   </p>
 
                   <div className="flex flex-wrap items-center gap-3 pt-2">
@@ -696,21 +838,76 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
                     <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center gap-3 text-amber-700 dark:text-amber-300 text-xs">
                       <Loader2 className="w-4 h-4 animate-spin shrink-0" />
                       <span>
-                        Comprimindo e analisando fotos com IA: {processingProgress.current} de{' '}
+                        Analisando fotos, detectando novidades e agrupando modelos: {processingProgress.current} de{' '}
                         {processingProgress.total}...
                       </span>
                     </div>
                   )}
                 </div>
 
+                {/* Banner de Estatísticas de Detecção / Prevenção de Duplicatas */}
+                {importStats && (
+                  <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-emerald-900 dark:text-emerald-200">
+                    <div className="flex items-center gap-3">
+                      <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
+                      <div>
+                        <h5 className="font-bold text-xs sm:text-sm">
+                          {importStats.newFiles} nova(s) foto(s) detectada(s)
+                          {importStats.existingProductsUpdated > 0 && (
+                            <span className="font-normal text-muted-foreground">
+                              {' '}• {importStats.existingProductsUpdated} modelo(s) existente(s) serão atualizados
+                            </span>
+                          )}
+                          {importStats.newProductsCreated > 0 && (
+                            <span className="font-normal text-muted-foreground">
+                              {' '}• {importStats.newProductsCreated} novo(s) modelo(s) agrupado(s)
+                            </span>
+                          )}
+                        </h5>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          {importStats.alreadyImported > 0 ? (
+                            <>
+                              <strong>{importStats.alreadyImported} foto(s)</strong> já haviam sido importadas anteriormente e foram <strong>ignoradas automaticamente</strong> para não duplicar anúncios nem fotos repetidas no carrossel.
+                            </>
+                          ) : (
+                            'Todas as fotos selecionadas estão prontas para importação sem duplicatas.'
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Aviso quando TODAS as fotos da pasta já foram importadas */}
+                {allAlreadyImported && (
+                  <div className="bg-blue-500/10 border border-blue-500/30 rounded-2xl p-6 text-center space-y-2 text-blue-900 dark:text-blue-200">
+                    <CheckCircle2 className="w-8 h-8 mx-auto text-blue-600" />
+                    <h4 className="font-bold text-sm">
+                      Todas as {importStats?.totalScanned} fotos desta pasta já foram importadas anteriormente!
+                    </h4>
+                    <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                      O sistema identificou com precisão que todas as imagens desta pasta já estão no catálogo da loja. Nenhuma duplicata foi criada.
+                    </p>
+                    <div className="pt-2 flex justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleForceReimportAll}
+                        className="text-xs font-semibold px-4 py-2 bg-secondary text-foreground rounded-xl hover:bg-secondary/80 border border-border"
+                      >
+                        Forçar reimportação de todas as fotos mesmo assim
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Grouped Products Preview Cards */}
                 {groupedProducts.length > 0 && (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <h4 className="text-xs font-bold text-foreground flex items-center gap-2">
-                        <span>Produtos Identificados ({groupedProducts.length} itens prontos)</span>
+                        <span>Modelos Reconhecidos ({groupedProducts.length} itens prontos)</span>
                         <span className="text-[11px] font-normal text-muted-foreground">
-                          (Total de {groupedProducts.reduce((acc, p) => acc + p.images.length, 0)} fotos)
+                          (Total de {groupedProducts.reduce((acc, p) => acc + p.images.length, 0)} fotos agrupadas)
                         </span>
                       </h4>
                       <button
@@ -743,6 +940,21 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
                             </div>
 
                             <div className="space-y-1">
+                              {/* Status Badge */}
+                              <div>
+                                {prod.isExisting ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-500/15 border border-blue-500/30 text-blue-700 dark:text-blue-300 text-[10px] font-bold">
+                                    <RefreshCw className="w-3 h-3" />
+                                    <span>Atualizar no Catálogo (+{prod.newImagesCount || 0} novas fotos)</span>
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
+                                    <Sparkles className="w-3 h-3 text-amber-500" />
+                                    <span>Novo Modelo ({prod.images.length} fotos agrupadas)</span>
+                                  </span>
+                                )}
+                              </div>
+
                               {/* Editable Name */}
                               <input
                                 type="text"
@@ -842,7 +1054,7 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
                         <Sparkles className="w-4 h-4" />
                       )}
                       <span>
-                        Cadastrar {groupedProducts.length} Produtos no Catálogo Oficial
+                        Cadastrar / Atualizar {groupedProducts.length} Produtos no Catálogo Oficial
                       </span>
                     </button>
                   </div>

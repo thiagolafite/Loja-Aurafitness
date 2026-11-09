@@ -35,6 +35,7 @@ import {
   fetchProductsAsync,
   saveProduct,
   saveProductAsync,
+  saveAllProducts,
   deleteProduct,
   bulkDeleteProductsAsync,
   deleteAllProductsAsync,
@@ -47,6 +48,8 @@ import { ProductImporterModal } from '../../components/admin/ProductImporterModa
 import { ProductCard } from '../../components/store/ProductCard';
 import {
   classifyProduct,
+  cleanModelName,
+  consolidateDuplicateProducts,
   STORE_CATEGORIES,
   STORE_COLORS,
   AvailableColor,
@@ -356,6 +359,44 @@ export const AdminProductsPage: React.FC = () => {
     }
   };
 
+  // Detecta se existem variações do mesmo modelo com numeração separada (ex: Rosa (2), Purple ())
+  const duplicateStats = React.useMemo(() => {
+    const modelKeys = new Set<string>();
+    let count = 0;
+    for (const p of products) {
+      const key = cleanModelName(p.name).groupKey;
+      if (modelKeys.has(key)) count++;
+      else modelKeys.add(key);
+    }
+    return count;
+  }, [products]);
+
+  // Unifica automaticamente produtos duplicados com numeração no catálogo
+  const handleConsolidateDuplicates = () => {
+    const { consolidated, mergedCount } = consolidateDuplicateProducts(products);
+    if (mergedCount === 0) {
+      showToast('Nenhum modelo repetido foi encontrado.');
+      return;
+    }
+
+    if (
+      !window.confirm(
+        `Detectamos ${mergedCount} variações de modelos duplicadas com numeração (ex: Rosa (2), Purple ()).\n\nDeseja unificar tudo em anúncios únicos, limpando os nomes e reunindo todas as fotos no carrossel do produto?`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      saveAllProducts(consolidated);
+      refreshProducts();
+      showToast(`✓ ${mergedCount} modelo(s) e fotos foram unificados com sucesso!`);
+    } catch (err) {
+      console.error(err);
+      showToast('Erro ao unificar modelos.');
+    }
+  };
+
   const handleOpenNewModal = () => {
     setEditingProduct({
       name: '',
@@ -627,6 +668,32 @@ export const AdminProductsPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Banner de Unificação de Modelos Repetidos */}
+      {duplicateStats > 0 && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-900 dark:text-amber-200 shadow-sm animate-in fade-in">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-300 flex items-center justify-center shrink-0">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <h5 className="font-bold text-xs sm:text-sm">
+                {duplicateStats} modelo(s) duplicado(s) com numeração detectados (ex: Serena Rosa (2), Purple ())
+              </h5>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Identificamos fotos repetidas do mesmo modelo salvas em anúncios separados. Clique no botão ao lado para unificá-las em um anúncio único oficial com carrossel completo de fotos!
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleConsolidateDuplicates}
+            className="px-4 py-2.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white font-bold text-xs rounded-xl transition-all shadow-md shrink-0 flex items-center gap-2 self-start sm:self-auto"
+          >
+            <Sparkles className="w-4 h-4 text-amber-200" />
+            <span>Unificar Modelos & Fotos</span>
+          </button>
+        </div>
+      )}
 
       {/* View Switcher & Toolbar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

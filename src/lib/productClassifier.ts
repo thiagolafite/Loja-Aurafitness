@@ -6,6 +6,8 @@
  * - Identificação de Conjuntos / Kits (Look Completo)
  */
 
+import { Product } from '../types';
+
 export interface AvailableColor {
   name: string;
   hex: string;
@@ -24,18 +26,18 @@ export interface AvailableCategory {
 export const STORE_COLORS: AvailableColor[] = [
   { name: 'Preto', hex: '#111111', keywords: ['preto', 'preta', 'black', 'noir', 'onix', 'ônix', 'dark', 'grafite escuro'] },
   { name: 'Branco', hex: '#FFFFFF', keywords: ['branco', 'branca', 'white', 'off-white', 'off white', 'offwhite', 'gelo', 'neve'] },
-  { name: 'Verde Oliva', hex: '#5F6F3A', keywords: ['oliva', 'militar', 'verde militar', 'verde oliva', 'olive', 'army', 'musgo', 'safari'] },
-  { name: 'Verde Esmeralda', hex: '#1E5E3A', keywords: ['verde', 'green', 'esmeralda', 'menta', 'sage', 'folha', 'pistache', 'abacate'] },
-  { name: 'Azul Marinho', hex: '#1B2A4A', keywords: ['marinho', 'navy', 'azul escuro', 'midnight', 'oceano', 'deep blue'] },
-  { name: 'Azul Celeste', hex: '#5A9BD5', keywords: ['celeste', 'baby blue', 'indigo', 'índigo', 'royal', 'turquesa', 'azul claro', 'azul'] },
-  { name: 'Rosa Claro', hex: '#F4B6C2', keywords: ['rosa claro', 'baby pink', 'blush', 'rosa bebe', 'rosa bebê', 'rosê', 'rose', 'quartz'] },
-  { name: 'Pink / Fúcsia', hex: '#E0218A', keywords: ['pink', 'fucsia', 'fúcsia', 'magenta', 'rosa choque', 'neon pink'] },
-  { name: 'Vinho / Marsala', hex: '#5B1425', keywords: ['vinho', 'marsala', 'bordo', 'bordô', 'burgundy', 'cereja', 'amora'] },
-  { name: 'Lilás / Lavanda', hex: '#9D81BA', keywords: ['lilas', 'lilás', 'lavanda', 'roxo', 'purple', 'violeta', 'amestista'] },
+  { name: 'Verde Oliva', hex: '#5F6F3A', keywords: ['verde oliva', 'verde militar', 'oliva', 'militar', 'olive', 'army', 'musgo', 'safari'] },
+  { name: 'Verde Esmeralda', hex: '#1E5E3A', keywords: ['verde esmeralda', 'verde', 'green', 'esmeralda', 'menta', 'sage', 'folha', 'pistache', 'abacate'] },
+  { name: 'Azul Marinho', hex: '#1B2A4A', keywords: ['azul marinho', 'marinho', 'navy', 'azul escuro', 'midnight', 'oceano', 'deep blue'] },
+  { name: 'Azul Celeste', hex: '#5A9BD5', keywords: ['azul celeste', 'azul claro', 'celeste', 'baby blue', 'indigo', 'índigo', 'royal', 'turquesa', 'azul'] },
+  { name: 'Rosa Claro', hex: '#F4B6C2', keywords: ['rosa claro', 'baby pink', 'blush', 'rosa bebe', 'rosa bebê', 'rosê', 'rose', 'quartz', 'quartzo'] },
+  { name: 'Pink / Fúcsia', hex: '#E0218A', keywords: ['pink', 'fucsia', 'fúcsia', 'fuchsia', 'magenta', 'rosa choque', 'neon pink', 'rosa'] },
+  { name: 'Vinho / Marsala', hex: '#5B1425', keywords: ['vinho', 'marsala', 'bordo', 'bordô', 'burgundy', 'cereja', 'amora', 'rubi'] },
+  { name: 'Lilás / Lavanda', hex: '#9D81BA', keywords: ['lilas', 'lilás', 'lavanda', 'roxo', 'roxa', 'purple', 'violeta', 'ametista'] },
   { name: 'Terracota / Telha', hex: '#C86D51', keywords: ['terracota', 'telha', 'caramelo', 'argila', 'rust', 'cobre', 'canela'] },
-  { name: 'Cinza Mescla', hex: '#71797E', keywords: ['cinza', 'mescla', 'grafite', 'gray', 'grey', 'chumbo', 'prata', 'silver'] },
+  { name: 'Cinza Mescla', hex: '#71797E', keywords: ['cinza mescla', 'cinza', 'mescla', 'grafite', 'gray', 'grey', 'chumbo', 'prata', 'silver'] },
   { name: 'Nude / Bege', hex: '#D2B48C', keywords: ['nude', 'bege', 'areia', 'sand', 'creme', 'cacau', 'pele', 'marfim'] },
-  { name: 'Vermelho', hex: '#C41E3A', keywords: ['vermelho', 'vermelha', 'red', 'escarlate', 'rubi', 'carmim'] },
+  { name: 'Vermelho', hex: '#C41E3A', keywords: ['vermelho', 'vermelha', 'red', 'escarlate', 'carmim'] },
   { name: 'Amarelo / Mostarda', hex: '#E5A93C', keywords: ['amarelo', 'mostarda', 'yellow', 'ouro', 'dourado', 'solar'] },
   { name: 'Marrom / Chocolate', hex: '#4A2E1B', keywords: ['marrom', 'chocolate', 'brown', 'cafe', 'café', 'avelã'] },
 ];
@@ -725,7 +727,7 @@ export interface ProductClassification {
 /**
  * Normaliza uma string removendo acentos e convertendo para minúsculas
  */
-function normalizeText(text: string): string {
+export function normalizeText(text: string): string {
   return (text || '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -778,21 +780,26 @@ export function classifyProduct(name: string, description?: string): ProductClas
     }
   }
 
-  // 3. Detectar Cores
+  // 3. Detectar Cores (do termo mais específico/composto para o mais genérico)
   const detectedColors: { name: string; hex: string }[] = [];
   const addedColorNames = new Set<string>();
 
-  for (const color of STORE_COLORS) {
-    for (const kw of color.keywords) {
-      // Regex para encontrar palavra inteira ou composta
-      const regex = new RegExp(`\\b${kw}\\b`, 'i');
-      if (regex.test(fullText) || fullText.includes(kw)) {
-        if (!addedColorNames.has(color.name)) {
-          addedColorNames.add(color.name);
-          detectedColors.push({ name: color.name, hex: color.hex });
-          detectedTags.push(`Cor: ${color.name}`);
-        }
-        break;
+  // Achata e ordena todas as palavras-chave por comprimento decrescente (ex: 'rosa claro' antes de 'rosa')
+  const allColorRules: { color: AvailableColor; keyword: string }[] = [];
+  STORE_COLORS.forEach((color) => {
+    color.keywords.forEach((kw) => {
+      allColorRules.push({ color, keyword: kw });
+    });
+  });
+  allColorRules.sort((a, b) => b.keyword.length - a.keyword.length);
+
+  for (const rule of allColorRules) {
+    const regex = new RegExp(`(^|[^a-zA-Z0-9áéíóúãõâêîôûç])${rule.keyword}([^a-zA-Z0-9áéíóúãõâêîôûç]|$)`, 'i');
+    if (regex.test(fullText)) {
+      if (!addedColorNames.has(rule.color.name)) {
+        addedColorNames.add(rule.color.name);
+        detectedColors.push({ name: rule.color.name, hex: rule.color.hex });
+        detectedTags.push(`Cor: ${rule.color.name}`);
       }
     }
   }
@@ -843,13 +850,93 @@ export function isGenericFileName(name: string): boolean {
 }
 
 /**
+ * Limpa o nome do arquivo/modelo para extrair o Nome Canônico do Produto:
+ * - Remove extensões (.jpg, .jpeg, .png, etc.)
+ * - Remove numerações de sequência no início (ex: "01 - ", "1. ", "02_")
+ * - Remove numerações de fotos entre parênteses ou colchetes (ex: " (1)", " (2)", " ()", " [03]")
+ * - Remove sufixos de ângulos/posições (ex: "- frente", "- costas", "- detalhe", "- lateral")
+ * - Remove sufixos como "_1", "_02", "- 1", "- 02", " foto 1", " img 2", " cópia"
+ * - Remove valores monetários (ex: "183,00", "R$ 183")
+ * - Remove tamanhos isolados (ex: " - G - ")
+ * - Remove parênteses e colchetes vazios "()" ou "[]"
+ * - Gera chave canônica de agrupamento (groupKey) para reunir todas as fotos do mesmo modelo
+ */
+export function cleanModelName(rawName: string): {
+  cleanName: string;
+  groupKey: string;
+  sequenceNumber?: number;
+  detectedAngle?: string;
+} {
+  if (!rawName) return { cleanName: '', groupKey: '' };
+
+  // 1. Remove extensão se houver
+  let name = rawName.replace(/\.[a-zA-Z0-9]{2,5}$/, '').trim();
+
+  // 2. Extrai e remove ângulo de foto se presente
+  let detectedAngle: string | undefined = undefined;
+  const angleMatch = name.match(/[\s\-_]+(frente|costas|costa|lateral|detalhe|zoom|look|crop|back|front|side|detail)\b/i);
+  if (angleMatch) {
+    detectedAngle = angleMatch[1].toLowerCase();
+    name = name.replace(angleMatch[0], ' ');
+  }
+
+  // 3. Remove prefixos de sequência inicial (ex: "01 - ", "1. ", "02_")
+  name = name.replace(/^(\d{1,4}[\s\-_\.]+)+/g, '');
+
+  // 4. Extrai número de sequência se houver (ex: "(2)", "_02", "- 1")
+  let sequenceNumber: number | undefined = undefined;
+  const seqMatch = name.match(/\s*\((\d{1,3})\)\s*$/) || name.match(/[\s\-_]+(\d{1,3})$/);
+  if (seqMatch) {
+    sequenceNumber = parseInt(seqMatch[1], 10);
+  }
+
+  // 5. Remove números de sequência, parênteses e colchetes (inclusive vazios como "()" ou "[]")
+  name = name.replace(/\s*\(\s*\d*\s*\)/g, ' '); // remove (1), (2), ()
+  name = name.replace(/\s*\[\s*\d*\s*\]/g, ' '); // remove [1], [2], []
+  name = name.replace(/\s*\{\s*\d*\s*\}/g, ' '); // remove {1}, {}
+  name = name.replace(/[\s\-_]+(?:foto|img|imagem|shot|pic|angulo|ângulo)?\s*\d{1,3}$/i, ' ');
+  name = name.replace(/[\s\-_]+(?:copia|cópia|copy)\b.*$/i, ' ');
+  name = name.replace(/[\s\-_]+v\d+\b/i, ' '); // remove v1, v2
+
+  // 6. Remove preços e valores monetários (ex: 183,00, R$ 183)
+  name = name.replace(/(?:r\$\s*)?(\d{2,4})(?:[,\.](\d{2}))?\b/gi, ' ');
+
+  // 7. Remove tamanhos isolados
+  name = name.replace(/\b(PP|P|M|G|GG|XG|XGG)\b/gi, ' ');
+
+  // 8. Remove qualquer parênteses ou colchetes vazios remanescentes
+  name = name.replace(/\(\s*\)/g, ' ').replace(/\[\s*\]/g, ' ');
+
+  // 9. Remove símbolos, hifens e pontuação sobressalente
+  name = name.replace(/[-_–—,:;]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+  // 10. Capitalização agradável das palavras
+  const cleanName = name
+    .split(' ')
+    .filter(Boolean)
+    .map((w) => {
+      const lower = w.toLowerCase();
+      if (['de', 'da', 'do', 'das', 'dos', 'com', 'e', 'em'].includes(lower)) {
+        return lower;
+      }
+      return w.length > 2 ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : w.toUpperCase();
+    })
+    .join(' ');
+
+  // 11. groupKey unificado para agrupar todas as fotos do mesmo modelo
+  const groupKey = normalizeText(cleanName);
+
+  return { cleanName, groupKey, sequenceNumber, detectedAngle };
+}
+
+/**
  * Analisa o caminho da pasta e nome do arquivo para extrair:
- * - Nome real do produto
+ * - Nome real e canônico do produto (sem "(2)", "()", etc.)
  * - Categoria oficial Aura
  * - Preço (ex: 183,00)
  * - Tamanho (ex: P, M, G, GG)
  * - Cores
- * - Chave de agrupamento única para reunir fotos do mesmo produto
+ * - Chave de agrupamento única para reunir todas as fotos do mesmo modelo em 1 só anúncio
  */
 export function parseProductFromFolderOrFile(
   relPath: string,
@@ -874,11 +961,9 @@ export function parseProductFromFolderOrFile(
 
   if (hasValidFolder) {
     if (!isGenericFileName(cleanFileName)) {
-      // O arquivo possui nome próprio e específico de produto
       candidateName = cleanFileName;
       rawTextForExtraction = `${folderCandidate} ${cleanFileName}`;
     } else {
-      // O arquivo possui nome genérico (WhatsApp, IMG, etc.), então a pasta define o produto
       candidateName = folderCandidate;
       rawTextForExtraction = folderCandidate;
     }
@@ -903,30 +988,20 @@ export function parseProductFromFolderOrFile(
     size = sizeMatch[1].toUpperCase();
   }
 
-  // 3. Limpeza do Nome do Produto
-  let cleanName = candidateName;
-  // Remove valor monetário
-  cleanName = cleanName.replace(/(?:r\$\s*)?(\d{2,4})(?:[,\.](\d{2}))?\b/gi, '');
-  // Remove tamanho isolado (ex: " G ", " - G - ")
-  cleanName = cleanName.replace(/\b(PP|P|M|G|GG|XG|XGG)\b/gi, '');
-  // Remove símbolos, hifens e pontuação sobressalente
-  cleanName = cleanName.replace(/[-_–—,:]+/g, ' ').replace(/\s+/g, ' ').trim();
+  // 3. Limpeza Inteligente e Canônica do Nome do Produto
+  let { cleanName, groupKey } = cleanModelName(candidateName);
 
-  // Se após a limpeza o nome ficou vazio ou genérico, tenta recuperar
+  // Se após a limpeza o nome ficou vazio ou genérico, tenta recuperar da pasta
   if (!cleanName || isGenericFileName(cleanName)) {
     if (hasValidFolder && !isCatFolder) {
-      cleanName = folderCandidate.replace(/[-_–—,:]+/g, ' ').replace(/\s+/g, ' ').trim();
+      const folderClean = cleanModelName(folderCandidate);
+      cleanName = folderClean.cleanName;
+      groupKey = folderClean.groupKey;
     } else {
       cleanName = `Produto ${cleanFileName}`;
+      groupKey = normalizeText(cleanName);
     }
   }
-
-  // Capitalização suave
-  cleanName = cleanName
-    .split(' ')
-    .filter(Boolean)
-    .map((w) => (w.length > 2 ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : w.toUpperCase()))
-    .join(' ');
 
   // 4. Classificação de Categoria, Cores e Conjunto pela IA
   const classification = classifyProduct(
@@ -947,10 +1022,6 @@ export function parseProductFromFolderOrFile(
   if (!finalCategory) {
     finalCategory = defaultCategory;
   }
-
-  // 6. Chave de Agrupamento Única (reúne fotos numeradas como 'Top 1.jpg', 'Top 2.jpg' no mesmo produto)
-  const cleanNameForGroup = cleanName.replace(/[\s\-_]+(?:foto|img|imagem)?\s*\(?\d{1,2}\)?$/i, '').trim();
-  const groupKey = normalizeText(cleanNameForGroup || cleanName);
 
   return {
     productName: cleanName,
@@ -1018,5 +1089,143 @@ export async function resizeImageFile(
     };
     reader.readAsDataURL(file);
   });
+}
+
+// =========================================================================
+// REGISTRO DE ARQUIVOS IMPORTADOS & PREVENÇÃO DE DUPLICATAS
+// =========================================================================
+
+export interface ImportedFileRecord {
+  signature: string;
+  fileName: string;
+  fileSize: number;
+  lastModified: number;
+  groupKey: string;
+  targetProductId?: string;
+  targetProductName?: string;
+  importedAt: string;
+}
+
+export const IMPORTED_FILES_REGISTRY_KEY = 'aura_imported_files_registry_v1';
+
+export function getImportedFilesRegistry(): Record<string, ImportedFileRecord> {
+  try {
+    if (typeof window !== 'undefined') {
+      const data = localStorage.getItem(IMPORTED_FILES_REGISTRY_KEY);
+      if (data) return JSON.parse(data);
+    }
+  } catch (e) {
+    console.error('Error reading imported files registry:', e);
+  }
+  return {};
+}
+
+export function saveImportedFilesRegistry(registry: Record<string, ImportedFileRecord>): void {
+  try {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(IMPORTED_FILES_REGISTRY_KEY, JSON.stringify(registry));
+    }
+  } catch (e) {
+    console.error('Error saving imported files registry:', e);
+  }
+}
+
+export function registerImportedFiles(records: ImportedFileRecord[]): void {
+  const current = getImportedFilesRegistry();
+  records.forEach((rec) => {
+    current[rec.signature] = rec;
+    const simpleKey = `${rec.fileName}|${rec.fileSize}`;
+    current[simpleKey] = rec;
+  });
+  saveImportedFilesRegistry(current);
+}
+
+export function generateFileSignature(file: File): string {
+  const rel = file.webkitRelativePath || file.name;
+  return `${rel}|${file.size}|${file.lastModified}`;
+}
+
+/**
+ * Verifica se um arquivo já foi importado anteriormente
+ */
+export function isFileAlreadyImported(
+  file: File,
+  registry: Record<string, ImportedFileRecord>,
+  existingProducts: { id: string; name: string; images?: string[] }[] = []
+): boolean {
+  const sig = generateFileSignature(file);
+  if (registry[sig]) return true;
+
+  const simpleSig = `${file.name}|${file.size}`;
+  if (registry[simpleSig]) return true;
+
+  return false;
+}
+
+/**
+ * Unifica produtos repetidos no catálogo que possuem o mesmo modelo base
+ * (ex: agrupa "Macaquinho Serena Rosa (2)" e "Macaquinho Serena Rosa ()" em um só anúncio oficial com todas as fotos)
+ */
+export function consolidateDuplicateProducts(products: Product[]): {
+  consolidated: Product[];
+  mergedCount: number;
+} {
+  const modelMap = new Map<string, Product>();
+  let mergedCount = 0;
+
+  for (const prod of products) {
+    const { cleanName, groupKey } = cleanModelName(prod.name);
+    const key = groupKey || normalizeText(prod.name);
+
+    if (modelMap.has(key)) {
+      // Mescla com o produto existente
+      const existing = modelMap.get(key)!;
+      mergedCount++;
+
+      // Unifica imagens sem duplicar
+      const combinedImages = [...(existing.images || [])];
+      (prod.images || []).forEach((img) => {
+        if (!combinedImages.includes(img)) {
+          combinedImages.push(img);
+        }
+      });
+      existing.images = combinedImages;
+
+      // Unifica cores
+      const existingColors = existing.colors || [];
+      (prod.colors || []).forEach((c) => {
+        if (!existingColors.some((ec) => ec.name.toLowerCase() === c.name.toLowerCase())) {
+          existingColors.push(c);
+        }
+      });
+      existing.colors = existingColors;
+
+      // Unifica tamanhos
+      const existingSizes = existing.sizes || [];
+      (prod.sizes || []).forEach((s) => {
+        if (!existingSizes.includes(s)) {
+          existingSizes.push(s);
+        }
+      });
+      existing.sizes = existingSizes;
+
+      // Unifica estoque
+      if (prod.stock) {
+        existing.stock = existing.stock || {};
+        Object.entries(prod.stock).forEach(([stKey, qty]) => {
+          existing.stock![stKey] = (existing.stock![stKey] || 0) + qty;
+        });
+      }
+    } else {
+      // Define nome limpo sem "(2)", "()", etc.
+      modelMap.set(key, {
+        ...prod,
+        name: cleanName || prod.name,
+      });
+    }
+  }
+
+  const consolidated = Array.from(modelMap.values());
+  return { consolidated, mergedCount };
 }
 

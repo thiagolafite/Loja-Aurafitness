@@ -430,6 +430,14 @@ export function saveProduct(productData: Partial<Product>): Product {
   return updatedProduct;
 }
 
+export function saveAllProducts(products: Product[]): void {
+  cachedProducts = products;
+  setStorageItem(STORAGE_KEYS.PRODUCTS, products);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('aura_products_updated', { detail: products }));
+  }
+}
+
 export async function bulkDeleteProductsAsync(ids: string[]): Promise<void> {
   if (!ids || ids.length === 0) return;
 
