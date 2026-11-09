@@ -138,7 +138,8 @@ export const STORE_CATEGORIES: AvailableCategory[] = [
 ];
 
 /**
- * Obtém dinamicamente a foto real do primeiro produto cadastrado na categoria
+ * Obtém a foto da categoria configurada pelo administrador,
+ * com fallback para a primeira foto de produto daquela categoria,
  * ou a imagem padrão editorial da categoria.
  */
 export function getCategoryPhoto(
@@ -146,8 +147,14 @@ export function getCategoryPhoto(
   productsList: { category?: string; images?: string[] }[] = []
 ): string {
   const norm = normalizeCategoryName(categoryName);
+  const catDef = getStoredCategories().find((c) => normalizeCategoryName(c.name) === norm);
 
-  // 1. Procura produto real nessa categoria com imagem válida
+  // 1. Imagem configurada pelo administrador especificamente para a categoria
+  if (catDef?.image && typeof catDef.image === 'string' && catDef.image.trim()) {
+    return catDef.image;
+  }
+
+  // 2. Fallback: Procura produto real nessa categoria com imagem válida
   if (Array.isArray(productsList) && productsList.length > 0) {
     const productWithImg = productsList.find((p) => {
       const matchCat = normalizeCategoryName(p.category) === norm;
@@ -158,12 +165,6 @@ export function getCategoryPhoto(
     if (productWithImg?.images?.[0]) {
       return productWithImg.images[0];
     }
-  }
-
-  // 2. Imagem cadastrada na categoria
-  const catDef = getStoredCategories().find((c) => normalizeCategoryName(c.name) === norm);
-  if (catDef?.image) {
-    return catDef.image;
   }
 
   return '/images/look-3103.png';
@@ -292,6 +293,39 @@ export function saveNewCategory(name: string): AvailableCategory[] {
     return updated;
   }
   return current;
+}
+
+/**
+ * Atualiza a foto de capa de uma categoria específica e notifica toda a loja em tempo real
+ */
+export function updateCategoryPhoto(categoryName: string, imageUrl: string): AvailableCategory[] {
+  const current = getStoredCategories();
+  const norm = normalizeCategoryName(categoryName);
+  const updated = current.map((cat) => {
+    if (normalizeCategoryName(cat.name) === norm) {
+      return { ...cat, image: imageUrl };
+    }
+    return cat;
+  });
+  saveStoredCategories(updated);
+  return updated;
+}
+
+/**
+ * Restaura a foto padrão original de uma categoria específica
+ */
+export function resetCategoryPhoto(categoryName: string): AvailableCategory[] {
+  const current = getStoredCategories();
+  const norm = normalizeCategoryName(categoryName);
+  const defaultDef = STORE_CATEGORIES.find((c) => normalizeCategoryName(c.name) === norm);
+  const updated = current.map((cat) => {
+    if (normalizeCategoryName(cat.name) === norm) {
+      return { ...cat, image: defaultDef?.image || '/images/look-3103.png' };
+    }
+    return cat;
+  });
+  saveStoredCategories(updated);
+  return updated;
 }
 
 export interface ProductClassification {

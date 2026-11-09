@@ -26,6 +26,7 @@ import {
   DollarSign,
   Filter,
   Maximize2,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -362,6 +363,14 @@ export const AdminCategoriesPage: React.FC = () => {
 
         <div className="flex items-center gap-2.5 flex-wrap">
           <Link
+            to="/admin/fotos-catalogos"
+            className="px-4 py-2.5 rounded-xl border border-primary/40 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm"
+          >
+            <ImageIcon className="w-4 h-4" />
+            <span>📷 Alterar Fotos dos Catálogos</span>
+          </Link>
+
+          <Link
             to="/catalogo"
             target="_blank"
             className="px-4 py-2.5 rounded-xl border border-border bg-card hover:bg-muted text-foreground text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm"
@@ -568,6 +577,15 @@ export const AdminCategoriesPage: React.FC = () => {
 
                 {/* Category Actions */}
                 <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+                  <Link
+                    to="/admin/fotos-catalogos"
+                    className="p-2 text-primary hover:text-white hover:bg-primary rounded-xl border border-primary/30 transition-colors text-xs flex items-center gap-1 font-semibold"
+                    title="Alterar a foto de capa deste catálogo na Home"
+                  >
+                    <ImageIcon className="w-3.5 h-3.5" />
+                    <span className="hidden md:inline">Foto da Capa</span>
+                  </Link>
+
                   <Link
                     to={`/catalogo?categoria=${encodeURIComponent(category.name)}`}
                     target="_blank"
