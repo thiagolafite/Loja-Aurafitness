@@ -17,6 +17,7 @@ import {
   getCategoryPhoto,
   getStoredCategories,
   AvailableCategory,
+  isProductMatchingCategory,
 } from '../../lib/productClassifier';
 
 export const HomePage: React.FC = () => {
@@ -228,7 +229,7 @@ export const HomePage: React.FC = () => {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 sm:gap-5">
           {categories.slice(0, 5).map((cat) => {
             const count = products.filter(
-              (p) => normalizeCategoryName(p.category) === cat.name
+              (p) => isProductMatchingCategory(p, cat.name)
             ).length;
             const photo = getCategoryPhoto(cat.name, products);
 

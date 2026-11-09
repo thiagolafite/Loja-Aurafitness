@@ -30,6 +30,7 @@ import {
   getCategoryPhoto,
   getStoredCategories,
   AvailableCategory,
+  isProductMatchingCategory,
 } from '../../lib/productClassifier';
 
 export const Navbar: React.FC = () => {
@@ -317,7 +318,7 @@ export const Navbar: React.FC = () => {
                   <div className="grid grid-cols-2 gap-2.5">
                     {categories.map((cat) => {
                       const count = products.filter(
-                        (p) => normalizeCategoryName(p.category) === cat.name
+                        (p) => isProductMatchingCategory(p, cat.name)
                       ).length;
 
                       return (
@@ -466,7 +467,7 @@ export const Navbar: React.FC = () => {
                       >
                         {categories.map((cat) => {
                           const count = products.filter(
-                            (p) => normalizeCategoryName(p.category) === cat.name
+                            (p) => isProductMatchingCategory(p, cat.name)
                           ).length;
 
                           return (

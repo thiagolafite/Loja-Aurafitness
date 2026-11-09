@@ -49,6 +49,7 @@ import {
   deleteStoredCategory,
   renameStoredCategory,
   getCategoryPhoto,
+  isProductMatchingCategory,
 } from '../../lib/productClassifier';
 import { ProductImporterModal } from '../../components/admin/ProductImporterModal';
 import { useLightbox } from '../../contexts/LightboxContext';
@@ -115,7 +116,8 @@ export const AdminCategoriesPage: React.FC = () => {
       const items = products.filter(
         (p) =>
           (p.category && p.category.trim().toLowerCase() === catLower) ||
-          normalizeCategoryName(p.category).toLowerCase() === catLower
+          normalizeCategoryName(p.category).toLowerCase() === catLower ||
+          isProductMatchingCategory(p, cat.name)
       );
 
       // Filter by search query if any

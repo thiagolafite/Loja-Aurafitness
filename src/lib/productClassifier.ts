@@ -530,6 +530,191 @@ export function resetCategoryPhoto(categoryName: string): AvailableCategory[] {
   return updated;
 }
 
+/**
+ * Verifica se um produto pertence a uma determinada categoria, considerando:
+ * - Correspondência exata de nome ou slug
+ * - Normalização canônica oficial
+ * - Variações de singular e plural (ex: Macaquinho vs Macaquinhos, Top vs Tops, Conjunto vs Conjuntos)
+ * - Sinônimos essenciais de moda fitness (ex: Macaquinho e Macacão)
+ * - Palavras-chave cadastradas na categoria
+ * - Nome do produto contendo a categoria
+ */
+export function isProductMatchingCategory(
+  product: { name?: string; category?: string; description?: string },
+  targetCategoryName: string
+): boolean {
+  if (!targetCategoryName || !targetCategoryName.trim()) return true;
+
+  const target = targetCategoryName.trim().toLowerCase();
+  const prodCat = (product.category || '').trim().toLowerCase();
+  const prodName = (product.name || '').trim().toLowerCase();
+
+  // 1. Igualdade direta
+  if (prodCat === target) return true;
+
+  // 2. Normalização canônica
+  const normProd = normalizeCategoryName(product.category).toLowerCase();
+  const normTarget = normalizeCategoryName(targetCategoryName).toLowerCase();
+  if (normProd && normTarget && normProd === normTarget) return true;
+
+  // 3. Variações de singular / plural (ex: Macaquinho x Macaquinhos, Top x Tops, Conjunto x Conjuntos)
+  const stripPlural = (s: string) =>
+    s
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/es$/, '')
+      .replace(/s$/, '');
+
+  const rootTarget = stripPlural(target);
+  const rootProd = stripPlural(prodCat);
+
+  if (rootTarget && rootProd && (rootTarget === rootProd || rootTarget.startsWith(rootProd) || rootProd.startsWith(rootTarget))) {
+    return true;
+  }
+
+  // 4. Sinônimos fundamentais do segmento fitness
+  // Macaquinho / Macacão / Jumpsuit
+  const isMacacaoTarget = target.includes('macac') || target.includes('macaquinh');
+  const isMacacaoProd =
+    prodCat.includes('macac') ||
+    prodCat.includes('macaquinh') ||
+    prodName.includes('macaquinh') ||
+    prodName.includes('macacao') ||
+    prodName.includes('macacão');
+  if (isMacacaoTarget && isMacacaoProd) return true;
+
+  // Conjuntos / Kits / Combos
+  const isConjuntoTarget = target.includes('conjunt') || target.includes('kit') || target.includes('look');
+  const isConjuntoProd = prodCat.includes('conjunt') || prodName.includes('conjunto');
+  if (isConjuntoTarget && isConjuntoProd) return true;
+
+  // Tops / Croppeds / Sutiãs
+  const isTopTarget = target === 'top' || target === 'tops' || target.includes('cropped');
+  const isTopProd = prodCat === 'top' || prodCat === 'tops' || prodName.includes('top ') || prodName.startsWith('top');
+  if (isTopTarget && isTopProd) return true;
+
+  // Shorts / Bermudas
+  const isShortTarget = target.includes('short') || target.includes('bermuda');
+  const isShortProd = prodCat.includes('short') || prodCat.includes('bermuda') || prodName.includes('short') || prodName.includes('bermuda');
+  if (isShortTarget && isShortProd) return true;
+
+  // Leggings / Calças
+  const isLeggingTarget = target.includes('legging') || target.includes('calca') || target.includes('calça');
+  const isLeggingProd = prodCat.includes('legging') || prodCat.includes('calca') || prodName.includes('legging');
+  if (isLeggingTarget && isLeggingProd) return true;
+
+  // 5. Verifica se as palavras-chave da categoria batem com a categoria do produto ou com o nome do produto
+  const allCategories = getStoredCategories();
+  const catDef = allCategories.find((c) => c.name.toLowerCase() === target || c.slug === target);
+  if (catDef && Array.isArray(catDef.keywords) && catDef.keywords.length > 0) {
+    const matchesKeyword = catDef.keywords.some((kw) => {
+      const kwNorm = kw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      return prodCat.includes(kwNorm) || prodName.includes(kwNorm);
+    });
+    if (matchesKeyword) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Detecta se uma string de busca corresponde a uma cor (ex: "Rosa", "Preto", "Vinho", "Marrom", etc.)
+ */
+export function isColorQuery(query: string): boolean {
+  if (!query || !query.trim()) return false;
+  const q = query.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (q.length < 3) return false;
+
+  return STORE_COLORS.some((color) => {
+    const cName = color.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const parts = cName.split(/[\/\s]+/).map((p) => p.trim());
+    if (parts.some((p) => p === q || (q.length >= 3 && p.startsWith(q)))) return true;
+    return color.keywords.some((kw) => {
+      const kwNorm = kw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      return kwNorm === q || (q.length >= 3 && kwNorm.startsWith(q));
+    });
+  });
+}
+
+/**
+ * Verifica se um produto possui uma cor específica, buscando:
+ * - No array de cores cadastradas (product.colors)
+ * - Nas chaves de estoque (product.stock)
+ * - No nome do produto (product.name)
+ * - Na descrição do produto (product.description)
+ * - Em sinônimos e termos compostos (ex: "Pink / Fúcsia", "Rosa Claro" ao buscar "Rosa")
+ */
+export function productMatchesColor(
+  product: {
+    name?: string;
+    colors?: { name: string; hex?: string }[];
+    stock?: Record<string, number>;
+    description?: string;
+  },
+  colorQuery: string
+): boolean {
+  if (!colorQuery || !colorQuery.trim()) return false;
+  const q = colorQuery.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (q.length < 2) return false;
+
+  // 1. Coleta todas as palavras-chave canônicas e sinônimos associados
+  const targetKeywords = new Set<string>([q]);
+
+  // Se for parte de uma cor cadastrada no STORE_COLORS
+  STORE_COLORS.forEach((color) => {
+    const cName = color.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const parts = cName.split(/[\/\s]+/).map((p) => p.trim());
+    const isMatch =
+      cName === q ||
+      parts.includes(q) ||
+      color.keywords.some((kw) => {
+        const kwNorm = kw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        return kwNorm === q || (q.length >= 4 && kwNorm.includes(q));
+      });
+
+    if (isMatch) {
+      targetKeywords.add(cName);
+      parts.forEach((p) => targetKeywords.add(p));
+      color.keywords.forEach((kw) => {
+        targetKeywords.add(kw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
+      });
+    }
+  });
+
+  const checkTextMatches = (text: string): boolean => {
+    if (!text) return false;
+    const norm = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    for (const kw of targetKeywords) {
+      if (norm.includes(kw)) return true;
+    }
+    return false;
+  };
+
+  // 2. Cores cadastradas no produto (product.colors)
+  if (Array.isArray(product.colors) && product.colors.length > 0) {
+    const hasInColors = product.colors.some((c) => checkTextMatches(c.name));
+    if (hasInColors) return true;
+  }
+
+  // 3. Variações de estoque (ex: "P-Preto", "M-Rosa Claro")
+  if (product.stock && typeof product.stock === 'object') {
+    const hasInStock = Object.keys(product.stock).some((key) => checkTextMatches(key));
+    if (hasInStock) return true;
+  }
+
+  // 4. Nome do produto (ex: "Macaquinho Fitness Serena ... Rosa (2)")
+  if (product.name && checkTextMatches(product.name)) {
+    return true;
+  }
+
+  // 5. Descrição do produto
+  if (product.description && checkTextMatches(product.description)) {
+    return true;
+  }
+
+  return false;
+}
+
 export interface ProductClassification {
   category: string;
   isSet: boolean;

@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, X, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getProducts } from '../../lib/dataClient';
 import { formatCurrency } from '../../lib/utils';
+import { productMatchesColor, isProductMatchingCategory } from '../../lib/productClassifier';
+import { Product } from '../../types';
 
 interface SearchModalProps {
   isOpen: boolean;
@@ -12,15 +14,24 @@ interface SearchModalProps {
 
 export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [allProducts, setAllProducts] = useState<Product[]>(() => getProducts());
   const navigate = useNavigate();
-  const allProducts = getProducts();
+
+  useEffect(() => {
+    setAllProducts([...getProducts()]);
+    const handleSync = () => setAllProducts([...getProducts()]);
+    window.addEventListener('aura_products_updated', handleSync);
+    return () => window.removeEventListener('aura_products_updated', handleSync);
+  }, [isOpen]);
 
   const filteredProducts = searchTerm.trim()
     ? allProducts.filter(
         (p) =>
-          p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          p.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          p.description.toLowerCase().includes(searchTerm.toLowerCase())
+          (p.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (p.category || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (p.description || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+          productMatchesColor(p, searchTerm) ||
+          isProductMatchingCategory(p, searchTerm)
       )
     : [];
 

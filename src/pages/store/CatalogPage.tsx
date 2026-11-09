@@ -17,32 +17,42 @@ import { getProducts, getStoreSections } from '../../lib/dataClient';
 import { formatCurrency } from '../../lib/utils';
 import {
   STORE_CATEGORIES,
+  STORE_COLORS,
   normalizeCategoryName,
   AvailableCategory,
   getCategoryPhoto,
   getStoredCategories,
+  isProductMatchingCategory,
+  isColorQuery,
+  productMatchesColor,
 } from '../../lib/productClassifier';
 import { Product, StoreSection } from '../../types';
 
 export const CatalogPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const allProducts = getProducts();
+  const [allProducts, setAllProducts] = useState<Product[]>(() => getProducts());
   const [categories, setCategories] = useState<AvailableCategory[]>(() => getStoredCategories());
   const [storeSections, setStoreSections] = useState<StoreSection[]>(() => getStoreSections());
 
-  // Sync categories and sections if changed
+  // Sync categories, sections, and products if changed
   useEffect(() => {
     setCategories(getStoredCategories());
     setStoreSections(getStoreSections());
+    setAllProducts([...getProducts()]);
+
     const syncCats = () => setCategories(getStoredCategories());
     const syncSections = () => setStoreSections(getStoreSections());
+    const syncProds = () => setAllProducts([...getProducts()]);
+
     window.addEventListener('aura_categories_updated', syncCats);
     window.addEventListener('aura_sections_updated', syncSections);
+    window.addEventListener('aura_products_updated', syncProds);
     window.addEventListener('storage', syncCats);
     window.addEventListener('storage', syncSections);
     return () => {
       window.removeEventListener('aura_categories_updated', syncCats);
       window.removeEventListener('aura_sections_updated', syncSections);
+      window.removeEventListener('aura_products_updated', syncProds);
       window.removeEventListener('storage', syncCats);
       window.removeEventListener('storage', syncSections);
     };
@@ -65,9 +75,7 @@ export const CatalogPage: React.FC = () => {
   }, [secaoParam, storeSections]);
 
   const [searchQuery, setSearchQuery] = useState(initialSearch);
-  const [selectedCategory, setSelectedCategory] = useState<string>(
-    initialCategoryParam ? normalizeCategoryName(initialCategoryParam) : ''
-  );
+  const [selectedCategory, setSelectedCategory] = useState<string>(initialCategoryParam);
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   const [selectedColors, setSelectedColors] = useState<string[]>([]);
   const [selectedMaterials, setSelectedMaterials] = useState<string[]>([]);
@@ -79,22 +87,21 @@ export const CatalogPage: React.FC = () => {
   // Sync category state when URL query params change
   useEffect(() => {
     const cat = searchParams.get('categoria');
-    if (cat) {
-      setSelectedCategory(normalizeCategoryName(cat));
-    } else if (cat === '') {
-      setSelectedCategory('');
+    if (cat !== null) {
+      setSelectedCategory(cat);
+    }
+  }, [searchParams]);
+
+  // Sync search state when URL query params change
+  useEffect(() => {
+    const s = searchParams.get('search');
+    if (s !== null) {
+      setSearchQuery(s);
     }
   }, [searchParams]);
 
   const sizes = ['PP', 'P', 'M', 'G', 'GG'];
-  const colors = [
-    { name: 'Preto', hex: '#111111' },
-    { name: 'Branco', hex: '#FFFFFF' },
-    { name: 'Verde Oliva', hex: '#5F6F3A' },
-    { name: 'Azul Marinho', hex: '#1B2A4A' },
-    { name: 'Rosa Claro', hex: '#F4B6C2' },
-    { name: 'Cinza Mescla', hex: '#71797E' },
-  ];
+  const colors = STORE_COLORS.slice(0, 12);
   const materials = ['Poliamida', 'Elastano', 'Viscose', 'Nylon', 'LYCRA® Black'];
 
   // Toggle size helper
@@ -143,58 +150,63 @@ export const CatalogPage: React.FC = () => {
     setSearchParams({});
   };
 
+  // Verifica se o termo de busca é uma pesquisa por cor (ex: "Rosa", "Preto", "Vinho", "Marrom")
+  const isColorSearch = useMemo(() => isColorQuery(searchQuery), [searchQuery]);
+
   // Filtered & Sorted Products
   const filteredProducts = useMemo(() => {
     return allProducts
       .filter((product) => {
+        // Se o cliente pesquisou por cor, traz TODOS os produtos que possuem aquela cor independentemente da categoria!
+        if (isColorSearch) {
+          if (!productMatchesColor(product, searchQuery)) {
+            return false;
+          }
+        } else {
+          // Busca textual comum por nome, descrição, categoria ou cor
+          if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase();
+            const matchesName = (product.name || '').toLowerCase().includes(query);
+            const matchesDesc = (product.description || '').toLowerCase().includes(query);
+            const matchesCat = (product.category || '').toLowerCase().includes(query);
+            const matchesColor = productMatchesColor(product, query);
+            if (!matchesName && !matchesDesc && !matchesCat && !matchesColor) return false;
+          }
+
+          // Filtro por Categoria clicada
+          if (selectedCategory) {
+            if (!isProductMatchingCategory(product, selectedCategory)) {
+              return false;
+            }
+          }
+        }
+
         // Filter by Store Section (ex: 'Moda Verão', 'Black Friday')
-        if (activeSection) {
+        if (activeSection && !isColorSearch) {
           const isDirectlyIncluded = (activeSection.productIds || []).includes(product.id);
           const isCategoryIncluded = (activeSection.includedCategories || []).some(
-            (c) => normalizeCategoryName(c) === normalizeCategoryName(product.category)
+            (c) => isProductMatchingCategory(product, c)
           );
           if (!isDirectlyIncluded && !isCategoryIncluded) {
             return false;
           }
         }
 
-        // Search term
-        if (searchQuery.trim()) {
-          const query = searchQuery.toLowerCase();
-          const matchesName = product.name.toLowerCase().includes(query);
-          const matchesDesc = product.description.toLowerCase().includes(query);
-          const matchesCat = product.category.toLowerCase().includes(query);
-          if (!matchesName && !matchesDesc && !matchesCat) return false;
-        }
-
-        // Category comparison with normalization (e.g. MACAQUINHOS -> Macacões, CONJUNTOS -> Conjuntos)
-        if (selectedCategory) {
-          const productNormCat = normalizeCategoryName(product.category);
-          const selectedNormCat = normalizeCategoryName(selectedCategory);
-          if (productNormCat !== selectedNormCat) {
-            return false;
-          }
+        // Filtro por Cores Selecionadas na sidebar
+        if (selectedColors.length > 0) {
+          const hasColor = selectedColors.some((sc) => productMatchesColor(product, sc));
+          if (!hasColor) return false;
         }
 
         // Sizes
         if (selectedSizes.length > 0) {
-          const hasSize = product.sizes.some((s) => selectedSizes.includes(s));
+          const hasSize = (product.sizes || []).some((s) => selectedSizes.includes(s));
           if (!hasSize) return false;
-        }
-
-        // Colors
-        if (selectedColors.length > 0) {
-          const hasColor = product.colors.some((c) =>
-            selectedColors.some(
-              (sc) => sc.toLowerCase() === c.name.toLowerCase() || c.name.toLowerCase().includes(sc.toLowerCase())
-            )
-          );
-          if (!hasColor) return false;
         }
 
         // Materials
         if (selectedMaterials.length > 0) {
-          const hasMaterial = product.materials.some((m) =>
+          const hasMaterial = (product.materials || []).some((m) =>
             selectedMaterials.some((sm) => m.toLowerCase().includes(sm.toLowerCase()))
           );
           if (!hasMaterial) return false;
@@ -219,17 +231,19 @@ export const CatalogPage: React.FC = () => {
 
         if (sortBy === 'menor-preco') return priceA - priceB;
         if (sortBy === 'maior-preco') return priceB - priceA;
-        if (sortBy === 'mais-vendidos') return (b.isBestSeller ? 1 : 0) - (a.isBestSeller ? 1 : 0);
+        if (sortBy === 'mais-vendidos') return (b.reviewCount || 0) - (a.reviewCount || 0);
         if (sortBy === 'mais-recentes')
           return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        if (sortBy === 'mais-avaliados') return b.rating - a.rating;
+        if (sortBy === 'mais-avaliados') return (b.rating || 0) - (a.rating || 0);
 
         return 0;
       });
   }, [
     allProducts,
     searchQuery,
+    isColorSearch,
     selectedCategory,
+    activeSection,
     selectedSizes,
     selectedColors,
     selectedMaterials,
@@ -244,7 +258,7 @@ export const CatalogPage: React.FC = () => {
 
     categories.forEach((cat) => {
       const items = filteredProducts.filter(
-        (p) => normalizeCategoryName(p.category) === cat.name
+        (p) => isProductMatchingCategory(p, cat.name)
       );
       if (items.length > 0) {
         groups.push({ category: cat, items });
@@ -268,7 +282,7 @@ export const CatalogPage: React.FC = () => {
     }
 
     return groups;
-  }, [filteredProducts]);
+  }, [filteredProducts, categories]);
 
   // Active category object if single category selected
   const currentCategoryObj = useMemo(() => {
@@ -412,7 +426,7 @@ export const CatalogPage: React.FC = () => {
           {/* Individual Category Pills */}
           {categories.map((cat) => {
             const count = allProducts.filter(
-              (p) => normalizeCategoryName(p.category) === cat.name
+              (p) => isProductMatchingCategory(p, cat.name)
             ).length;
             const isSelected = selectedCategory === cat.name;
 
@@ -504,7 +518,7 @@ export const CatalogPage: React.FC = () => {
 
               {categories.map((cat) => {
                 const count = allProducts.filter(
-                  (p) => normalizeCategoryName(p.category) === cat.name
+                  (p) => isProductMatchingCategory(p, cat.name)
                 ).length;
                 const isSelected = selectedCategory === cat.name;
 
@@ -605,7 +619,24 @@ export const CatalogPage: React.FC = () => {
         </aside>
 
         {/* Product Grid / Category Sections */}
-        <main className="lg:col-span-9 space-y-10">
+        <main className="lg:col-span-9 space-y-6">
+          {isColorSearch && (
+            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 flex items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span className="text-foreground font-semibold">
+                  Exibindo todas as peças na cor <strong className="text-emerald-600 dark:text-emerald-400">"{searchQuery}"</strong> em todas as categorias ({filteredProducts.length} {filteredProducts.length === 1 ? 'peça encontrada' : 'peças encontradas'})
+                </span>
+              </div>
+              <button
+                onClick={() => setSearchQuery('')}
+                className="text-muted-foreground hover:text-foreground font-bold underline shrink-0"
+              >
+                ✕ Limpar busca
+              </button>
+            </div>
+          )}
+
           {filteredProducts.length === 0 ? (
             <div className="py-16 text-center bg-card border border-border rounded-2xl p-8 space-y-4">
               <Grid className="w-12 h-12 text-muted-foreground mx-auto" />
@@ -620,7 +651,7 @@ export const CatalogPage: React.FC = () => {
                 Limpar Todos os Filtros
               </button>
             </div>
-          ) : selectedCategory ? (
+          ) : selectedCategory && !isColorSearch ? (
             /* Single Category Grid View */
             <div className="space-y-6">
               <div className="bg-primary/5 border border-primary/20 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
