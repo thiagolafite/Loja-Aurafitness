@@ -580,6 +580,8 @@ export function normalizeCategoryName(rawCategory?: string): string {
 const CATEGORIES_STORAGE_KEY = 'aura_store_categories_v1';
 const DELETED_CATEGORIES_KEY = 'aura_deleted_categories_v1';
 
+let inMemoryCategories: AvailableCategory[] | null = null;
+
 export function getDeletedCategories(): string[] {
   try {
     if (typeof window !== 'undefined') {
@@ -680,7 +682,11 @@ export function getStoredCategories(): AvailableCategory[] {
   }
 
   if (!hasStoredValue) {
-    categories = [...STORE_CATEGORIES];
+    if (inMemoryCategories && inMemoryCategories.length > 0) {
+      categories = [...inMemoryCategories];
+    } else {
+      categories = [...STORE_CATEGORIES];
+    }
   }
 
   const deletedList = getDeletedCategories().map((d) => d.toLowerCase());
@@ -737,6 +743,7 @@ export function getStoredCategories(): AvailableCategory[] {
     // fallback seguro
   }
 
+  inMemoryCategories = [...categories];
   return categories;
 }
 
@@ -744,13 +751,31 @@ export function getStoredCategories(): AvailableCategory[] {
  * Salva a lista dinâmica de categorias da loja
  */
 export function saveStoredCategories(categories: AvailableCategory[]): void {
-  try {
-    if (typeof window !== 'undefined') {
+  inMemoryCategories = [...categories];
+
+  if (typeof window !== 'undefined') {
+    // Garante que nenhuma categoria ativa sendo salva permaneça na lista de excluídas
+    try {
+      const activeNames = new Set(categories.map((c) => c.name.trim().toLowerCase()));
+      const deletedList = getDeletedCategories().filter(
+        (d) => !activeNames.has(d.trim().toLowerCase())
+      );
+      localStorage.setItem(DELETED_CATEGORIES_KEY, JSON.stringify(deletedList));
+    } catch {}
+
+    try {
       localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(categories));
-      window.dispatchEvent(new CustomEvent('aura_categories_updated', { detail: categories }));
+    } catch (e) {
+      console.warn('Limpando cache redundante para salvar categorias no localStorage:', e);
+      try {
+        localStorage.removeItem('aura_updated_products_v1');
+        localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(categories));
+      } catch (err2) {
+        console.error('Erro ao salvar categorias no localStorage:', err2);
+      }
     }
-  } catch (e) {
-    console.error('Error saving categories to localStorage:', e);
+
+    window.dispatchEvent(new CustomEvent('aura_categories_updated', { detail: categories }));
   }
 }
 
@@ -913,34 +938,44 @@ export function renameStoredCategory(
 /**
  * Adiciona uma nova categoria e notifica toda a loja em tempo real
  */
-export function saveNewCategory(name: string): AvailableCategory[] {
-  const current = getStoredCategories();
+export function saveNewCategory(
+  name: string,
+  extraData?: Partial<AvailableCategory>
+): AvailableCategory[] {
   const trimmed = name.trim();
-  if (!trimmed) return current;
+  if (!trimmed) return getStoredCategories();
 
-  // Se estava na lista de deletadas, remove da lista de deletadas
+  // Se estava na lista de deletadas, remove da lista de deletadas ANTES de ler getStoredCategories()
   try {
     if (typeof window !== 'undefined') {
       const deletedList = getDeletedCategories().filter(
-        (d) => d.toLowerCase() !== trimmed.toLowerCase()
+        (d) => d.trim().toLowerCase() !== trimmed.toLowerCase()
       );
       localStorage.setItem(DELETED_CATEGORIES_KEY, JSON.stringify(deletedList));
     }
   } catch {}
 
-  const exists = current.some((c) => c.name.toLowerCase() === trimmed.toLowerCase());
+  const current = getStoredCategories();
+  const exists = current.some((c) => c.name.trim().toLowerCase() === trimmed.toLowerCase());
   if (!exists) {
     const newCat: AvailableCategory = {
       name: trimmed,
-      slug: trimmed
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)+/g, ''),
-      icon: '🏷️',
-      description: `Peças e modelos exclusivos da coleção ${trimmed}.`,
-      keywords: [trimmed.toLowerCase()],
+      slug:
+        extraData?.slug ||
+        trimmed
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)+/g, ''),
+      icon: extraData?.icon || '🏷️',
+      image: extraData?.image,
+      description:
+        extraData?.description || `Peças e modelos exclusivos da coleção ${trimmed}.`,
+      keywords:
+        extraData?.keywords && extraData.keywords.length > 0
+          ? extraData.keywords
+          : [trimmed.toLowerCase()],
     };
     const updated = [...current, newCat];
     saveStoredCategories(updated);

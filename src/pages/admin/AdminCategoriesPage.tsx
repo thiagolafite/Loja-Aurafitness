@@ -46,6 +46,7 @@ import {
   normalizeCategoryName,
   getStoredCategories,
   saveStoredCategories,
+  saveNewCategory,
   deleteStoredCategory,
   renameStoredCategory,
   getCategoryPhoto,
@@ -339,16 +340,16 @@ export const AdminCategoriesPage: React.FC = () => {
       }
     } else {
       // Nova categoria criada
-      const newCat: AvailableCategory = {
-        name: trimmedName,
+      const updatedList = saveNewCategory(trimmedName, {
         slug,
         icon: editingCategory.icon || '🏷️',
         description: editingCategory.description || '',
         keywords: [trimmedName.toLowerCase()],
-      };
-      const updatedList = [...categories, newCat];
+      });
       setCategories(updatedList);
-      saveStoredCategories(updatedList);
+      setSelectedCategoryTab('todos');
+      setHideEmptyCategories(false);
+      setSearchQuery('');
       showToast(`✓ Nova categoria "${trimmedName}" criada com sucesso!`);
     }
 
@@ -359,9 +360,7 @@ export const AdminCategoriesPage: React.FC = () => {
 
   // Delete Category
   const handleDeleteCategory = (catName: string) => {
-    const matchingProducts = products.filter(
-      (p) => normalizeCategoryName(p.category).toLowerCase() === catName.toLowerCase()
-    );
+    const matchingProducts = products.filter((p) => isProductMatchingCategory(p, catName));
 
     let confirmMsg = `Deseja realmente excluir a categoria "${catName}" da loja?`;
     let fallbackCategory = '';
@@ -378,13 +377,17 @@ export const AdminCategoriesPage: React.FC = () => {
     if (window.confirm(confirmMsg)) {
       if (matchingProducts.length > 0 && fallbackCategory) {
         matchingProducts.forEach((p) => {
-          saveProduct({ ...p, category: fallbackCategory });
+          const updatedProduct = assignProductToCategory(p, fallbackCategory, 'move', catName);
+          saveProduct(updatedProduct);
         });
       }
 
       const updatedList = deleteStoredCategory(catName, fallbackCategory);
       setCategories(updatedList);
-      setProducts(getProducts());
+      setProducts([...getProducts()]);
+      if (selectedCategoryTab.toLowerCase() === catName.toLowerCase()) {
+        setSelectedCategoryTab('todos');
+      }
       if (isCategoryModalOpen) {
         setIsCategoryModalOpen(false);
         setEditingCategory(null);
@@ -1002,7 +1005,7 @@ export const AdminCategoriesPage: React.FC = () => {
               <h3 className="font-serif font-bold text-lg text-foreground flex items-center gap-2">
                 <FolderTree className="w-5 h-5 text-primary" />
                 <span>
-                  {editingCategory.name ? 'Editar Categoria' : 'Nova Categoria de Produtos'}
+                  {editingCategory.originalName ? 'Editar Categoria' : 'Nova Categoria de Produtos'}
                 </span>
               </h3>
               <button
@@ -1077,12 +1080,12 @@ export const AdminCategoriesPage: React.FC = () => {
               </div>
 
               <div className="flex items-center justify-between gap-2 pt-2 border-t border-border">
-                {editingCategory.originalName || editingCategory.name ? (
+                {editingCategory.originalName ? (
                   <button
                     type="button"
-                    onClick={() => handleDeleteCategory((editingCategory.originalName || editingCategory.name)!)}
+                    onClick={() => handleDeleteCategory(editingCategory.originalName!)}
                     className="px-3.5 py-2 rounded-xl text-rose-600 hover:text-white hover:bg-rose-600 border border-rose-300 dark:border-rose-900/60 font-semibold text-xs transition-colors flex items-center gap-1.5"
-                    title={`Excluir categoria "${editingCategory.originalName || editingCategory.name}"`}
+                    title={`Excluir categoria "${editingCategory.originalName}"`}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     <span>Excluir Categoria</span>

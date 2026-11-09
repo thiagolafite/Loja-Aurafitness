@@ -75,13 +75,7 @@ export const Navbar: React.FC = () => {
     };
   }, []);
 
-  const visibleMenuCategories = categories.filter((cat) => {
-    const hasAnyNonEmpty = categories.some(
-      (c) => products.filter((p) => isProductMatchingCategory(p, c.name)).length > 0
-    );
-    if (!hasAnyNonEmpty) return true;
-    return products.filter((p) => isProductMatchingCategory(p, cat.name)).length > 0;
-  });
+  const visibleMenuCategories = categories;
 
   const navLinks = [
     { name: 'HOME', path: '/' },
@@ -89,7 +83,8 @@ export const Navbar: React.FC = () => {
     { name: 'PROMOÇÃO', path: '/catalogo?promocao=true' },
     { name: 'MAIS VENDIDOS', path: '/catalogo?ordenar=mais-vendidos' },
     { name: 'CONJUNTOS', path: '/catalogo?categoria=Conjuntos' },
-    { name: 'MACACÕES', path: '/catalogo?categoria=Macacões' },
+    { name: 'MACACÃO', path: '/catalogo?categoria=Macacão' },
+    { name: 'MACAQUINHO', path: '/catalogo?categoria=Macaquinho' },
     { name: 'BLOG', path: '/blog' },
   ];
 
@@ -332,7 +327,7 @@ export const Navbar: React.FC = () => {
                   </div>
 
                   {/* 2-Column Categories Grid */}
-                  <div className="grid grid-cols-2 gap-2.5">
+                  <div className="grid grid-cols-2 gap-2.5 max-h-[400px] overflow-y-auto pr-1">
                     {visibleMenuCategories.map((cat) => {
                       const count = products.filter(
                         (p) => isProductMatchingCategory(p, cat.name)
@@ -522,25 +517,7 @@ export const Navbar: React.FC = () => {
                   </AnimatePresence>
                 </div>
 
-                {/* Seções da Loja em Destaque nos Menus (ex: Moda Verão, Black Friday) */}
-          {storeSections
-            .filter((s) => s.active && s.showInMenu)
-            .map((sec) => (
-              <Link
-                key={sec.id}
-                to={`/catalogo?secao=${encodeURIComponent(sec.slug)}`}
-                className="hover:text-white text-amber-300 font-bold transition-all py-0.5 relative flex items-center gap-1.5 group"
-              >
-                <span>{sec.name}</span>
-                {sec.badge && (
-                  <span className="bg-amber-400 text-slate-950 text-[9px] font-extrabold px-1.5 py-0.5 rounded shadow-sm uppercase">
-                    {sec.badge}
-                  </span>
-                )}
-              </Link>
-            ))}
-
-          {navLinks.slice(1).map((link) => (
+                {navLinks.slice(1).map((link) => (
                   <Link
                     key={link.name}
                     to={link.path}

@@ -166,6 +166,26 @@ function setStorageItem<T>(key: string, value: T): void {
 
 // In-memory cache for synchronous reads with background Supabase sync
 let cachedProducts: Product[] = (() => {
+  // Limpa sempre fotos base64 duplicadas dentro de aura_updated_products_v1 para liberar espaço no localStorage
+  if (typeof window !== 'undefined') {
+    try {
+      const rawOv = localStorage.getItem('aura_updated_products_v1');
+      if (rawOv && rawOv.length > 50000) {
+        const parsedOv = JSON.parse(rawOv);
+        const slimOv: Record<string, Partial<Product>> = {};
+        Object.entries(parsedOv || {}).forEach(([id, val]: [string, any]) => {
+          if (val && typeof val === 'object') {
+            const { images: _img, fullDescription: _fd, ...rest } = val;
+            slimOv[id] = rest;
+          }
+        });
+        localStorage.setItem('aura_updated_products_v1', JSON.stringify(slimOv));
+      }
+    } catch {
+      localStorage.removeItem('aura_updated_products_v1');
+    }
+  }
+
   const rawList = getStorageItem<Product[]>(STORAGE_KEYS.PRODUCTS, initialProducts);
   const migratedKey = 'aura_separate_macacao_macaquinho_prods_v5';
   const alreadyMigrated =
@@ -520,13 +540,14 @@ function saveProductLocalOnly(productData: Partial<Product>): Product {
     products.push(updatedProduct);
   }
 
-  // Salva no dicionário de edições locais para nunca ser sobrescrito pelo syncWithSupabase
+  // Salva apenas metadados leves no dicionário de edições locais (sem duplicar imagens base64 no localStorage)
   if (updatedProduct.id) {
     const localOverrides = getStorageItem<Record<string, Partial<Product>>>(
       'aura_updated_products_v1',
       {}
     );
-    localOverrides[updatedProduct.id] = updatedProduct;
+    const { images: _images, fullDescription: _fullDesc, ...lightweightOverride } = updatedProduct;
+    localOverrides[updatedProduct.id] = lightweightOverride;
     setStorageItem('aura_updated_products_v1', localOverrides);
   }
 
@@ -551,7 +572,8 @@ export function saveAllProducts(products: Product[]): void {
   );
   products.forEach((p) => {
     if (p.id) {
-      localOverrides[p.id] = p;
+      const { images: _images, fullDescription: _fullDesc, ...lightweightOverride } = p;
+      localOverrides[p.id] = lightweightOverride;
     }
   });
   setStorageItem('aura_updated_products_v1', localOverrides);
