@@ -47,6 +47,7 @@ import {
   getStoredCategories,
   saveStoredCategories,
   deleteStoredCategory,
+  renameStoredCategory,
   getCategoryPhoto,
 } from '../../lib/productClassifier';
 import { ProductImporterModal } from '../../components/admin/ProductImporterModal';
@@ -67,7 +68,7 @@ export const AdminCategoriesPage: React.FC = () => {
 
   // Modals
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<Partial<AvailableCategory> | null>(null);
+  const [editingCategory, setEditingCategory] = useState<(Partial<AvailableCategory> & { originalName?: string }) | null>(null);
 
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
@@ -85,6 +86,19 @@ export const AdminCategoriesPage: React.FC = () => {
   useEffect(() => {
     refreshProducts();
     setCategories(getStoredCategories());
+
+    const handleProductsUpdated = () => {
+      setProducts([...getProducts()]);
+    };
+    const handleCategoriesUpdated = () => {
+      setCategories(getStoredCategories());
+    };
+    window.addEventListener('aura_products_updated', handleProductsUpdated);
+    window.addEventListener('aura_categories_updated', handleCategoriesUpdated);
+    return () => {
+      window.removeEventListener('aura_products_updated', handleProductsUpdated);
+      window.removeEventListener('aura_categories_updated', handleCategoriesUpdated);
+    };
   }, []);
 
   const showToast = (msg: string) => {
@@ -97,8 +111,11 @@ export const AdminCategoriesPage: React.FC = () => {
   // Group products by category
   const categoryData = useMemo(() => {
     return categories.map((cat) => {
+      const catLower = cat.name.trim().toLowerCase();
       const items = products.filter(
-        (p) => normalizeCategoryName(p.category) === cat.name
+        (p) =>
+          (p.category && p.category.trim().toLowerCase() === catLower) ||
+          normalizeCategoryName(p.category).toLowerCase() === catLower
       );
 
       // Filter by search query if any
@@ -139,7 +156,7 @@ export const AdminCategoriesPage: React.FC = () => {
 
   // Change category of product in 1 click
   const handleChangeProductCategory = (product: Product, newCategoryName: string) => {
-    if (normalizeCategoryName(product.category) === newCategoryName) return;
+    if ((product.category || '').trim().toLowerCase() === newCategoryName.trim().toLowerCase()) return;
 
     const updated = {
       ...product,
@@ -147,7 +164,8 @@ export const AdminCategoriesPage: React.FC = () => {
     };
 
     saveProduct(updated);
-    setProducts(getProducts());
+    setProducts([...getProducts()]);
+    window.dispatchEvent(new CustomEvent('aura_products_updated'));
     showToast(`✓ Produto "${product.name}" movido para a categoria "${newCategoryName}"!`);
   };
 
@@ -155,7 +173,8 @@ export const AdminCategoriesPage: React.FC = () => {
   const handleDeleteProduct = (product: Product) => {
     if (window.confirm(`Tem certeza que deseja excluir o produto "${product.name}"?`)) {
       deleteProduct(product.id);
-      setProducts(getProducts());
+      setProducts([...getProducts()]);
+      window.dispatchEvent(new CustomEvent('aura_products_updated'));
       showToast(`✓ Produto "${product.name}" removido com sucesso.`);
     }
   };
@@ -174,7 +193,10 @@ export const AdminCategoriesPage: React.FC = () => {
 
   // Open Edit Category Modal
   const handleOpenEditCategoryModal = (cat: AvailableCategory) => {
-    setEditingCategory({ ...cat });
+    setEditingCategory({
+      ...cat,
+      originalName: cat.name,
+    });
     setIsCategoryModalOpen(true);
   };
 
@@ -184,6 +206,10 @@ export const AdminCategoriesPage: React.FC = () => {
     if (!editingCategory?.name) return;
 
     const trimmedName = editingCategory.name.trim();
+    const originalName = editingCategory.originalName;
+    const isEditing = Boolean(originalName);
+    const isRenaming = isEditing && originalName!.trim().toLowerCase() !== trimmedName.toLowerCase();
+
     const slug =
       editingCategory.slug ||
       trimmedName
@@ -193,38 +219,81 @@ export const AdminCategoriesPage: React.FC = () => {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)+/g, '');
 
-    const existingIndex = categories.findIndex(
-      (c) => c.name.toLowerCase() === trimmedName.toLowerCase() || c.slug === slug
+    // Verifica se já existe outra categoria com esse nome
+    const hasConflict = categories.some(
+      (c) =>
+        c.name.trim().toLowerCase() === trimmedName.toLowerCase() &&
+        (!isEditing || c.name.trim().toLowerCase() !== originalName!.trim().toLowerCase())
     );
 
-    let updatedList: AvailableCategory[];
+    if (hasConflict) {
+      alert(`Já existe uma categoria cadastrada com o nome "${trimmedName}". Por favor, escolha outro nome.`);
+      return;
+    }
 
-    if (existingIndex !== -1) {
-      updatedList = [...categories];
-      updatedList[existingIndex] = {
-        ...updatedList[existingIndex],
-        ...editingCategory,
-        name: trimmedName,
-        slug,
-        icon: editingCategory.icon || '🏷️',
-        description: editingCategory.description || '',
-        keywords: editingCategory.keywords || [trimmedName.toLowerCase()],
-      };
-      showToast(`✓ Categoria "${trimmedName}" atualizada com sucesso!`);
+    if (isEditing && originalName) {
+      if (isRenaming) {
+        // Usa função centralizada para renomear e migrar produtos e fotos
+        const { updatedCategories, migratedCount } = renameStoredCategory(
+          originalName,
+          trimmedName,
+          {
+            icon: editingCategory.icon || '🏷️',
+            description: editingCategory.description || '',
+            slug,
+          }
+        );
+
+        // Atualiza no banco Supabase para todos os produtos afetados
+        const allProds = getProducts();
+        allProds.forEach((p) => {
+          if (
+            (p.category || '').trim().toLowerCase() === originalName.trim().toLowerCase() ||
+            p.category === trimmedName
+          ) {
+            saveProduct({ ...p, category: trimmedName });
+          }
+        });
+
+        setCategories(updatedCategories);
+        setProducts([...getProducts()]);
+        showToast(
+          `✓ Categoria renomeada para "${trimmedName}"! ${migratedCount} produto(s) atualizado(s).`
+        );
+      } else {
+        // Atualiza apenas ícone ou descrição
+        const existingIndex = categories.findIndex(
+          (c) => c.name.trim().toLowerCase() === originalName.trim().toLowerCase()
+        );
+        let updatedList = [...categories];
+        if (existingIndex !== -1) {
+          updatedList[existingIndex] = {
+            ...updatedList[existingIndex],
+            icon: editingCategory.icon || '🏷️',
+            description: editingCategory.description || '',
+            slug,
+          };
+        }
+        setCategories(updatedList);
+        saveStoredCategories(updatedList);
+        showToast(`✓ Categoria "${trimmedName}" atualizada com sucesso!`);
+      }
     } else {
+      // Nova categoria criada
       const newCat: AvailableCategory = {
         name: trimmedName,
         slug,
         icon: editingCategory.icon || '🏷️',
         description: editingCategory.description || '',
-        keywords: editingCategory.keywords || [trimmedName.toLowerCase()],
+        keywords: [trimmedName.toLowerCase()],
       };
-      updatedList = [...categories, newCat];
+      const updatedList = [...categories, newCat];
+      setCategories(updatedList);
+      saveStoredCategories(updatedList);
       showToast(`✓ Nova categoria "${trimmedName}" criada com sucesso!`);
     }
 
-    setCategories(updatedList);
-    saveStoredCategories(updatedList);
+    setProducts([...getProducts()]);
     setIsCategoryModalOpen(false);
     setEditingCategory(null);
   };
@@ -915,12 +984,12 @@ export const AdminCategoriesPage: React.FC = () => {
               </div>
 
               <div className="flex items-center justify-between gap-2 pt-2 border-t border-border">
-                {editingCategory.name ? (
+                {editingCategory.originalName || editingCategory.name ? (
                   <button
                     type="button"
-                    onClick={() => handleDeleteCategory(editingCategory.name!)}
+                    onClick={() => handleDeleteCategory((editingCategory.originalName || editingCategory.name)!)}
                     className="px-3.5 py-2 rounded-xl text-rose-600 hover:text-white hover:bg-rose-600 border border-rose-300 dark:border-rose-900/60 font-semibold text-xs transition-colors flex items-center gap-1.5"
-                    title={`Excluir categoria "${editingCategory.name}"`}
+                    title={`Excluir categoria "${editingCategory.originalName || editingCategory.name}"`}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     <span>Excluir Categoria</span>
@@ -1003,12 +1072,20 @@ export const AdminCategoriesPage: React.FC = () => {
                     Categoria Associada *
                   </label>
                   <select
-                    value={editingProduct.category || 'Leggings'}
+                    value={editingProduct.category || (categories[0]?.name || 'Leggings')}
                     onChange={(e) =>
                       setEditingProduct({ ...editingProduct, category: e.target.value })
                     }
                     className="w-full bg-background border border-border rounded-xl p-2.5 text-foreground focus:ring-2 focus:ring-primary outline-none"
                   >
+                    {editingProduct.category &&
+                      !categories.some(
+                        (c) => c.name.toLowerCase() === editingProduct.category?.toLowerCase()
+                      ) && (
+                        <option value={editingProduct.category}>
+                          🏷️ {editingProduct.category} (Personalizada)
+                        </option>
+                      )}
                     {categories.map((c) => (
                       <option key={c.name} value={c.name}>
                         {c.icon} {c.name}

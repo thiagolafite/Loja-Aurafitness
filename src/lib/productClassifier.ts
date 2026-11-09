@@ -171,30 +171,49 @@ export function getCategoryPhoto(
 }
 
 /**
- * Normaliza qualquer nome de categoria para a categoria canônica oficial
+ * Normaliza qualquer nome de categoria para a categoria canônica oficial ativa
  */
 export function normalizeCategoryName(rawCategory?: string): string {
   if (!rawCategory) return '';
-  const norm = rawCategory
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim();
+  const trimmed = rawCategory.trim();
+  const lower = trimmed.toLowerCase();
 
-  if (norm.includes('conjunto')) return 'Conjuntos';
-  if (norm.includes('macac') || norm.includes('macaquinh')) return 'Macacões';
-  if (norm.includes('legging') || norm.includes('calca')) return 'Leggings';
-  if (norm.includes('top') || norm.includes('sutia') || norm.includes('cropped')) return 'Tops';
-  if (norm.includes('short') || norm.includes('bermuda')) return 'Shorts & Bermudas';
-  if (norm.includes('regata') || norm.includes('camiseta') || norm.includes('t-shirt') || norm.includes('blusa')) return 'Regatas & Camisetas';
-  if (norm.includes('jaqueta') || norm.includes('casaco') || norm.includes('corta')) return 'Jaquetas';
-  if (norm.includes('acessorio') || norm.includes('meia')) return 'Acessórios';
-
+  // 1. Prioridade absoluta: categoria ativa salva pelo usuário/loja
   const allCategories = getStoredCategories();
-  const exact = allCategories.find((c) => c.name.toLowerCase() === rawCategory.toLowerCase());
+  const exact = allCategories.find(
+    (c) => c.name.toLowerCase() === lower || c.slug === lower
+  );
   if (exact) return exact.name;
 
-  return rawCategory;
+  // 2. Não mapear para categorias que foram excluídas pelo administrador
+  const deletedList = getDeletedCategories().map((d) => d.toLowerCase());
+  const isNotDeleted = (name: string) => !deletedList.includes(name.toLowerCase());
+
+  // 3. Normalização canônica por palavras-chave apenas se a categoria padrão não tiver sido excluída
+  const norm = trimmed
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+  if (norm.includes('conjunto') && isNotDeleted('Conjuntos')) return 'Conjuntos';
+  if ((norm.includes('macac') || norm.includes('macaquinh')) && isNotDeleted('Macacões')) return 'Macacões';
+  if ((norm.includes('legging') || norm.includes('calca')) && isNotDeleted('Leggings')) return 'Leggings';
+  if ((norm.includes('top') || norm.includes('sutia') || norm.includes('cropped')) && isNotDeleted('Tops')) return 'Tops';
+  if ((norm.includes('short') || norm.includes('bermuda')) && isNotDeleted('Shorts & Bermudas')) return 'Shorts & Bermudas';
+  if ((norm.includes('regata') || norm.includes('camiseta') || norm.includes('t-shirt') || norm.includes('blusa')) && isNotDeleted('Regatas & Camisetas')) return 'Regatas & Camisetas';
+  if ((norm.includes('jaqueta') || norm.includes('casaco') || norm.includes('corta')) && isNotDeleted('Jaquetas')) return 'Jaquetas';
+  if ((norm.includes('acessorio') || norm.includes('meia')) && isNotDeleted('Acessórios')) return 'Acessórios';
+
+  // 4. Se houver correspondência com palavras-chave de qualquer categoria ativa
+  for (const cat of allCategories) {
+    if (Array.isArray(cat.keywords)) {
+      if (cat.keywords.some((kw) => norm.includes(kw.toLowerCase()))) {
+        return cat.name;
+      }
+    }
+  }
+
+  return trimmed;
 }
 
 const CATEGORIES_STORAGE_KEY = 'aura_store_categories_v1';
@@ -325,6 +344,118 @@ export function deleteStoredCategory(categoryName: string, reassignProductsTo?: 
   }
 
   return updated;
+}
+
+/**
+ * Renomeia uma categoria de produtos e migra fotos, configurações e produtos automaticamente
+ */
+export function renameStoredCategory(
+  oldName: string,
+  newName: string,
+  extraData?: Partial<AvailableCategory>
+): { updatedCategories: AvailableCategory[]; migratedCount: number } {
+  const normOld = oldName.trim().toLowerCase();
+  const trimmedNew = newName.trim();
+  const current = getStoredCategories();
+
+  let migratedCount = 0;
+
+  const newSlug =
+    extraData?.slug ||
+    trimmedNew
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)+/g, '');
+
+  const existingIdx = current.findIndex((c) => c.name.toLowerCase() === normOld);
+  let updatedCategories: AvailableCategory[];
+
+  if (existingIdx !== -1) {
+    updatedCategories = [...current];
+    updatedCategories[existingIdx] = {
+      ...updatedCategories[existingIdx],
+      ...extraData,
+      name: trimmedNew,
+      slug: newSlug,
+      keywords:
+        extraData?.keywords && extraData.keywords.length > 0
+          ? extraData.keywords
+          : [trimmedNew.toLowerCase()],
+    };
+  } else {
+    updatedCategories = [
+      ...current,
+      {
+        name: trimmedNew,
+        slug: newSlug,
+        icon: extraData?.icon || '🏷️',
+        description: extraData?.description || `Peças exclusivas da categoria ${trimmedNew}.`,
+        keywords: [trimmedNew.toLowerCase()],
+      },
+    ];
+  }
+
+  // Se oldName era categoria padrão, adiciona oldName na lista de excluídas para não ressuscitar
+  try {
+    if (typeof window !== 'undefined') {
+      const deletedList = getDeletedCategories();
+      const isDefault = STORE_CATEGORIES.some((c) => c.name.toLowerCase() === normOld);
+      if (isDefault && !deletedList.some((d) => d.toLowerCase() === normOld)) {
+        deletedList.push(oldName.trim());
+      }
+      // Remove o novo nome da lista de excluídas caso estivesse
+      const cleanedDeleted = deletedList.filter((d) => d.toLowerCase() !== trimmedNew.toLowerCase());
+      localStorage.setItem(DELETED_CATEGORIES_KEY, JSON.stringify(cleanedDeleted));
+    }
+  } catch {}
+
+  // Migra imagem da categoria
+  try {
+    if (typeof window !== 'undefined') {
+      const rawPhotos = localStorage.getItem('aura_category_photos_v1');
+      if (rawPhotos) {
+        const photosMap = JSON.parse(rawPhotos);
+        if (photosMap[oldName.trim()]) {
+          photosMap[trimmedNew] = photosMap[oldName.trim()];
+          delete photosMap[oldName.trim()];
+          localStorage.setItem('aura_category_photos_v1', JSON.stringify(photosMap));
+        }
+      }
+    }
+  } catch {}
+
+  // Salva categorias atualizadas
+  saveStoredCategories(updatedCategories);
+
+  // Migra todos os produtos no localStorage
+  try {
+    if (typeof window !== 'undefined') {
+      const rawProducts = localStorage.getItem('aura_products_v1');
+      if (rawProducts) {
+        const prods = JSON.parse(rawProducts);
+        if (Array.isArray(prods)) {
+          const remapped = prods.map((p) => {
+            const cat = (p.category || '').trim();
+            if (cat.toLowerCase() === normOld || cat === oldName.trim()) {
+              migratedCount++;
+              return { ...p, category: trimmedNew };
+            }
+            return p;
+          });
+          localStorage.setItem('aura_products_v1', JSON.stringify(remapped));
+        }
+      }
+    }
+  } catch {}
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('aura_categories_updated', { detail: updatedCategories }));
+    window.dispatchEvent(new CustomEvent('aura_products_updated'));
+  }
+
+  return { updatedCategories, migratedCount };
 }
 
 /**

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Plus,
   Edit,
@@ -26,6 +27,7 @@ import {
   Star,
   Eye,
   ImageIcon,
+  FolderTree,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -220,10 +222,15 @@ export const AdminProductsPage: React.FC = () => {
     const handleCategoriesUpdate = () => {
       setCategories(getStoredCategories());
     };
+    const handleProductsUpdate = () => {
+      setProducts([...getProducts()]);
+    };
     window.addEventListener('aura_categories_updated', handleCategoriesUpdate);
+    window.addEventListener('aura_products_updated', handleProductsUpdate);
     window.addEventListener('storage', handleCategoriesUpdate);
     return () => {
       window.removeEventListener('aura_categories_updated', handleCategoriesUpdate);
+      window.removeEventListener('aura_products_updated', handleProductsUpdate);
       window.removeEventListener('storage', handleCategoriesUpdate);
     };
   }, []);
@@ -575,6 +582,24 @@ export const AdminProductsPage: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-3 self-start sm:self-auto">
+          <Link
+            to="/admin/categorias"
+            className="bg-muted hover:bg-muted/80 text-foreground border border-border font-bold text-xs py-3 px-3.5 rounded-xl shadow-sm transition-all flex items-center gap-2"
+            title="Gerenciar Categorias da Loja"
+          >
+            <FolderTree className="w-4 h-4 text-primary" />
+            <span>Categorias</span>
+          </Link>
+
+          <Link
+            to="/admin/fotos-catalogos"
+            className="bg-muted hover:bg-muted/80 text-foreground border border-border font-bold text-xs py-3 px-3.5 rounded-xl shadow-sm transition-all flex items-center gap-2"
+            title="Alterar Fotos dos Catálogos"
+          >
+            <ImageIcon className="w-4 h-4 text-amber-500" />
+            <span>Fotos Catálogos</span>
+          </Link>
+
           <button
             onClick={handleDeleteAllProducts}
             disabled={isBulkDeleting || products.length === 0}

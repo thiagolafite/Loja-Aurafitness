@@ -208,6 +208,9 @@ export async function syncWithSupabase(): Promise<void> {
 
       cachedProducts = [...cleanDbProducts, ...pendingLocalProducts];
       setStorageItem(STORAGE_KEYS.PRODUCTS, cachedProducts);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('aura_products_updated', { detail: cachedProducts }));
+      }
     }
 
     // 2. Settings
@@ -299,7 +302,7 @@ syncWithSupabase();
 
 // --- PRODUCTS SERVICE ---
 export function getProducts(): Product[] {
-  return cachedProducts;
+  return [...cachedProducts];
 }
 
 export async function fetchProductsAsync(): Promise<Product[]> {
@@ -421,6 +424,9 @@ export function saveProduct(productData: Partial<Product>): Product {
 
   cachedProducts = products;
   setStorageItem(STORAGE_KEYS.PRODUCTS, products);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('aura_products_updated', { detail: products }));
+  }
   return updatedProduct;
 }
 
@@ -435,6 +441,9 @@ export async function bulkDeleteProductsAsync(ids: string[]): Promise<void> {
   // 2. Remove do cache local e localStorage imediatamente
   cachedProducts = cachedProducts.filter((p) => !ids.includes(p.id));
   setStorageItem(STORAGE_KEYS.PRODUCTS, cachedProducts);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('aura_products_updated', { detail: cachedProducts }));
+  }
 
   // 3. Exclui do banco Supabase
   if (isSupabaseConfigured()) {
@@ -457,6 +466,9 @@ export async function deleteAllProductsAsync(): Promise<void> {
   // 2. Esvazia cache local
   cachedProducts = [];
   setStorageItem(STORAGE_KEYS.PRODUCTS, []);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('aura_products_updated', { detail: [] }));
+  }
 
   // 3. Exclui todas as linhas da tabela products no Supabase
   if (isSupabaseConfigured()) {
