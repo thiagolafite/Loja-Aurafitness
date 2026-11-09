@@ -46,6 +46,7 @@ import {
   normalizeCategoryName,
   getStoredCategories,
   saveStoredCategories,
+  deleteStoredCategory,
   getCategoryPhoto,
 } from '../../lib/productClassifier';
 import { ProductImporterModal } from '../../components/admin/ProductImporterModal';
@@ -230,19 +231,37 @@ export const AdminCategoriesPage: React.FC = () => {
 
   // Delete Category
   const handleDeleteCategory = (catName: string) => {
-    const hasProducts = products.some((p) => normalizeCategoryName(p.category) === catName);
-    if (hasProducts) {
-      alert(
-        `Não é possível excluir a categoria "${catName}" pois ainda existem produtos associados a ela. Mova os produtos para outra categoria primeiro.`
+    const matchingProducts = products.filter(
+      (p) => normalizeCategoryName(p.category).toLowerCase() === catName.toLowerCase()
+    );
+
+    let confirmMsg = `Deseja realmente excluir a categoria "${catName}" da loja?`;
+    let fallbackCategory = '';
+
+    if (matchingProducts.length > 0) {
+      const otherCategories = categories.filter(
+        (c) => c.name.toLowerCase() !== catName.toLowerCase()
       );
-      return;
+      fallbackCategory = otherCategories[0]?.name || 'Geral';
+
+      confirmMsg = `Atenção: A categoria "${catName}" possui ${matchingProducts.length} produto(s) associado(s).\n\nAo confirmar a exclusão, a categoria será removida dos menus e vitrines, e estes ${matchingProducts.length} produto(s) serão movidos automaticamente para a categoria "${fallbackCategory}".\n\nDeseja continuar com a exclusão?`;
     }
 
-    if (window.confirm(`Deseja realmente remover a categoria "${catName}"?`)) {
-      const updatedList = categories.filter((c) => c.name !== catName);
+    if (window.confirm(confirmMsg)) {
+      if (matchingProducts.length > 0 && fallbackCategory) {
+        matchingProducts.forEach((p) => {
+          saveProduct({ ...p, category: fallbackCategory });
+        });
+      }
+
+      const updatedList = deleteStoredCategory(catName, fallbackCategory);
       setCategories(updatedList);
-      saveStoredCategories(updatedList);
-      showToast(`✓ Categoria "${catName}" excluída.`);
+      setProducts(getProducts());
+      if (isCategoryModalOpen) {
+        setIsCategoryModalOpen(false);
+        setEditingCategory(null);
+      }
+      showToast(`✓ Categoria "${catName}" excluída com sucesso!`);
     }
   };
 
@@ -606,6 +625,16 @@ export const AdminCategoriesPage: React.FC = () => {
                   </button>
 
                   <button
+                    type="button"
+                    onClick={() => handleDeleteCategory(category.name)}
+                    className="p-2 text-rose-600 hover:text-white hover:bg-rose-600 rounded-xl border border-rose-300 dark:border-rose-900/60 bg-rose-50/60 dark:bg-rose-950/20 transition-colors text-xs flex items-center gap-1 font-semibold"
+                    title={`Excluir categoria "${category.name}"`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span className="hidden md:inline">Excluir</span>
+                  </button>
+
+                  <button
                     onClick={() => handleOpenNewProductInCategory(category.name)}
                     className="px-3 py-2 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-hover transition-colors flex items-center gap-1.5 shadow-sm"
                   >
@@ -885,20 +914,36 @@ export const AdminCategoriesPage: React.FC = () => {
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
-                <button
-                  type="button"
-                  onClick={() => setIsCategoryModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-border text-foreground hover:bg-muted font-semibold"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-primary text-white font-bold hover:bg-primary/90 shadow-sm"
-                >
-                  Salvar Categoria
-                </button>
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-border">
+                {editingCategory.name ? (
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteCategory(editingCategory.name!)}
+                    className="px-3.5 py-2 rounded-xl text-rose-600 hover:text-white hover:bg-rose-600 border border-rose-300 dark:border-rose-900/60 font-semibold text-xs transition-colors flex items-center gap-1.5"
+                    title={`Excluir categoria "${editingCategory.name}"`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Excluir Categoria</span>
+                  </button>
+                ) : (
+                  <div />
+                )}
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsCategoryModalOpen(false)}
+                    className="px-4 py-2 rounded-xl border border-border text-foreground hover:bg-muted font-semibold"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-primary text-white font-bold hover:bg-primary/90 shadow-sm"
+                  >
+                    Salvar Categoria
+                  </button>
+                </div>
               </div>
             </form>
           </motion.div>

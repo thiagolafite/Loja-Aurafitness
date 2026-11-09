@@ -198,27 +198,43 @@ export function normalizeCategoryName(rawCategory?: string): string {
 }
 
 const CATEGORIES_STORAGE_KEY = 'aura_store_categories_v1';
+const DELETED_CATEGORIES_KEY = 'aura_deleted_categories_v1';
+
+export function getDeletedCategories(): string[] {
+  try {
+    if (typeof window !== 'undefined') {
+      const raw = localStorage.getItem(DELETED_CATEGORIES_KEY);
+      return raw ? JSON.parse(raw) : [];
+    }
+  } catch {}
+  return [];
+}
 
 /**
  * Obtém a lista dinâmica de categorias da loja salvas pelo administrador
  */
 export function getStoredCategories(): AvailableCategory[] {
   let categories: AvailableCategory[] = [];
+  let hasStoredValue = false;
   try {
     const raw = typeof window !== 'undefined' ? localStorage.getItem(CATEGORIES_STORAGE_KEY) : null;
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
         categories = parsed;
+        hasStoredValue = true;
       }
     }
   } catch (e) {
     console.error('Error reading categories from localStorage:', e);
   }
 
-  if (categories.length === 0) {
+  if (!hasStoredValue) {
     categories = [...STORE_CATEGORIES];
   }
+
+  const deletedList = getDeletedCategories().map((d) => d.toLowerCase());
+  categories = categories.filter((c) => !deletedList.includes(c.name.toLowerCase()));
 
   // Auto-descoberta: se existirem produtos com categorias que ainda não estão na lista, inclui dinamicamente
   try {
@@ -229,10 +245,11 @@ export function getStoredCategories(): AvailableCategory[] {
         parsedProds.forEach((p: { category?: string }) => {
           if (p.category && typeof p.category === 'string' && p.category.trim()) {
             const catName = p.category.trim();
+            const isDeleted = deletedList.includes(catName.toLowerCase());
             const alreadyExists = categories.some(
               (c) => c.name.toLowerCase() === catName.toLowerCase()
             );
-            if (!alreadyExists) {
+            if (!alreadyExists && !isDeleted) {
               categories.push({
                 name: catName,
                 slug: catName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, ''),
@@ -267,12 +284,66 @@ export function saveStoredCategories(categories: AvailableCategory[]): void {
 }
 
 /**
+ * Exclui uma categoria da loja de forma definitiva e notifica toda a loja
+ */
+export function deleteStoredCategory(categoryName: string, reassignProductsTo?: string): AvailableCategory[] {
+  const norm = categoryName.trim().toLowerCase();
+  const current = getStoredCategories();
+  const updated = current.filter((c) => c.name.toLowerCase() !== norm);
+
+  // Salva na lista de categorias excluídas para não ser ressuscitada por auto-discovery
+  try {
+    if (typeof window !== 'undefined') {
+      const deletedList = getDeletedCategories();
+      if (!deletedList.some((d) => d.toLowerCase() === norm)) {
+        deletedList.push(categoryName.trim());
+        localStorage.setItem(DELETED_CATEGORIES_KEY, JSON.stringify(deletedList));
+      }
+    }
+  } catch {}
+
+  saveStoredCategories(updated);
+
+  // Se solicitado, reatribui os produtos dessa categoria para outra categoria segura
+  if (reassignProductsTo && typeof window !== 'undefined') {
+    try {
+      const rawProducts = localStorage.getItem('aura_products_v1');
+      if (rawProducts) {
+        const prods = JSON.parse(rawProducts);
+        if (Array.isArray(prods)) {
+          const remapped = prods.map((p) => {
+            if ((p.category || '').toLowerCase() === norm) {
+              return { ...p, category: reassignProductsTo };
+            }
+            return p;
+          });
+          localStorage.setItem('aura_products_v1', JSON.stringify(remapped));
+          window.dispatchEvent(new CustomEvent('aura_products_updated'));
+        }
+      }
+    } catch {}
+  }
+
+  return updated;
+}
+
+/**
  * Adiciona uma nova categoria e notifica toda a loja em tempo real
  */
 export function saveNewCategory(name: string): AvailableCategory[] {
   const current = getStoredCategories();
   const trimmed = name.trim();
   if (!trimmed) return current;
+
+  // Se estava na lista de deletadas, remove da lista de deletadas
+  try {
+    if (typeof window !== 'undefined') {
+      const deletedList = getDeletedCategories().filter(
+        (d) => d.toLowerCase() !== trimmed.toLowerCase()
+      );
+      localStorage.setItem(DELETED_CATEGORIES_KEY, JSON.stringify(deletedList));
+    }
+  } catch {}
 
   const exists = current.some((c) => c.name.toLowerCase() === trimmed.toLowerCase());
   if (!exists) {

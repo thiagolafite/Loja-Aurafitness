@@ -15,12 +15,14 @@ import {
   ExternalLink,
   Info,
   X,
+  Trash2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   getStoredCategories,
   updateCategoryPhoto,
   resetCategoryPhoto,
+  deleteStoredCategory,
   getCategoryPhoto,
   normalizeCategoryName,
   AvailableCategory,
@@ -265,11 +267,29 @@ export const AdminCategoryPhotosPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handleResetPhoto(cat.name)}
-                    className="text-muted-foreground hover:text-destructive flex items-center gap-1"
+                    className="text-muted-foreground hover:text-foreground flex items-center gap-1"
                     title="Restaurar foto padrão original"
                   >
                     <RotateCcw className="w-3 h-3" />
-                    <span>Restaurar</span>
+                    <span>Restaurar Padrão</span>
+                  </button>
+                </div>
+
+                <div className="pt-1 border-t border-border/50">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm(`Deseja realmente excluir a categoria "${cat.name}" da loja?`)) {
+                        deleteStoredCategory(cat.name);
+                        setCategories(getStoredCategories());
+                        showToast(`✓ Categoria "${cat.name}" excluída.`);
+                      }
+                    }}
+                    className="w-full py-1.5 rounded-lg text-rose-600 hover:text-white hover:bg-rose-600 border border-rose-300/60 dark:border-rose-900/40 text-[11px] font-bold transition-colors flex items-center justify-center gap-1"
+                    title="Excluir Categoria"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>Excluir Categoria</span>
                   </button>
                 </div>
               </div>
