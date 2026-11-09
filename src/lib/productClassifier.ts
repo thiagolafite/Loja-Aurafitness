@@ -327,14 +327,24 @@ export function getProductCategories(product: {
  * (ou marcando-o como 'Sem Categoria' caso estivesse apenas nela, sem apagar o produto do catálogo geral).
  */
 export function removeProductFromCategory<
-  T extends { category?: string; additionalCategories?: string[] }
+  T extends { name?: string; category?: string; additionalCategories?: string[] }
 >(
   product: T,
   categoryToRemove: string
 ): { updatedProduct: T; remainingCategories: string[] } {
-  const targetNorm = categoryToRemove.trim().toLowerCase();
+  const targetRaw = categoryToRemove.trim().toLowerCase();
+  const targetResolved = resolveSingleCategoryName(categoryToRemove).trim().toLowerCase();
   const currentCats = getProductCategories(product);
-  const remaining = currentCats.filter((c) => c.toLowerCase() !== targetNorm);
+
+  const remaining = currentCats.filter((c) => {
+    const cRaw = c.trim().toLowerCase();
+    const cResolved = resolveSingleCategoryName(c).trim().toLowerCase();
+    return (
+      cRaw !== targetRaw &&
+      cResolved !== targetResolved &&
+      !areCategoriesEquivalent(c, categoryToRemove)
+    );
+  });
 
   const newPrimary = remaining[0] || 'Sem Categoria';
   const newAdditional = remaining.slice(1);
@@ -355,7 +365,7 @@ export function removeProductFromCategory<
  * - mode === 'add-both': mantém na(s) categoria(s) atual(is) e adiciona também em targetCategory
  */
 export function assignProductToCategory<
-  T extends { category?: string; additionalCategories?: string[] }
+  T extends { name?: string; category?: string; additionalCategories?: string[] }
 >(
   product: T,
   targetCategory: string,
@@ -363,14 +373,25 @@ export function assignProductToCategory<
   sourceCategory?: string
 ): T {
   const trimmedTarget = targetCategory.trim();
+  const resolvedTarget = resolveSingleCategoryName(trimmedTarget).trim().toLowerCase();
   const currentCats = getProductCategories(product);
 
   if (mode === 'move') {
     if (sourceCategory) {
-      const sourceNorm = sourceCategory.trim().toLowerCase();
-      const filtered = currentCats.filter(
-        (c) => c.toLowerCase() !== sourceNorm && c.toLowerCase() !== trimmedTarget.toLowerCase()
-      );
+      const sourceRaw = sourceCategory.trim().toLowerCase();
+      const sourceResolved = resolveSingleCategoryName(sourceCategory).trim().toLowerCase();
+      const filtered = currentCats.filter((c) => {
+        const cRaw = c.trim().toLowerCase();
+        const cResolved = resolveSingleCategoryName(c).trim().toLowerCase();
+        return (
+          cRaw !== sourceRaw &&
+          cResolved !== sourceResolved &&
+          !areCategoriesEquivalent(c, sourceCategory) &&
+          cRaw !== trimmedTarget.toLowerCase() &&
+          cResolved !== resolvedTarget &&
+          !areCategoriesEquivalent(c, trimmedTarget)
+        );
+      });
       const nextCats = [trimmedTarget, ...filtered];
       return {
         ...product,
@@ -387,7 +408,14 @@ export function assignProductToCategory<
 
   // mode === 'add-both'
   const nextCats = [...currentCats];
-  if (!nextCats.some((c) => c.toLowerCase() === trimmedTarget.toLowerCase())) {
+  if (
+    !nextCats.some(
+      (c) =>
+        c.toLowerCase() === trimmedTarget.toLowerCase() ||
+        resolveSingleCategoryName(c).toLowerCase() === resolvedTarget ||
+        areCategoriesEquivalent(c, trimmedTarget)
+    )
+  ) {
     nextCats.push(trimmedTarget);
   }
   return {

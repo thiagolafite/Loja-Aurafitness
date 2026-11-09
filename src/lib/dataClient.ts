@@ -219,38 +219,61 @@ export async function syncWithSupabase(): Promise<void> {
 
     if (!prodsError && prods) {
       const deletedSet = new Set(getStorageItem<string[]>('aura_deleted_product_ids_v1', []));
+      const localOverrides = getStorageItem<Record<string, Partial<Product>>>(
+        'aura_updated_products_v1',
+        {}
+      );
 
-      const dbProducts: Product[] = prods.map((p) => ({
-        id: p.id,
-        name: p.name,
-        slug: p.slug,
-        description: p.description || '',
-        fullDescription: p.full_description || '',
-        category: p.category,
-        additionalCategories: Array.isArray(p.seo?.additionalCategories)
-          ? p.seo.additionalCategories
-          : [],
-        price: Number(p.price),
-        promotionalPrice: p.promotional_price ? Number(p.promotional_price) : undefined,
-        sku: p.sku || `SKU-${Date.now()}`,
-        barcode: p.barcode || '7890000000000',
-        weight: Number(p.weight) || 200,
-        brand: p.brand || 'Aura Fitness',
-        images: p.images || [],
-        videoUrl: p.video_url,
-        sizes: p.sizes || ['P', 'M', 'G'],
-        colors: p.colors || [],
-        materials: p.materials || [],
-        stock: p.stock || {},
-        isFeatured: Boolean(p.is_featured),
-        isNewArrival: Boolean(p.is_new_arrival),
-        isBestSeller: Boolean(p.is_best_seller),
-        isActive: Boolean(p.is_active),
-        rating: Number(p.rating) || 5.0,
-        reviewCount: Number(p.review_count) || 0,
-        seo: p.seo || { title: p.name, description: '', keywords: [] },
-        createdAt: p.created_at,
-      }));
+      const dbProducts: Product[] = prods.map((p) => {
+        const override = localOverrides[p.id];
+        return {
+          id: p.id,
+          name: override?.name ?? p.name,
+          slug: override?.slug ?? p.slug,
+          description: override?.description ?? (p.description || ''),
+          fullDescription: override?.fullDescription ?? (p.full_description || ''),
+          category: override?.category !== undefined ? override.category : p.category,
+          additionalCategories:
+            override?.additionalCategories !== undefined
+              ? override.additionalCategories
+              : Array.isArray(p.seo?.additionalCategories)
+                ? p.seo.additionalCategories
+                : [],
+          price: override?.price !== undefined ? Number(override.price) : Number(p.price),
+          promotionalPrice:
+            override?.promotionalPrice !== undefined
+              ? override.promotionalPrice
+              : p.promotional_price
+                ? Number(p.promotional_price)
+                : undefined,
+          sku: override?.sku ?? (p.sku || `SKU-${Date.now()}`),
+          barcode: override?.barcode ?? (p.barcode || '7890000000000'),
+          weight: override?.weight !== undefined ? Number(override.weight) : Number(p.weight) || 200,
+          brand: override?.brand ?? (p.brand || 'Aura Fitness'),
+          images: override?.images ?? (p.images || []),
+          videoUrl: override?.videoUrl ?? p.video_url,
+          sizes: override?.sizes ?? (p.sizes || ['P', 'M', 'G']),
+          colors: override?.colors ?? (p.colors || []),
+          materials: override?.materials ?? (p.materials || []),
+          stock: override?.stock ?? (p.stock || {}),
+          isFeatured:
+            override?.isFeatured !== undefined ? Boolean(override.isFeatured) : Boolean(p.is_featured),
+          isNewArrival:
+            override?.isNewArrival !== undefined
+              ? Boolean(override.isNewArrival)
+              : Boolean(p.is_new_arrival),
+          isBestSeller:
+            override?.isBestSeller !== undefined
+              ? Boolean(override.isBestSeller)
+              : Boolean(p.is_best_seller),
+          isActive:
+            override?.isActive !== undefined ? Boolean(override.isActive) : Boolean(p.is_active),
+          rating: Number(p.rating) || 5.0,
+          reviewCount: Number(p.review_count) || 0,
+          seo: override?.seo ?? (p.seo || { title: p.name, description: '', keywords: [] }),
+          createdAt: p.created_at,
+        };
+      });
 
       // Apenas produtos que não foram excluídos pelo usuário
       const cleanDbProducts = dbProducts.filter((p) => !deletedSet.has(p.id));
@@ -387,64 +410,70 @@ export function getProductBySlug(slug: string): Product | undefined {
 }
 
 export async function saveProductAsync(productData: Partial<Product>): Promise<Product> {
+  // Sempre persiste localmente primeiro (garante que alterações de categoria/preço/fotos nunca se percam por RLS)
+  const localSaved = saveProductLocalOnly(productData);
+
   if (!isSupabaseConfigured()) {
-    return saveProduct(productData);
+    return localSaved;
   }
 
-  const slug = productData.slug || (productData.name
-    ? productData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '')
-    : `produto-${Date.now()}`);
+  const slug =
+    localSaved.slug ||
+    (localSaved.name
+      ? localSaved.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '')
+      : `produto-${Date.now()}`);
 
   const payload: any = {
-    name: productData.name || 'Novo Produto',
+    name: localSaved.name || 'Novo Produto',
     slug,
-    description: productData.description || '',
-    full_description: productData.fullDescription || '',
-    category: productData.category || 'Leggings',
-    price: productData.price || 0,
-    promotional_price: productData.promotionalPrice || null,
-    sku: productData.sku || `SKU-${Date.now()}`,
-    barcode: productData.barcode || '7890000000000',
-    weight: productData.weight || 200,
-    brand: productData.brand || 'Aura Fitness',
-    images: productData.images || ['/images/look-3103.png'],
-    video_url: productData.videoUrl || null,
-    sizes: productData.sizes || ['P', 'M', 'G'],
-    colors: productData.colors || [{ name: 'Verde Oliva', hex: '#5F6F3A' }],
-    materials: productData.materials || ['Poliamida'],
-    stock: productData.stock || { 'P-Verde Oliva': 10 },
-    is_featured: productData.isFeatured ?? false,
-    is_new_arrival: productData.isNewArrival ?? true,
-    is_best_seller: productData.isBestSeller ?? false,
-    is_active: productData.isActive ?? true,
+    description: localSaved.description || '',
+    full_description: localSaved.fullDescription || '',
+    category: localSaved.category || 'Leggings',
+    price: localSaved.price || 0,
+    promotional_price: localSaved.promotionalPrice || null,
+    sku: localSaved.sku || `SKU-${Date.now()}`,
+    barcode: localSaved.barcode || '7890000000000',
+    weight: localSaved.weight || 200,
+    brand: localSaved.brand || 'Aura Fitness',
+    images: localSaved.images || ['/images/look-3103.png'],
+    video_url: localSaved.videoUrl || null,
+    sizes: localSaved.sizes || ['P', 'M', 'G'],
+    colors: localSaved.colors || [{ name: 'Verde Oliva', hex: '#5F6F3A' }],
+    materials: localSaved.materials || ['Poliamida'],
+    stock: localSaved.stock || { 'P-Verde Oliva': 10 },
+    is_featured: localSaved.isFeatured ?? false,
+    is_new_arrival: localSaved.isNewArrival ?? true,
+    is_best_seller: localSaved.isBestSeller ?? false,
+    is_active: localSaved.isActive ?? true,
     seo: {
-      ...(productData.seo || { title: productData.name || '', description: '', keywords: [] }),
-      additionalCategories: Array.isArray(productData.additionalCategories)
-        ? productData.additionalCategories
+      ...(localSaved.seo || { title: localSaved.name || '', description: '', keywords: [] }),
+      additionalCategories: Array.isArray(localSaved.additionalCategories)
+        ? localSaved.additionalCategories
         : [],
     },
   };
 
-  if (productData.id && productData.id.length > 10 && !productData.id.startsWith('prod-')) {
-    payload.id = productData.id;
+  if (localSaved.id && localSaved.id.length > 10 && !localSaved.id.startsWith('prod-')) {
+    payload.id = localSaved.id;
   }
 
-  const { data, error } = await supabase.from('products').upsert(payload).select().single();
-  if (error) throw error;
-
-  const deletedSet = new Set(getStorageItem<string[]>('aura_deleted_product_ids_v1', []));
-  if (data?.id && deletedSet.has(data.id)) {
-    deletedSet.delete(data.id);
-    setStorageItem('aura_deleted_product_ids_v1', Array.from(deletedSet));
+  try {
+    const { data } = await supabase.from('products').upsert(payload).select().maybeSingle();
+    if (data?.id) {
+      const deletedSet = new Set(getStorageItem<string[]>('aura_deleted_product_ids_v1', []));
+      if (deletedSet.has(data.id)) {
+        deletedSet.delete(data.id);
+        setStorageItem('aura_deleted_product_ids_v1', Array.from(deletedSet));
+      }
+    }
+  } catch (e) {
+    console.warn('Aviso ao sincronizar produto com Supabase (mantido localmente):', e);
   }
 
-  await syncWithSupabase();
-  return getProductById(data.id) || (productData as Product);
+  return localSaved;
 }
 
-export function saveProduct(productData: Partial<Product>): Product {
-  saveProductAsync(productData).catch((e) => console.error(e));
-
+function saveProductLocalOnly(productData: Partial<Product>): Product {
   const products = getProducts();
   let updatedProduct: Product;
 
@@ -470,6 +499,9 @@ export function saveProduct(productData: Partial<Product>): Product {
       description: productData.description || '',
       fullDescription: productData.fullDescription || '',
       category: productData.category || 'Leggings',
+      additionalCategories: Array.isArray(productData.additionalCategories)
+        ? productData.additionalCategories
+        : [],
       price: productData.price || 0,
       promotionalPrice: productData.promotionalPrice,
       sku: productData.sku || `SKU-${Date.now()}`,
@@ -493,6 +525,16 @@ export function saveProduct(productData: Partial<Product>): Product {
     products.push(updatedProduct);
   }
 
+  // Salva no dicionário de edições locais para nunca ser sobrescrito pelo syncWithSupabase
+  if (updatedProduct.id) {
+    const localOverrides = getStorageItem<Record<string, Partial<Product>>>(
+      'aura_updated_products_v1',
+      {}
+    );
+    localOverrides[updatedProduct.id] = updatedProduct;
+    setStorageItem('aura_updated_products_v1', localOverrides);
+  }
+
   cachedProducts = products;
   setStorageItem(STORAGE_KEYS.PRODUCTS, products);
   if (typeof window !== 'undefined') {
@@ -501,7 +543,24 @@ export function saveProduct(productData: Partial<Product>): Product {
   return updatedProduct;
 }
 
+export function saveProduct(productData: Partial<Product>): Product {
+  const updatedProduct = saveProductLocalOnly(productData);
+  saveProductAsync(updatedProduct).catch((e) => console.error(e));
+  return updatedProduct;
+}
+
 export function saveAllProducts(products: Product[]): void {
+  const localOverrides = getStorageItem<Record<string, Partial<Product>>>(
+    'aura_updated_products_v1',
+    {}
+  );
+  products.forEach((p) => {
+    if (p.id) {
+      localOverrides[p.id] = p;
+    }
+  });
+  setStorageItem('aura_updated_products_v1', localOverrides);
+
   cachedProducts = products;
   setStorageItem(STORAGE_KEYS.PRODUCTS, products);
   if (typeof window !== 'undefined') {

@@ -213,22 +213,18 @@ export const AdminCategoriesPage: React.FC = () => {
 
   // Exclui o produto APENAS daquela categoria (sem apagar o produto de outras categorias ou da loja)
   const handleRemoveProductFromThisCategory = (product: Product, categoryName: string) => {
-    const currentCats = getProductCategories(product);
-    const otherCats = currentCats.filter(
-      (c) => c.toLowerCase() !== categoryName.trim().toLowerCase()
-    );
-
-    const confirmMsg =
-      otherCats.length > 0
-        ? `Deseja remover "${product.name}" apenas da categoria "${categoryName}"?\n\nO produto continuará ativo em: ${otherCats.join(', ')}.`
-        : `Deseja remover "${product.name}" da categoria "${categoryName}"?\n\nO produto sairá apenas desta categoria e continuará salvo no seu catálogo geral de produtos.`;
-
-    if (!window.confirm(confirmMsg)) return;
-
     const { updatedProduct, remainingCategories } = removeProductFromCategory(
       product,
       categoryName
     );
+
+    const confirmMsg =
+      remainingCategories.length > 0
+        ? `Deseja remover "${product.name}" apenas da categoria "${categoryName}"?\n\nO produto continuará ativo em: ${remainingCategories.join(', ')}.`
+        : `Deseja remover "${product.name}" da categoria "${categoryName}"?\n\nO produto sairá apenas desta categoria e continuará salvo no seu catálogo geral de produtos.`;
+
+    if (!window.confirm(confirmMsg)) return;
+
     saveProduct(updatedProduct);
     setProducts([...getProducts()]);
     window.dispatchEvent(new CustomEvent('aura_products_updated'));
