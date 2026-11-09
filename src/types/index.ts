@@ -324,3 +324,27 @@ export interface HeroBannerSlide {
   active: boolean;
   order: number;
 }
+
+export interface FloatingVideoItem {
+  id: string;
+  title: string;
+  videoUrl: string; // URL de vídeo (.mp4, .webm) ou 'idb://video/...' (arquivo local salvo no IndexedDB)
+  fallbackImages?: string[]; // Fotos para Reels animado caso o vídeo esteja carregando ou seja lookbook
+  productId?: string; // Produto vinculado (opcional)
+  customLink?: string; // Link personalizado ex: '/produto/prod-1' ou '/catalogo?categoria=Macacões'
+  buttonText?: string; // Ex: 'Ver Produto'
+  badgeText?: string; // Ex: 'NOVIDADE'
+  active: boolean;
+  order: number;
+}
+
+export interface FloatingVideoConfig {
+  enabled: boolean;
+  position: 'bottom-left' | 'bottom-right';
+  size: 'sm' | 'md' | 'lg';
+  borderColor: string; // Ex: '#F27474' (Rosa Coral estilo Lê Rose) ou '#284e20' (Verde Aura)
+  clickAction: 'direct-link' | 'expand-player'; // 'direct-link' vai direto ao produto como na Lê Rose; 'expand-player' abre player com som
+  showCloseButton: boolean;
+  showProductBadge: boolean;
+  items: FloatingVideoItem[];
+}

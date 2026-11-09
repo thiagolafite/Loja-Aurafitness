@@ -24,6 +24,7 @@ import {
   FolderTree,
   KeyRound,
   Image as ImageIcon,
+  Video,
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -84,6 +85,7 @@ export const AdminLayout: React.FC = () => {
     { name: 'Categorias', path: '/admin/categorias', icon: FolderTree },
     { name: 'Fotos dos Catálogos', path: '/admin/fotos-catalogos', icon: ImageIcon },
     { name: 'Seções & Banners', path: '/admin/secoes-banners', icon: Sparkles },
+    { name: 'Mini-Vídeo (Story)', path: '/admin/secoes-banners?tab=video', icon: Video },
     { name: 'Pedidos', path: '/admin/pedidos', icon: ShoppingBag },
     { name: 'Clientes', path: '/admin/clientes', icon: Users },
     { name: 'Avaliações', path: '/admin/avaliacoes', icon: MessageSquare },

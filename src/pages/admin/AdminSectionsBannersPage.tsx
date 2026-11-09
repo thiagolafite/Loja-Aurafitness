@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   Sparkles,
   Layers,
   Image as ImageIcon,
+  Video,
   Plus,
   Trash2,
   Edit,
@@ -52,9 +53,24 @@ import {
 import { getStoredCategories, resizeImageFile, normalizeCategoryName } from '../../lib/productClassifier';
 import { Product, StoreSection, HeroBannerSlide } from '../../types';
 import { formatCurrency } from '../../lib/utils';
+import { FloatingVideoManager } from '../../components/admin/FloatingVideoManager';
 
 export const AdminSectionsBannersPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'sections' | 'banners'>('sections');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab =
+    searchParams.get('tab') === 'video'
+      ? 'video'
+      : searchParams.get('tab') === 'banners'
+      ? 'banners'
+      : 'sections';
+  const [activeTab, setActiveTab] = useState<'sections' | 'banners' | 'video'>(initialTab);
+
+  useEffect(() => {
+    const t = searchParams.get('tab');
+    if (t === 'video' || t === 'banners' || t === 'sections') {
+      setActiveTab(t);
+    }
+  }, [searchParams]);
 
   // Products & Categories
   const [products, setProducts] = useState<Product[]>(() => getProducts());
@@ -461,9 +477,12 @@ export const AdminSectionsBannersPage: React.FC = () => {
           </button>
 
           {/* View Switcher Tabs */}
-          <div className="flex items-center gap-1.5 p-1 bg-muted/60 border border-border rounded-2xl">
+          <div className="flex items-center gap-1.5 p-1 bg-muted/60 border border-border rounded-2xl flex-wrap">
             <button
-              onClick={() => setActiveTab('sections')}
+              onClick={() => {
+                setActiveTab('sections');
+                setSearchParams({ tab: 'sections' });
+              }}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
                 activeTab === 'sections'
                   ? 'bg-primary text-white shadow-md'
@@ -474,7 +493,10 @@ export const AdminSectionsBannersPage: React.FC = () => {
               <span>Seções da Loja & Menus</span>
             </button>
             <button
-              onClick={() => setActiveTab('banners')}
+              onClick={() => {
+                setActiveTab('banners');
+                setSearchParams({ tab: 'banners' });
+              }}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
                 activeTab === 'banners'
                   ? 'bg-primary text-white shadow-md'
@@ -483,6 +505,20 @@ export const AdminSectionsBannersPage: React.FC = () => {
             >
               <ImageIcon className="w-4 h-4" />
               <span>Banners do Carrossel Principal</span>
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('video');
+                setSearchParams({ tab: 'video' });
+              }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                activeTab === 'video'
+                  ? 'bg-primary text-white shadow-md'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Video className="w-4 h-4" />
+              <span>Mini-Vídeo Flutuante (Story)</span>
             </button>
           </div>
         </div>
@@ -1098,6 +1134,11 @@ export const AdminSectionsBannersPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* ===================================================================== */}
+      {/* ABA 3: MINI-VÍDEO FLUTUANTE NO CANTO INFERIOR ESQUERDO (ESTILO LÊ ROSE) */}
+      {/* ===================================================================== */}
+      {activeTab === 'video' && <FloatingVideoManager />}
 
       {/* ===================================================================== */}
       {/* MODAL: CRIAR OU EDITAR SEÇÃO DA LOJA (MODA VERÃO, BLACK FRIDAY)       */}

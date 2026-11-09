@@ -5,6 +5,7 @@ import { Navbar } from '../components/store/Navbar';
 import { Footer } from '../components/store/Footer';
 import { CartDrawer } from '../components/store/CartDrawer';
 import { WhatsAppButton } from '../components/store/WhatsAppButton';
+import { FloatingMiniVideo } from '../components/store/FloatingMiniVideo';
 
 export const StoreLayout: React.FC = () => {
   return (
@@ -17,6 +18,7 @@ export const StoreLayout: React.FC = () => {
 
       <Footer />
       <CartDrawer />
+      <FloatingMiniVideo />
       <WhatsAppButton />
     </div>
   );
