@@ -236,28 +236,86 @@ export function getCanonicalGarmentCategoryFromName(name?: string): string | nul
 }
 
 /**
+ * Resolve um nome de categoria individual para o nome canônico exato da loja (1 para 1),
+ * corrigindo automaticamente sinônimos ("Macaquinho" / "MACAQUINHOS" -> "Macacões")
+ * e produtos de Macaquinho que foram importados com o fallback antigo "Conjuntos".
+ */
+export function resolveSingleCategoryName(rawCategory?: string, productName?: string): string {
+  const trimmed = (rawCategory || '').trim();
+  if (trimmed.toLowerCase() === 'sem categoria') {
+    return 'Sem Categoria';
+  }
+
+  const nameGarment = getCanonicalGarmentCategoryFromName(productName);
+  // Se o produto é explicitamente um Macaquinho/Macacão pelo nome, mas estava com o fallback antigo "Conjuntos"
+  if (
+    nameGarment === 'Macacões' &&
+    (!trimmed || trimmed.toLowerCase() === 'conjuntos' || trimmed.toLowerCase() === 'leggings')
+  ) {
+    return 'Macacões';
+  }
+
+  if (!trimmed) {
+    return nameGarment || 'Conjuntos';
+  }
+
+  const norm = trimmed
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+  if (norm === 'macacao' || norm === 'macacoes' || norm === 'macaquinho' || norm === 'macaquinhos') {
+    return 'Macacões';
+  }
+  if (norm === 'conjunto' || norm === 'conjuntos') {
+    return 'Conjuntos';
+  }
+  if (norm === 'top' || norm === 'tops') {
+    return 'Tops';
+  }
+  if (norm === 'short' || norm === 'shorts' || norm === 'shorts & bermudas') {
+    return 'Shorts & Bermudas';
+  }
+  if (norm === 'legging' || norm === 'leggings') {
+    return 'Leggings';
+  }
+  if (norm === 'jaqueta' || norm === 'jaquetas') {
+    return 'Jaquetas';
+  }
+  if (norm === 'acessorio' || norm === 'acessorios') {
+    return 'Acessórios';
+  }
+
+  return trimmed;
+}
+
+/**
  * Retorna a lista exata de categorias às quais o produto pertence.
  * Por padrão cada produto pertence a 1 única categoria (product.category).
  * Só pertence a mais de uma se o administrador tiver confirmado explicitamente (product.additionalCategories).
  */
 export function getProductCategories(product: {
+  name?: string;
   category?: string;
   additionalCategories?: string[];
 }): string[] {
   const list: string[] = [];
-  const primary = (product.category || '').trim();
-  if (primary && primary.toLowerCase() !== 'sem categoria') {
-    list.push(primary);
+  const rawPrimary = (product.category || '').trim();
+  if (rawPrimary && rawPrimary.toLowerCase() !== 'sem categoria') {
+    const primary = resolveSingleCategoryName(rawPrimary, product.name);
+    if (primary && primary.toLowerCase() !== 'sem categoria') {
+      list.push(primary);
+    }
   }
   if (Array.isArray(product.additionalCategories)) {
     product.additionalCategories.forEach((c) => {
-      const trimmed = (c || '').trim();
+      const resolved = resolveSingleCategoryName(c);
       if (
-        trimmed &&
-        trimmed.toLowerCase() !== 'sem categoria' &&
-        !list.some((existing) => existing.toLowerCase() === trimmed.toLowerCase())
+        resolved &&
+        resolved.toLowerCase() !== 'sem categoria' &&
+        !list.some((existing) => existing.toLowerCase() === resolved.toLowerCase())
       ) {
-        list.push(trimmed);
+        list.push(resolved);
       }
     });
   }
@@ -469,6 +527,60 @@ export function getDeletedCategories(): string[] {
  * desduplicando sinônimos equivalentes (ex: evita criar "Macaquinho" duplicado se "Macacões" já existe).
  */
 export function getStoredCategories(): AvailableCategory[] {
+  // Restaura uma única vez a categoria oficial "Macacões" caso tenha sido ocultada ou duplicada como "Macaquinho"
+  try {
+    if (
+      typeof window !== 'undefined' &&
+      localStorage.getItem('aura_restore_macacoes_cat_v4') !== 'true'
+    ) {
+      const rawDel = localStorage.getItem(DELETED_CATEGORIES_KEY);
+      if (rawDel) {
+        const parsedDel: string[] = JSON.parse(rawDel);
+        const cleanedDel = parsedDel.filter((d) => {
+          const n = d
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .trim();
+          return !['macacao', 'macacoes', 'macaquinho', 'macaquinhos'].includes(n);
+        });
+        localStorage.setItem(DELETED_CATEGORIES_KEY, JSON.stringify(cleanedDel));
+      }
+
+      const rawCats = localStorage.getItem(CATEGORIES_STORAGE_KEY);
+      if (rawCats) {
+        const parsedCats: AvailableCategory[] = JSON.parse(rawCats);
+        if (Array.isArray(parsedCats)) {
+          // Remove duplicata "Macaquinho"/"Macaquinhos" e garante "Macacões" oficial
+          const withoutDupMacaquinho = parsedCats.filter((c) => {
+            const n = (c.name || '')
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .toLowerCase()
+              .trim();
+            return n !== 'macaquinho' && n !== 'macaquinhos' && n !== 'macacao';
+          });
+          const hasMacacoes = withoutDupMacaquinho.some(
+            (c) =>
+              (c.name || '')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase()
+                .trim() === 'macacoes'
+          );
+          if (!hasMacacoes) {
+            const officialMacacoes = STORE_CATEGORIES.find((sc) => sc.name === 'Macacões');
+            if (officialMacacoes) {
+              withoutDupMacaquinho.splice(1, 0, officialMacacoes);
+            }
+          }
+          localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(withoutDupMacaquinho));
+        }
+      }
+      localStorage.setItem('aura_restore_macacoes_cat_v4', 'true');
+    }
+  } catch {}
+
   let categories: AvailableCategory[] = [];
   let hasStoredValue = false;
   try {
@@ -802,11 +914,17 @@ export function isProductMatchingCategory(
   targetCategoryName: string
 ): boolean {
   if (!targetCategoryName || !targetCategoryName.trim()) return true;
-  const targetNorm = targetCategoryName.trim().toLowerCase();
+  const resolvedTarget = resolveSingleCategoryName(targetCategoryName).trim().toLowerCase();
+  const rawTarget = targetCategoryName.trim().toLowerCase();
   const prodCats = getProductCategories(product);
 
   // Correspondência exata com a(s) categoria(s) do produto
-  if (prodCats.some((c) => c.trim().toLowerCase() === targetNorm)) {
+  if (
+    prodCats.some((c) => {
+      const cLower = c.trim().toLowerCase();
+      return cLower === resolvedTarget || cLower === rawTarget;
+    })
+  ) {
     return true;
   }
 

@@ -29,6 +29,7 @@ import { supabase, isSupabaseConfigured } from './supabaseClient';
 import {
   getCanonicalGarmentCategoryFromName,
   areCategoriesEquivalent,
+  resolveSingleCategoryName,
   getEffectiveProductColors,
   getProductSizes,
   getStoredCategories,
@@ -37,10 +38,17 @@ import {
 function normalizeProductData(p: Product, _activeCategories = getStoredCategories()): Product {
   const effectiveColors = getEffectiveProductColors(p);
   const effectiveSizes = getProductSizes(p);
+  const seoExtraCats = Array.isArray((p.seo as any)?.additionalCategories)
+    ? (p.seo as any).additionalCategories
+    : [];
+  const rawAdditional = Array.isArray(p.additionalCategories)
+    ? p.additionalCategories
+    : seoExtraCats;
+
   return {
     ...p,
-    category: p.category || 'Conjuntos',
-    additionalCategories: Array.isArray(p.additionalCategories) ? p.additionalCategories : [],
+    category: resolveSingleCategoryName(p.category, p.name),
+    additionalCategories: rawAdditional.map((c: string) => resolveSingleCategoryName(c)),
     colors: effectiveColors.length > 0 ? effectiveColors : p.colors,
     sizes: effectiveSizes.length > 0 ? effectiveSizes : p.sizes || ['P', 'M', 'G'],
   };
@@ -158,31 +166,28 @@ function setStorageItem<T>(key: string, value: T): void {
 
 // In-memory cache for synchronous reads with background Supabase sync
 let cachedProducts: Product[] = (() => {
+  if (
+    typeof window !== 'undefined' &&
+    localStorage.getItem('aura_restore_macacoes_prods_v4') !== 'true'
+  ) {
+    // Limpa eventuais IDs de produtos de Macacões/Macaquinhos que tenham sido ocultados antes da separação de exclusão por categoria
+    localStorage.removeItem('aura_deleted_product_ids_v1');
+    localStorage.setItem('aura_restore_macacoes_prods_v4', 'true');
+  }
+
   const rawList = getStorageItem<Product[]>(STORAGE_KEYS.PRODUCTS, initialProducts);
-  const migratedKey = 'aura_strict_single_cat_v2';
+  const migratedKey = 'aura_strict_single_cat_v4';
   const alreadyMigrated =
     typeof window !== 'undefined' && localStorage.getItem(migratedKey) === 'true';
 
   if (!alreadyMigrated && typeof window !== 'undefined') {
-    const activeCats = getStoredCategories();
-    const cleaned = rawList.map((p) => {
-      let trueCat = (p.category || '').trim();
-      const nameGarment = getCanonicalGarmentCategoryFromName(p.name);
-      // Corrige uma única vez produtos que foram importados com fallback "Conjuntos"/"Leggings" mas cujo nome é explicitamente outra peça (ex: Macaquinho)
-      if (
-        nameGarment &&
-        (trueCat === 'Conjuntos' || trueCat === 'Leggings') &&
-        !areCategoriesEquivalent(trueCat, nameGarment)
-      ) {
-        const matchInStore = activeCats.find((c) => areCategoriesEquivalent(c.name, nameGarment));
-        trueCat = matchInStore ? matchInStore.name : nameGarment;
-      }
-      return normalizeProductData({
+    const cleaned = rawList.map((p) =>
+      normalizeProductData({
         ...p,
-        category: trueCat || 'Conjuntos',
+        category: resolveSingleCategoryName(p.category, p.name),
         additionalCategories: [],
-      });
-    });
+      })
+    );
     setStorageItem(STORAGE_KEYS.PRODUCTS, cleaned);
     localStorage.setItem(migratedKey, 'true');
     return cleaned;
@@ -222,6 +227,9 @@ export async function syncWithSupabase(): Promise<void> {
         description: p.description || '',
         fullDescription: p.full_description || '',
         category: p.category,
+        additionalCategories: Array.isArray(p.seo?.additionalCategories)
+          ? p.seo.additionalCategories
+          : [],
         price: Number(p.price),
         promotionalPrice: p.promotional_price ? Number(p.promotional_price) : undefined,
         sku: p.sku || `SKU-${Date.now()}`,
@@ -409,7 +417,12 @@ export async function saveProductAsync(productData: Partial<Product>): Promise<P
     is_new_arrival: productData.isNewArrival ?? true,
     is_best_seller: productData.isBestSeller ?? false,
     is_active: productData.isActive ?? true,
-    seo: productData.seo || { title: productData.name || '', description: '', keywords: [] },
+    seo: {
+      ...(productData.seo || { title: productData.name || '', description: '', keywords: [] }),
+      additionalCategories: Array.isArray(productData.additionalCategories)
+        ? productData.additionalCategories
+        : [],
+    },
   };
 
   if (productData.id && productData.id.length > 10 && !productData.id.startsWith('prod-')) {

@@ -132,23 +132,15 @@ export const CatalogPage: React.FC = () => {
     });
   }, [allProducts, activeSection]);
 
-  // Categorias sincronizadas e sem gaps (oculta categorias vazias na vitrine para evitar cliques sem retorno)
+  // Categorias sincronizadas com contagem exata
   const categoriesWithCounts = useMemo(() => {
-    const mapped = categories.map((cat) => {
+    return categories.map((cat) => {
       const count = sectionScopedProducts.filter((p) =>
         isProductMatchingCategory(p, cat.name)
       ).length;
       return { category: cat, count };
     });
-
-    const nonEmpty = mapped.filter(
-      (item) =>
-        item.count > 0 ||
-        (selectedCategory && areCategoriesEquivalent(selectedCategory, item.category.name))
-    );
-
-    return nonEmpty.length > 0 ? nonEmpty : mapped;
-  }, [categories, sectionScopedProducts, selectedCategory]);
+  }, [categories, sectionScopedProducts]);
 
   // Produtos do escopo da categoria selecionada (base para sincronizar Cores, Tamanhos e Faixa de Preço sem gaps)
   const categoryScopedProducts = useMemo(() => {
