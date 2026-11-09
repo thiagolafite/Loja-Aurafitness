@@ -27,6 +27,11 @@ import {
   Flame,
   Sun,
   LayoutGrid,
+  Wand2,
+  Zap,
+  RefreshCw,
+  Palette,
+  Copy,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -41,6 +46,8 @@ import {
   deleteHeroBanner,
   reorderHeroBanners,
   getProducts,
+  aiGenerateHeroBanner,
+  AiGeneratedBannerResult,
 } from '../../lib/dataClient';
 import { getStoredCategories, resizeImageFile, normalizeCategoryName } from '../../lib/productClassifier';
 import { Product, StoreSection, HeroBannerSlide } from '../../types';
@@ -78,6 +85,19 @@ export const AdminSectionsBannersPage: React.FC = () => {
   const [isUploadingBannerRight, setIsUploadingBannerRight] = useState(false);
   const leftFileRef = useRef<HTMLInputElement>(null);
   const rightFileRef = useRef<HTMLInputElement>(null);
+
+  // AI Banner Generator State
+  const [isAiGeneratorOpen, setIsAiGeneratorOpen] = useState(false);
+  const [aiThemeInput, setAiThemeInput] = useState('');
+  const [isGeneratingAiBanner, setIsGeneratingAiBanner] = useState(false);
+  const [aiGeneratedResult, setAiGeneratedResult] = useState<AiGeneratedBannerResult | null>(null);
+  const [aiBannerDraft, setAiBannerDraft] = useState<Partial<HeroBannerSlide> | null>(null);
+  const [selectedStyleIndex, setSelectedStyleIndex] = useState(0);
+  const [isSelectingLeftProductPhoto, setIsSelectingLeftProductPhoto] = useState(false);
+  const [isSelectingRightProductPhoto, setIsSelectingRightProductPhoto] = useState(false);
+  const [aiPhotoSearch, setAiPhotoSearch] = useState('');
+  const aiLeftFileRef = useRef<HTMLInputElement>(null);
+  const aiRightFileRef = useRef<HTMLInputElement>(null);
 
   // Toast feedback
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -302,6 +322,96 @@ export const AdminSectionsBannersPage: React.FC = () => {
     }
   };
 
+  // AI Banner Generator Handlers
+  const handleOpenAiGenerator = (initialPrompt?: string) => {
+    setActiveTab('banners');
+    const prompt = (initialPrompt || aiThemeInput).trim() || 'Nova Coleção';
+    setAiThemeInput(prompt);
+    handleGenerateAiBanner(prompt);
+    setIsAiGeneratorOpen(true);
+  };
+
+  const handleGenerateAiBanner = async (themeToUse?: string) => {
+    const theme = (themeToUse || aiThemeInput).trim();
+    if (!theme) {
+      alert('Por favor, digite o tema ou promoção desejada para o banner.');
+      return;
+    }
+
+    setIsGeneratingAiBanner(true);
+    try {
+      const res = await aiGenerateHeroBanner(theme, products);
+      setAiGeneratedResult(res);
+      setAiBannerDraft({
+        badge: res.badge,
+        title: res.title,
+        subtitle: res.subtitle,
+        buttonText: res.buttonText,
+        link: res.link,
+        centerBgColor: res.centerBgColor,
+        leftImage: res.leftImage,
+        rightImage: res.rightImage,
+        active: true,
+      });
+      setSelectedStyleIndex(0);
+      showToast('✨ Banner inteligente criado com IA!');
+    } catch {
+      alert('Erro ao gerar banner com IA. Tente novamente.');
+    } finally {
+      setIsGeneratingAiBanner(false);
+    }
+  };
+
+  const handleSelectAlternativeStyle = (style: any, idx: number) => {
+    setSelectedStyleIndex(idx);
+    if (!aiBannerDraft) return;
+    setAiBannerDraft({
+      ...aiBannerDraft,
+      badge: style.badge,
+      title: style.title,
+      subtitle: style.subtitle,
+      buttonText: style.buttonText,
+      centerBgColor: style.centerBgColor,
+    });
+  };
+
+  const handlePublishAiBanner = () => {
+    if (!aiBannerDraft || !aiBannerDraft.title?.trim()) {
+      alert('Por favor, gere ou preencha o banner antes de publicar.');
+      return;
+    }
+
+    const saved = saveHeroBanner({
+      ...aiBannerDraft,
+      active: true,
+      order: 1, // Coloca como o primeiro slide na Home para destaque imediato
+    });
+
+    setBanners(getHeroBanners());
+    setIsAiGeneratorOpen(false);
+    showToast(`✓ Banner "${saved.title}" publicado com sucesso na Página Principal!`);
+  };
+
+  const handleUploadAiDraftFile = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    side: 'left' | 'right'
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file || !aiBannerDraft) return;
+
+    try {
+      const dataUrl = await resizeImageFile(file, 1200, 1500, 0.88);
+      if (side === 'left') {
+        setAiBannerDraft({ ...aiBannerDraft, leftImage: dataUrl });
+      } else {
+        setAiBannerDraft({ ...aiBannerDraft, rightImage: dataUrl });
+      }
+      showToast(`Foto ${side === 'left' ? 'esquerda' : 'direita'} do banner atualizada!`);
+    } catch {
+      alert('Erro ao processar imagem.');
+    }
+  };
+
   return (
     <div className="space-y-6 pb-16">
       {/* Toast Alert */}
@@ -336,30 +446,45 @@ export const AdminSectionsBannersPage: React.FC = () => {
           </p>
         </div>
 
-        {/* View Switcher Tabs */}
-        <div className="flex items-center gap-1.5 p-1 bg-muted/60 border border-border rounded-2xl self-start sm:self-auto">
+        <div className="flex items-center gap-3 flex-wrap self-start sm:self-auto">
+          {/* Botão de Destaque Gerador com IA */}
           <button
-            onClick={() => setActiveTab('sections')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'sections'
-                ? 'bg-primary text-white shadow-md'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
+            onClick={() => handleOpenAiGenerator()}
+            className="bg-gradient-to-r from-amber-500 via-emerald-600 to-teal-600 hover:from-amber-600 hover:to-emerald-700 text-white font-bold text-xs py-2.5 px-4 rounded-2xl shadow-lg transition-all flex items-center gap-2 group"
+            title="Criar novo banner para a página principal com Inteligência Artificial"
           >
-            <Layers className="w-4 h-4" />
-            <span>Seções da Loja & Menus</span>
+            <Sparkles className="w-4 h-4 text-amber-200 animate-pulse group-hover:rotate-12 transition-transform" />
+            <span>Gerar Banner com IA</span>
+            <span className="bg-white/20 text-[9px] uppercase px-1.5 py-0.5 rounded font-extrabold tracking-wider">
+              IA Studio
+            </span>
           </button>
-          <button
-            onClick={() => setActiveTab('banners')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'banners'
-                ? 'bg-primary text-white shadow-md'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <ImageIcon className="w-4 h-4" />
-            <span>Banners do Carrossel Principal</span>
-          </button>
+
+          {/* View Switcher Tabs */}
+          <div className="flex items-center gap-1.5 p-1 bg-muted/60 border border-border rounded-2xl">
+            <button
+              onClick={() => setActiveTab('sections')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                activeTab === 'sections'
+                  ? 'bg-primary text-white shadow-md'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Layers className="w-4 h-4" />
+              <span>Seções da Loja & Menus</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('banners')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                activeTab === 'banners'
+                  ? 'bg-primary text-white shadow-md'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <ImageIcon className="w-4 h-4" />
+              <span>Banners do Carrossel Principal</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -784,6 +909,82 @@ export const AdminSectionsBannersPage: React.FC = () => {
               <Plus className="w-4 h-4" />
               <span>+ Adicionar Novo Banner</span>
             </button>
+          </div>
+
+          {/* Caixa de Criação Rápida com IA */}
+          <div className="bg-gradient-to-r from-emerald-950/80 via-neutral-900 to-amber-950/60 border border-emerald-500/30 rounded-3xl p-5 shadow-lg text-white space-y-4 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+            
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 relative z-10">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-emerald-500 flex items-center justify-center text-white shadow-md shrink-0">
+                  <Sparkles className="w-5 h-5 animate-pulse" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-serif font-bold text-sm sm:text-base text-white">
+                      Gerador Inteligente de Banners com IA
+                    </h4>
+                    <span className="bg-amber-400/20 text-amber-300 border border-amber-400/30 text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                      Novo
+                    </span>
+                  </div>
+                  <p className="text-xs text-emerald-100/70">
+                    Digite qualquer tema, campanha ou promoção e a IA criará o banner completo com fotos e textos de alta conversão!
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="relative z-10 flex flex-col sm:flex-row gap-2">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  placeholder="Ex: Black Friday com 50% de desconto em conjuntos fitness..."
+                  value={aiThemeInput}
+                  onChange={(e) => setAiThemeInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleOpenAiGenerator(aiThemeInput);
+                    }
+                  }}
+                  className="w-full bg-black/40 border border-white/20 focus:border-emerald-400 rounded-2xl px-4 py-3 text-xs sm:text-sm text-white placeholder-white/40 outline-none backdrop-blur-sm transition-all"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => handleOpenAiGenerator(aiThemeInput)}
+                className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold text-xs sm:text-sm px-6 py-3 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 shrink-0"
+              >
+                <Sparkles className="w-4 h-4 text-amber-200" />
+                <span>Gerar Banner Agora</span>
+              </button>
+            </div>
+
+            {/* Sugestões Rápidas de Temas */}
+            <div className="relative z-10 flex items-center gap-2 flex-wrap pt-1">
+              <span className="text-[11px] text-white/50 font-semibold flex items-center gap-1">
+                <Zap className="w-3 h-3 text-amber-400" /> Sugestões:
+              </span>
+              {[
+                '🔥 Black Friday 50% OFF',
+                '☀️ Coleção Verão & Moda Solar',
+                '⚡ Queima de Estoque Exclusiva',
+                '🧘‍♀️ Macaquinhos & Segunda Pele',
+                '🌸 Especial Dia das Mães',
+                '💪 Nova Coleção de Inverno',
+              ].map((chip) => (
+                <button
+                  key={chip}
+                  type="button"
+                  onClick={() => handleOpenAiGenerator(chip)}
+                  className="bg-white/10 hover:bg-white/20 text-white text-[11px] font-medium px-2.5 py-1 rounded-full border border-white/10 transition-colors"
+                >
+                  {chip}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Banners List with Mini Previews */}
@@ -1254,6 +1455,608 @@ export const AdminSectionsBannersPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* MODAL: AURA AI BANNER STUDIO (GERADOR INTELIGENTE DE BANNERS)         */}
+      {/* ===================================================================== */}
+      {isAiGeneratorOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+          <div className="bg-card border border-border rounded-3xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
+            {/* Hidden File Inputs for AI draft */}
+            <input
+              ref={aiLeftFileRef}
+              type="file"
+              accept="image/*"
+              onChange={(e) => handleUploadAiDraftFile(e, 'left')}
+              className="hidden"
+            />
+            <input
+              ref={aiRightFileRef}
+              type="file"
+              accept="image/*"
+              onChange={(e) => handleUploadAiDraftFile(e, 'right')}
+              className="hidden"
+            />
+
+            {/* Modal Header */}
+            <div className="p-4 sm:p-6 border-b border-border bg-gradient-to-r from-emerald-950/70 via-background to-amber-950/50 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-emerald-500 flex items-center justify-center text-white shadow-md">
+                  <Sparkles className="w-5 h-5 animate-pulse" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-serif font-bold text-base sm:text-lg text-foreground">
+                      Aura AI Banner Studio
+                    </h3>
+                    <span className="bg-gradient-to-r from-amber-500 to-emerald-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider shadow-sm">
+                      Gerador com IA
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Crie campanhas de alta conversão, vitrines sazonais e promoções prontas para a página principal.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsAiGeneratorOpen(false)}
+                className="w-8 h-8 rounded-full bg-muted/80 hover:bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center transition-colors"
+                title="Fechar Studio"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 sm:p-6 space-y-6 overflow-y-auto flex-1">
+              {/* Barra de Comando do Tema */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-foreground">
+                  Tema ou Objetivo da Campanha:
+                </label>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      placeholder="Ex: Black Friday com até 50% de desconto em macaquinhos e conjuntos..."
+                      value={aiThemeInput}
+                      onChange={(e) => setAiThemeInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleGenerateAiBanner(aiThemeInput);
+                        }
+                      }}
+                      className="w-full bg-background border border-border focus:border-primary rounded-2xl px-4 py-3 text-xs sm:text-sm text-foreground outline-none shadow-inner transition-all"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleGenerateAiBanner(aiThemeInput)}
+                    disabled={isGeneratingAiBanner}
+                    className="bg-gradient-to-r from-primary to-emerald-700 hover:from-primary-hover hover:to-emerald-800 text-white text-xs sm:text-sm font-bold px-6 py-3 rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 shrink-0 disabled:opacity-50"
+                  >
+                    {isGeneratingAiBanner ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin text-amber-300" />
+                        <span>Gerando Banner...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 text-amber-300" />
+                        <span>Gerar Banner com IA</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Sugestões Rápidas */}
+                <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                  <span className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1">
+                    <Zap className="w-3 h-3 text-amber-500" /> Testar temas:
+                  </span>
+                  {[
+                    '🔥 Black Friday 50% OFF',
+                    '☀️ Coleção Verão & Moda Solar',
+                    '⚡ Queima de Estoque',
+                    '🧘‍♀️ Macaquinhos Segunda Pele',
+                    '🌸 Especial Dia das Mães',
+                    '💪 Moda Fitness Alta Performance',
+                  ].map((chip) => (
+                    <button
+                      key={chip}
+                      type="button"
+                      onClick={() => {
+                        setAiThemeInput(chip);
+                        handleGenerateAiBanner(chip);
+                      }}
+                      className="bg-muted hover:bg-muted/80 text-foreground text-[10px] font-medium px-2.5 py-1 rounded-full border border-border/80 transition-colors"
+                    >
+                      {chip}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Variações de Estilo da IA */}
+              {aiGeneratedResult && aiGeneratedResult.alternativeStyles.length > 0 && (
+                <div className="bg-muted/40 border border-border rounded-2xl p-3.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <Wand2 className="w-3.5 h-3.5 text-primary" />
+                      <span>Variações de Tom Sugeridas pela IA:</span>
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      Clique para alternar o texto e cor instantaneamente
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {aiGeneratedResult.alternativeStyles.map((style, idx) => {
+                      const isSelected = selectedStyleIndex === idx;
+                      return (
+                        <button
+                          key={style.name}
+                          type="button"
+                          onClick={() => handleSelectAlternativeStyle(style, idx)}
+                          className={`text-left p-2.5 rounded-xl border transition-all text-xs flex flex-col justify-between ${
+                            isSelected
+                              ? 'bg-primary/10 border-primary text-foreground shadow-sm ring-1 ring-primary'
+                              : 'bg-card border-border hover:border-primary/40 text-muted-foreground'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-bold text-foreground text-xs">{style.name}</span>
+                            <span
+                              className="w-3.5 h-3.5 rounded-full border border-black/20"
+                              style={{ backgroundColor: style.centerBgColor }}
+                            />
+                          </div>
+                          <div className="text-[11px] font-semibold text-foreground truncate">
+                            {style.title}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground truncate">
+                            {style.subtitle}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Live Realistic Preview of the Banner */}
+              {aiBannerDraft && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <Eye className="w-3.5 h-3.5 text-primary" />
+                      <span>Pré-Visualização ao Vivo na Página Principal (Carrossel Home):</span>
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">
+                      Banner responsivo com fotos de modelos e chamada para ação
+                    </span>
+                  </div>
+
+                  <div className="rounded-3xl border border-border/80 overflow-hidden shadow-xl bg-neutral-950 p-2 sm:p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-stretch min-h-[320px]">
+                      {/* Foto Esquerda */}
+                      <div className="md:col-span-3 relative rounded-2xl overflow-hidden bg-neutral-900 group min-h-[220px]">
+                        <img
+                          src={aiBannerDraft.leftImage || '/images/macaco-bless.png'}
+                          alt="Modelo Esquerda"
+                          className="w-full h-full object-cover object-top"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
+                        <span className="absolute top-2 left-2 bg-black/60 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded-md">
+                          Foto 1 (Esquerda)
+                        </span>
+
+                        <div className="absolute inset-x-2 bottom-2 flex flex-col gap-1.5 opacity-90 group-hover:opacity-100 transition-opacity">
+                          <button
+                            type="button"
+                            onClick={() => setIsSelectingLeftProductPhoto(true)}
+                            className="w-full bg-white/90 hover:bg-white text-neutral-900 text-[10px] font-bold py-1.5 px-2 rounded-xl flex items-center justify-center gap-1 shadow"
+                          >
+                            <LayoutGrid className="w-3 h-3" />
+                            <span>Trocar Foto do Catálogo</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => aiLeftFileRef.current?.click()}
+                            className="w-full bg-black/60 hover:bg-black/80 text-white text-[10px] font-bold py-1.5 px-2 rounded-xl flex items-center justify-center gap-1 backdrop-blur-sm border border-white/20"
+                          >
+                            <Upload className="w-3 h-3" />
+                            <span>Upload de Foto</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Card Central de Conteúdo */}
+                      <div
+                        className="md:col-span-6 relative rounded-2xl p-6 sm:p-8 flex flex-col items-center justify-center text-center text-white overflow-hidden shadow-2xl transition-colors duration-300"
+                        style={{ backgroundColor: aiBannerDraft.centerBgColor || '#163923' }}
+                      >
+                        {/* Arcos decorativos de fundo */}
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
+                          <div className="w-[340px] h-[340px] rounded-full border border-white/40" />
+                          <div className="absolute w-[440px] h-[440px] rounded-full border border-white/20" />
+                          <div className="absolute w-[540px] h-[540px] rounded-full border border-white/10" />
+                        </div>
+
+                        <div className="relative z-10 max-w-md space-y-3">
+                          {/* Badge */}
+                          <div className="inline-block bg-white/15 backdrop-blur-md border border-white/25 px-3 py-1 rounded-full text-[10px] sm:text-xs font-extrabold tracking-widest uppercase">
+                            {aiBannerDraft.badge || 'CAMPANHA AURA'}
+                          </div>
+
+                          {/* Título */}
+                          <h2 className="font-serif text-2xl sm:text-3xl lg:text-4xl font-bold leading-tight tracking-tight drop-shadow-md">
+                            {aiBannerDraft.title || 'Título da Campanha'}
+                          </h2>
+
+                          {/* Subtítulo */}
+                          <p className="text-xs sm:text-sm text-white/80 line-clamp-2 max-w-sm mx-auto font-light leading-relaxed">
+                            {aiBannerDraft.subtitle || 'Subtítulo descritivo elegante gerado pela IA'}
+                          </p>
+
+                          {/* Botão de Chamada CTA */}
+                          <div className="pt-2">
+                            <span className="inline-flex items-center gap-2 bg-white text-neutral-950 font-extrabold text-xs sm:text-sm px-6 py-2.5 rounded-full shadow-lg group-hover:scale-105 transition-transform">
+                              <span>{aiBannerDraft.buttonText || 'Ver Ofertas'}</span>
+                              <ChevronRight className="w-4 h-4" />
+                            </span>
+                          </div>
+
+                          {/* Link de Destino Indicador */}
+                          <div className="pt-1">
+                            <span className="text-[10px] text-white/50 bg-black/30 px-2 py-0.5 rounded font-mono">
+                              Destino: {aiBannerDraft.link || '/catalogo'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Foto Direita */}
+                      <div className="md:col-span-3 relative rounded-2xl overflow-hidden bg-neutral-900 group min-h-[220px]">
+                        <img
+                          src={aiBannerDraft.rightImage || aiBannerDraft.leftImage || '/images/macaco-bless.png'}
+                          alt="Modelo Direita"
+                          className="w-full h-full object-cover object-top"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
+                        <span className="absolute top-2 left-2 bg-black/60 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded-md">
+                          Foto 2 (Direita)
+                        </span>
+
+                        <div className="absolute inset-x-2 bottom-2 flex flex-col gap-1.5 opacity-90 group-hover:opacity-100 transition-opacity">
+                          <button
+                            type="button"
+                            onClick={() => setIsSelectingRightProductPhoto(true)}
+                            className="w-full bg-white/90 hover:bg-white text-neutral-900 text-[10px] font-bold py-1.5 px-2 rounded-xl flex items-center justify-center gap-1 shadow"
+                          >
+                            <LayoutGrid className="w-3 h-3" />
+                            <span>Trocar Foto do Catálogo</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => aiRightFileRef.current?.click()}
+                            className="w-full bg-black/60 hover:bg-black/80 text-white text-[10px] font-bold py-1.5 px-2 rounded-xl flex items-center justify-center gap-1 backdrop-blur-sm border border-white/20"
+                          >
+                            <Upload className="w-3 h-3" />
+                            <span>Upload de Foto</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Ajustes Finos e Personalização */}
+              {aiBannerDraft && (
+                <div className="bg-card border border-border rounded-2xl p-4 sm:p-5 space-y-4">
+                  <div className="flex items-center gap-2 border-b border-border/60 pb-3">
+                    <SlidersHorizontal className="w-4 h-4 text-primary" />
+                    <h4 className="font-bold text-xs sm:text-sm text-foreground">
+                      Ajuste Fino dos Textos, Cores e Destino
+                    </h4>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Badge e Título */}
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-foreground mb-1">
+                          Badge Superior:
+                        </label>
+                        <input
+                          type="text"
+                          value={aiBannerDraft.badge || ''}
+                          onChange={(e) =>
+                            setAiBannerDraft({ ...aiBannerDraft, badge: e.target.value })
+                          }
+                          className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs outline-none focus:border-primary font-bold"
+                          placeholder="Ex: 🔥 BLACK FRIDAY 50% OFF"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-foreground mb-1">
+                          Título Principal:
+                        </label>
+                        <input
+                          type="text"
+                          value={aiBannerDraft.title || ''}
+                          onChange={(e) =>
+                            setAiBannerDraft({ ...aiBannerDraft, title: e.target.value })
+                          }
+                          className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs outline-none focus:border-primary font-bold"
+                          placeholder="Ex: PODER EM CADA DETALHE"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-foreground mb-1">
+                          Subtítulo:
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={aiBannerDraft.subtitle || ''}
+                          onChange={(e) =>
+                            setAiBannerDraft({ ...aiBannerDraft, subtitle: e.target.value })
+                          }
+                          className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs outline-none focus:border-primary resize-none"
+                          placeholder="Ex: Peças com compressão inteligente que modelam sem marcar..."
+                        />
+                      </div>
+                    </div>
+
+                    {/* Botão, Destino e Cores */}
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-foreground mb-1">
+                          Texto do Botão:
+                        </label>
+                        <input
+                          type="text"
+                          value={aiBannerDraft.buttonText || ''}
+                          onChange={(e) =>
+                            setAiBannerDraft({ ...aiBannerDraft, buttonText: e.target.value })
+                          }
+                          className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs outline-none focus:border-primary font-bold"
+                          placeholder="Ex: GARANTIR MEU CONJUNTO"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-foreground mb-1">
+                          Onde o cliente vai ao clicar:
+                        </label>
+                        <select
+                          value={aiBannerDraft.link || '/catalogo'}
+                          onChange={(e) =>
+                            setAiBannerDraft({ ...aiBannerDraft, link: e.target.value })
+                          }
+                          className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs outline-none focus:border-primary font-semibold"
+                        >
+                          <optgroup label="Seções Criadas na Loja">
+                            {sections.map((sec) => (
+                              <option key={sec.id} value={`/catalogo?secao=${sec.slug}`}>
+                                Seção: {sec.name}
+                              </option>
+                            ))}
+                          </optgroup>
+                          <optgroup label="Categorias Principais">
+                            {categories.map((c) => (
+                              <option
+                                key={c.name}
+                                value={`/catalogo?categoria=${encodeURIComponent(c.name)}`}
+                              >
+                                Categoria: {c.name}
+                              </option>
+                            ))}
+                          </optgroup>
+                          <optgroup label="Páginas Gerais">
+                            <option value="/catalogo">Catálogo Completo</option>
+                            <option value="/catalogo?promocao=true">Apenas Promoções</option>
+                            <option value="/catalogo?ordenar=mais-recentes">Lançamentos</option>
+                            <option value="/catalogo?ordenar=mais-vendidos">Mais Vendidos</option>
+                          </optgroup>
+                        </select>
+                      </div>
+
+                      {/* Paleta de Cores de Luxo */}
+                      <div>
+                        <label className="block text-xs font-semibold text-foreground mb-1.5 flex items-center justify-between">
+                          <span>Cor de Fundo do Card Central:</span>
+                          <span className="font-mono text-[10px] text-muted-foreground">
+                            {aiBannerDraft.centerBgColor}
+                          </span>
+                        </label>
+
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {[
+                            { name: 'Esmeralda', hex: '#163923' },
+                            { name: 'Rubi Black', hex: '#1c1114' },
+                            { name: 'Plum Velvet', hex: '#2b1428' },
+                            { name: 'Navy Midnight', hex: '#142538' },
+                            { name: 'Terra Cotta', hex: '#2d1812' },
+                            { name: 'Ônix Titan', hex: '#181c20' },
+                          ].map((col) => (
+                            <button
+                              key={col.hex}
+                              type="button"
+                              onClick={() =>
+                                setAiBannerDraft({ ...aiBannerDraft, centerBgColor: col.hex })
+                              }
+                              className={`w-7 h-7 rounded-full border transition-transform flex items-center justify-center ${
+                                aiBannerDraft.centerBgColor === col.hex
+                                  ? 'scale-110 border-white ring-2 ring-primary shadow-md'
+                                  : 'border-border/60 hover:scale-105'
+                              }`}
+                              style={{ backgroundColor: col.hex }}
+                              title={col.name}
+                            >
+                              {aiBannerDraft.centerBgColor === col.hex && (
+                                <Check className="w-3.5 h-3.5 text-white" />
+                              )}
+                            </button>
+                          ))}
+
+                          <div className="flex items-center gap-1.5 ml-1">
+                            <input
+                              type="color"
+                              value={aiBannerDraft.centerBgColor || '#163923'}
+                              onChange={(e) =>
+                                setAiBannerDraft({
+                                  ...aiBannerDraft,
+                                  centerBgColor: e.target.value,
+                                })
+                              }
+                              className="w-7 h-7 rounded-xl border border-border cursor-pointer bg-transparent"
+                              title="Escolher cor personalizada"
+                            />
+                            <span className="text-[10px] text-muted-foreground">Personalizada</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 sm:p-5 border-t border-border bg-muted/40 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <p className="text-xs text-muted-foreground text-center sm:text-left">
+                Ao publicar, o banner será salvo e colocado em <strong>1º lugar no carrossel da Página Principal</strong>.
+              </p>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsAiGeneratorOpen(false)}
+                  className="bg-secondary text-foreground px-4 py-2.5 rounded-xl font-semibold text-xs hover:bg-secondary/80 transition-colors"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handlePublishAiBanner}
+                  disabled={!aiBannerDraft || isGeneratingAiBanner}
+                  className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-6 py-2.5 rounded-xl font-bold text-xs shadow-lg flex items-center gap-2 transition-all disabled:opacity-50"
+                >
+                  <Sparkles className="w-4 h-4 text-amber-200" />
+                  <span>🚀 Salvar e Publicar na Página Principal</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* SELETOR DE FOTO DO CATÁLOGO DE PRODUTOS PARA O BANNER                 */}
+      {/* ===================================================================== */}
+      {(isSelectingLeftProductPhoto || isSelectingRightProductPhoto) && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-3xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-4 border-b border-border flex items-center justify-between">
+              <div>
+                <h4 className="font-bold text-sm text-foreground flex items-center gap-2">
+                  <LayoutGrid className="w-4 h-4 text-primary" />
+                  <span>
+                    Escolha a Foto para a{' '}
+                    {isSelectingLeftProductPhoto ? 'Esquerda' : 'Direita'} do Banner
+                  </span>
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  Clique na foto de qualquer produto cadastrado para utilizá-la no banner da Home.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSelectingLeftProductPhoto(false);
+                  setIsSelectingRightProductPhoto(false);
+                }}
+                className="w-7 h-7 rounded-full bg-muted hover:bg-muted/80 text-muted-foreground flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-3 border-b border-border bg-muted/30">
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Pesquisar produto por nome ou categoria..."
+                  value={aiPhotoSearch}
+                  onChange={(e) => setAiPhotoSearch(e.target.value)}
+                  className="w-full bg-background border border-border rounded-xl pl-9 pr-3 py-1.5 text-xs outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="p-4 overflow-y-auto flex-1 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {products
+                .filter(
+                  (p) =>
+                    !aiPhotoSearch.trim() ||
+                    p.name.toLowerCase().includes(aiPhotoSearch.toLowerCase()) ||
+                    p.category.toLowerCase().includes(aiPhotoSearch.toLowerCase())
+                )
+                .map((product) => {
+                  const photoUrl = product.images?.[0] || '/images/macaco-bless.png';
+                  return (
+                    <button
+                      key={product.id}
+                      type="button"
+                      onClick={() => {
+                        if (isSelectingLeftProductPhoto && aiBannerDraft) {
+                          setAiBannerDraft({ ...aiBannerDraft, leftImage: photoUrl });
+                          showToast('Foto esquerda atualizada a partir do produto!');
+                        } else if (isSelectingRightProductPhoto && aiBannerDraft) {
+                          setAiBannerDraft({ ...aiBannerDraft, rightImage: photoUrl });
+                          showToast('Foto direita atualizada a partir do produto!');
+                        }
+                        setIsSelectingLeftProductPhoto(false);
+                        setIsSelectingRightProductPhoto(false);
+                      }}
+                      className="group text-left border border-border rounded-2xl overflow-hidden hover:border-primary hover:shadow-md transition-all bg-muted/20"
+                    >
+                      <div className="aspect-[3/4] relative bg-neutral-900 overflow-hidden">
+                        <img
+                          src={photoUrl}
+                          alt={product.name}
+                          className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform"
+                        />
+                        <div className="absolute inset-0 bg-primary/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <span className="bg-primary text-white text-[10px] font-bold px-2 py-1 rounded-full shadow">
+                            Usar esta foto
+                          </span>
+                        </div>
+                      </div>
+                      <div className="p-2">
+                        <div className="text-[11px] font-bold text-foreground truncate">
+                          {product.name}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground truncate">
+                          {product.category}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+            </div>
           </div>
         </div>
       )}

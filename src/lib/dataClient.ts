@@ -1214,6 +1214,236 @@ export async function aiGenerateSeoMeta(title: string, _content: string): Promis
   };
 }
 
+export interface AiGeneratedBannerResult {
+  badge: string;
+  title: string;
+  subtitle: string;
+  buttonText: string;
+  link: string;
+  centerBgColor: string;
+  leftImage: string;
+  rightImage: string;
+  themeNotes?: string;
+  alternativeStyles: {
+    name: string;
+    badge: string;
+    title: string;
+    subtitle: string;
+    buttonText: string;
+    centerBgColor: string;
+  }[];
+}
+
+/**
+ * Gerador Inteligente de Banners com IA para a Página Principal (Home)
+ * Analisa o tema, promoção ou data digitada e elabora copywriting de alta conversão,
+ * paleta de cores nobre e seleção inteligente das melhores fotos de produtos.
+ */
+export async function aiGenerateHeroBanner(
+  themePrompt: string,
+  storeProducts: Product[] = []
+): Promise<AiGeneratedBannerResult> {
+  // Simula o tempo de processamento cognitivo da IA
+  await new Promise((res) => setTimeout(res, 500));
+
+  const cleanTheme = (themePrompt || '').trim();
+  const lower = cleanTheme
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  // 1. Detecta porcentagem de desconto se houver
+  const discountMatch = cleanTheme.match(/(\d{1,2}%|\d{1,2}\s*off)/i);
+  const discountText = discountMatch ? discountMatch[0].toUpperCase() : '';
+
+  // 2. Classificação de Tema
+  const isBlackFriday = lower.includes('black friday') || lower.includes('black') || lower.includes('cyber');
+  const isSale =
+    isBlackFriday ||
+    lower.includes('promoc') ||
+    lower.includes('desconto') ||
+    lower.includes('queima') ||
+    lower.includes('liquida') ||
+    lower.includes('outlet') ||
+    Boolean(discountText);
+
+  const isSummer = lower.includes('verao') || lower.includes('calor') || lower.includes('praia') || lower.includes('solar');
+  const isWinter = lower.includes('inverno') || lower.includes('frio') || lower.includes('termic') || lower.includes('agasalho');
+  const isMothers = lower.includes('mae') || lower.includes('maes');
+  const isValentines = lower.includes('namorad') || lower.includes('amor');
+  const isConsumer = lower.includes('consumidor');
+
+  const isMacaquinho = lower.includes('macaquinh') || lower.includes('macac');
+  const isConjunto = lower.includes('conjunt') || lower.includes('look') || lower.includes('duo');
+  const isLegging = lower.includes('legging') || lower.includes('calca');
+  const isTop = lower.includes('top') || lower.includes('cropped');
+
+  // 3. Escolha das fotos ideais
+  let matchingProductImages: string[] = [];
+  if (Array.isArray(storeProducts) && storeProducts.length > 0) {
+    const relevantProducts = storeProducts.filter((p) => {
+      const pName = (p.name || '').toLowerCase();
+      const pCat = (p.category || '').toLowerCase();
+      if (isMacaquinho && (pName.includes('macaquinh') || pCat.includes('macac'))) return true;
+      if (isConjunto && (pName.includes('conjunto') || pCat.includes('conjunt'))) return true;
+      if (isLegging && (pName.includes('legging') || pCat.includes('legging'))) return true;
+      if (isTop && (pName.includes('top') || pCat.includes('top'))) return true;
+      return false;
+    });
+
+    relevantProducts.forEach((p) => {
+      if (Array.isArray(p.images) && p.images[0]) {
+        matchingProductImages.push(p.images[0]);
+      }
+    });
+  }
+
+  let leftImg = '/images/look-3103.png';
+  let rightImg = '/images/macaco-bless.png';
+
+  if (isMacaquinho) {
+    leftImg = '/images/macaco-bless.png';
+    rightImg = matchingProductImages[0] || '/images/look-3214.png';
+  } else if (isSummer) {
+    leftImg = '/images/banner-style.png';
+    rightImg = '/images/look-3656.png';
+  } else if (isWinter) {
+    leftImg = '/images/look-3656.png';
+    rightImg = '/images/look-3103.png';
+  } else if (isConjunto) {
+    leftImg = '/images/look-3103.png';
+    rightImg = '/images/look-3214.png';
+  } else if (matchingProductImages.length >= 2) {
+    leftImg = matchingProductImages[0];
+    rightImg = matchingProductImages[1];
+  } else if (matchingProductImages.length === 1) {
+    leftImg = matchingProductImages[0];
+    rightImg = '/images/macaco-bless.png';
+  }
+
+  // 4. Criação das Chamadas, Badges e Cores
+  let badge = '✨ LANÇAMENTO EXCLUSIVO';
+  let title = 'FORÇA, ELEGÂNCIA & MOVIMENTO';
+  let subtitle =
+    'Tecnologia de alta sustentação com toque aveludado e zero transparência. O equilíbrio supremo entre conforto e modelagem anatômica.';
+  let buttonText = 'CONFERIR COLEÇÃO';
+  let link = '/catalogo';
+  let centerBgColor = '#163923'; // Verde floresta Aura oficial
+
+  if (isBlackFriday) {
+    badge = discountText ? `🔥 BLACK FRIDAY • ATÉ ${discountText}` : '🔥 BLACK FRIDAY AURA';
+    title = 'OS MAIORES DESCONTOS DO ANO';
+    subtitle = `Condições imperdíveis nas peças mais desejadas da marca. Conjuntos e macaquinhos de alta performance com até ${discountText || '50% OFF'} por tempo estritamente limitado!`;
+    buttonText = discountText ? `APROVEITAR ${discountText}` : 'GARANTIR OFERTAS BLACK';
+    link = '/catalogo?promocao=true';
+    centerBgColor = '#181112'; // Obsidian Ruby Black
+  } else if (isSale) {
+    badge = discountText ? `⚡ OFERTA RELÂMPAGO • ${discountText}` : '💥 QUEIMA DE ESTOQUE';
+    title = discountText ? `DESCONTOS DE ATÉ ${discountText}` : 'SELEÇÃO ESPECIAL EM PROMOÇÃO';
+    subtitle = 'Renove seu guarda-roupa fitness com tecnologia premium, toque macio e elasticidade 4D com preços imperdíveis.';
+    buttonText = discountText ? `APROVEITAR ${discountText}` : 'VER TODAS AS OFERTAS';
+    link = '/catalogo?promocao=true';
+    centerBgColor = '#1c1418';
+  } else if (isSummer) {
+    badge = '☀️ VERÃO 2026 • MODA SOLAR';
+    title = 'BRILHO, LEVEZA & MÁXIMA RESPIRAÇÃO';
+    subtitle = 'Peças leves com proteção UV50+ e regulação térmica avançada para treinos intensos nos dias mais ensolarados.';
+    buttonText = 'VER MODA VERÃO';
+    link = '/catalogo?secao=moda-verao';
+    centerBgColor = '#1a3c26';
+  } else if (isWinter) {
+    badge = '❄️ COLEÇÃO INVERNO • LINHA TÉRMICA';
+    title = 'AQUECIMENTO, CONFORTO & ELEGÂNCIA';
+    subtitle = 'Casacos corta-vento, agasalhos esportivos e leggings térmicas de alta compressão para treinar no frio com alto rendimento.';
+    buttonText = 'VER LINHA INVERNO';
+    link = '/catalogo?categoria=Jaquetas';
+    centerBgColor = '#142538'; // Midnight Ocean
+  } else if (isMothers) {
+    badge = '🌸 ESPECIAL DIA DAS MÃES';
+    title = 'O PRESENTE QUE CELEBRA A FORÇA DELA';
+    subtitle = 'Surpreenda com looks exclusivos que unem sofisticação, conforto supremo e liberdade de movimento todos os dias.';
+    buttonText = 'ESCOLHER PRESENTE';
+    link = '/catalogo';
+    centerBgColor = '#351829'; // Velvet Plum
+  } else if (isValentines) {
+    badge = '❤️ ESPECIAL DIA DOS NAMORADOS';
+    title = 'AMOR, ESTILO & CONEXÃO EM MOVIMENTO';
+    subtitle = 'Combinações sofisticadas para você treinar com quem te inspira a ir mais longe. Presentes inesquecíveis Aura.';
+    buttonText = 'CONFERIR SELEÇÃO';
+    link = '/catalogo';
+    centerBgColor = '#3b1620';
+  } else if (isConsumer) {
+    badge = '⚡ SEMANA DO CONSUMIDOR';
+    title = 'VANTAGENS EXCLUSIVAS PARA VOCÊ';
+    subtitle = 'Uma semana inteira de promoções selecionadas a dedo para transformar seus treinos diários.';
+    buttonText = 'APROVEITAR SEMANA DO CONSUMIDOR';
+    link = '/catalogo?promocao=true';
+    centerBgColor = '#192b1d';
+  } else if (isMacaquinho) {
+    badge = '🩱 ESPECIAL MACAQUINHOS & BODIES';
+    title = 'MODELAGEM ANATÔMICA & COSTAS LIVRES';
+    subtitle = 'O clássico preferido para musculação, corrida e pilates. Efeito compressivo que valoriza a silhueta com zero incômodo.';
+    buttonText = 'VER MACAQUINHOS';
+    link = '/catalogo?categoria=Macaquinhos';
+    centerBgColor = '#163923';
+  } else if (isConjunto) {
+    badge = '👗 COLEÇÃO CONJUNTOS & DUOS';
+    title = 'HARMONIA PERFEITA ENTRE TOP & LEGGING';
+    subtitle = 'Praticidade e sofisticação no vestiário com looks completos que sustentam e desenham o corpo sem transparência.';
+    buttonText = 'EXPLORAR CONJUNTOS';
+    link = '/catalogo?categoria=Conjuntos';
+    centerBgColor = '#1a3924';
+  } else if (cleanTheme) {
+    badge = `✨ ${cleanTheme.toUpperCase().slice(0, 32)}`;
+    title = cleanTheme.length < 24 ? cleanTheme.toUpperCase() : 'COLEÇÃO EXCLUSIVA AURA';
+    subtitle = `Peças confeccionadas com malha de alta densidade, toque aveludado e sustentação estratégica para o seu dia a dia. Especialmente para: ${cleanTheme}.`;
+    buttonText = 'GARANTIR MEU LOOK';
+    link = '/catalogo';
+    centerBgColor = '#163923';
+  }
+
+  // 5. Gera 3 estilos alternativos para o usuário poder escolher com 1 clique
+  const alternativeStyles = [
+    {
+      name: 'Impacto Promocional',
+      badge: discountText ? `🔥 OFERTA LIMITADA • ${discountText}` : '🔥 DESCONTOS IMPERDÍVEIS',
+      title: discountText ? `ATÉ ${discountText} DE DESCONTO` : 'OPORTUNIDADE EXCLUSIVA',
+      subtitle: `Garanta as peças mais amadas do catálogo com preços especiais por tempo limitado. Aproveite antes que acabe o estoque!`,
+      buttonText: discountText ? `APROVEITAR ${discountText}` : 'CONFERIR DESCONTOS',
+      centerBgColor: '#1a1013',
+    },
+    {
+      name: 'Editorial Luxo',
+      badge: '💎 ALTA PERFORMANCE & ELEGÂNCIA',
+      title: 'A EXCELÊNCIA EM CADA DETALHE',
+      subtitle: 'Desenvolvido para quem não abre mão de conforto extremo, acabamento premium e elegância impecável dentro e fora do treino.',
+      buttonText: 'CONHECER COLEÇÃO',
+      centerBgColor: '#163923',
+    },
+    {
+      name: 'Moderno & Ativo',
+      badge: '⚡ NOVA ENERGIA EM MOVIMENTO',
+      title: 'POTÊNCIA & LIBERDADE TOTAL',
+      subtitle: 'Tecnologia com elasticidade multidirecional e toque fresco para acompanhar o ritmo dos seus melhores treinos.',
+      buttonText: 'EU QUERO ESSA PEÇA',
+      centerBgColor: '#142538',
+    },
+  ];
+
+  return {
+    badge,
+    title,
+    subtitle,
+    buttonText,
+    link,
+    centerBgColor,
+    leftImage: leftImg,
+    rightImage: rightImg,
+    themeNotes: `Banner gerado com sucesso pela IA com base no tema "${cleanTheme}".`,
+    alternativeStyles,
+  };
+}
+
 // ==========================================
 // SEÇÕES DA LOJA EM EXPOSIÇÃO (MENUS & HOME)
 // ==========================================
