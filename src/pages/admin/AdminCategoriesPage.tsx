@@ -50,6 +50,9 @@ import {
   renameStoredCategory,
   getCategoryPhoto,
   isProductMatchingCategory,
+  getProductCategories,
+  removeProductFromCategory,
+  assignProductToCategory,
 } from '../../lib/productClassifier';
 import { ProductImporterModal } from '../../components/admin/ProductImporterModal';
 import { useLightbox } from '../../contexts/LightboxContext';
@@ -76,6 +79,11 @@ export const AdminCategoriesPage: React.FC = () => {
   const [isAiLoading, setIsAiLoading] = useState(false);
 
   const [isImporterOpen, setIsImporterOpen] = useState(false);
+  const [pendingCategoryMove, setPendingCategoryMove] = useState<{
+    product: Product;
+    sourceCategory: string;
+    targetCategory: string;
+  } | null>(null);
 
   // Sync products on load
   const refreshProducts = () => {
@@ -109,16 +117,10 @@ export const AdminCategoriesPage: React.FC = () => {
     }, 3500);
   };
 
-  // Group products by category
+  // Group products by category (estritamente pelas categorias atribuídas ao produto, sem duplicação indevida)
   const categoryData = useMemo(() => {
     return categories.map((cat) => {
-      const catLower = cat.name.trim().toLowerCase();
-      const items = products.filter(
-        (p) =>
-          (p.category && p.category.trim().toLowerCase() === catLower) ||
-          normalizeCategoryName(p.category).toLowerCase() === catLower ||
-          isProductMatchingCategory(p, cat.name)
-      );
+      const items = products.filter((p) => isProductMatchingCategory(p, cat.name));
 
       // Filter by search query if any
       const matchingItems = items.filter((p) => {
@@ -156,28 +158,87 @@ export const AdminCategoriesPage: React.FC = () => {
   const categoriesWithProducts = categoryData.filter((c) => c.items.length > 0).length;
   const totalProducts = products.length;
 
-  // Change category of product in 1 click
-  const handleChangeProductCategory = (product: Product, newCategoryName: string) => {
-    if ((product.category || '').trim().toLowerCase() === newCategoryName.trim().toLowerCase()) return;
+  // Solicita mudança ou adição de segunda categoria (pergunta se deseja mover ou manter nas duas categorias)
+  const handleRequestCategoryChange = (
+    product: Product,
+    sourceCategoryName: string,
+    newCategoryName: string
+  ) => {
+    if (!newCategoryName || sourceCategoryName.trim().toLowerCase() === newCategoryName.trim().toLowerCase()) {
+      return;
+    }
 
-    const updated = {
-      ...product,
-      category: newCategoryName,
-    };
+    const currentCats = getProductCategories(product);
+    if (currentCats.some((c) => c.toLowerCase() === newCategoryName.trim().toLowerCase())) {
+      showToast(`O produto "${product.name}" já consta na categoria "${newCategoryName}".`);
+      return;
+    }
 
+    // Se o produto já possui uma categoria, pergunta ao administrador se deseja apenas mover ou manter nas 2 categorias
+    if (currentCats.length > 0) {
+      setPendingCategoryMove({
+        product,
+        sourceCategory: sourceCategoryName,
+        targetCategory: newCategoryName,
+      });
+      return;
+    }
+
+    const updated = assignProductToCategory(product, newCategoryName, 'move');
     saveProduct(updated);
     setProducts([...getProducts()]);
     window.dispatchEvent(new CustomEvent('aura_products_updated'));
     showToast(`✓ Produto "${product.name}" movido para a categoria "${newCategoryName}"!`);
   };
 
-  // Delete product
-  const handleDeleteProduct = (product: Product) => {
-    if (window.confirm(`Tem certeza que deseja excluir o produto "${product.name}"?`)) {
-      deleteProduct(product.id);
-      setProducts([...getProducts()]);
-      window.dispatchEvent(new CustomEvent('aura_products_updated'));
-      showToast(`✓ Produto "${product.name}" removido com sucesso.`);
+  const handleConfirmCategoryMoveMode = (mode: 'move' | 'add-both') => {
+    if (!pendingCategoryMove) return;
+    const { product, sourceCategory, targetCategory } = pendingCategoryMove;
+    const updated = assignProductToCategory(product, targetCategory, mode, sourceCategory);
+    saveProduct(updated);
+    setProducts([...getProducts()]);
+    window.dispatchEvent(new CustomEvent('aura_products_updated'));
+    setPendingCategoryMove(null);
+
+    if (mode === 'move') {
+      showToast(
+        `✓ "${product.name}" movido de "${sourceCategory}" para "${targetCategory}"!`
+      );
+    } else {
+      showToast(
+        `✓ "${product.name}" mantido nas categorias "${sourceCategory}" e "${targetCategory}"!`
+      );
+    }
+  };
+
+  // Exclui o produto APENAS daquela categoria (sem apagar o produto de outras categorias ou da loja)
+  const handleRemoveProductFromThisCategory = (product: Product, categoryName: string) => {
+    const currentCats = getProductCategories(product);
+    const otherCats = currentCats.filter(
+      (c) => c.toLowerCase() !== categoryName.trim().toLowerCase()
+    );
+
+    const confirmMsg =
+      otherCats.length > 0
+        ? `Deseja remover "${product.name}" apenas da categoria "${categoryName}"?\n\nO produto continuará ativo em: ${otherCats.join(', ')}.`
+        : `Deseja remover "${product.name}" da categoria "${categoryName}"?\n\nO produto sairá apenas desta categoria e continuará salvo no seu catálogo geral de produtos.`;
+
+    if (!window.confirm(confirmMsg)) return;
+
+    const { updatedProduct, remainingCategories } = removeProductFromCategory(
+      product,
+      categoryName
+    );
+    saveProduct(updatedProduct);
+    setProducts([...getProducts()]);
+    window.dispatchEvent(new CustomEvent('aura_products_updated'));
+
+    if (remainingCategories.length > 0) {
+      showToast(
+        `✓ "${product.name}" removido de "${categoryName}" (mantido em: ${remainingCategories.join(', ')}).`
+      );
+    } else {
+      showToast(`✓ "${product.name}" removido da categoria "${categoryName}".`);
     }
   };
 
@@ -576,9 +637,7 @@ export const AdminCategoriesPage: React.FC = () => {
           </button>
 
           {categories.map((cat) => {
-            const count = products.filter(
-              (p) => normalizeCategoryName(p.category) === cat.name
-            ).length;
+            const count = products.filter((p) => isProductMatchingCategory(p, cat.name)).length;
             const isSelected = selectedCategoryTab === cat.name;
 
             return (
@@ -839,29 +898,62 @@ export const AdminCategoriesPage: React.FC = () => {
                                 </div>
                               </td>
 
-                              {/* Quick Move Category Dropdown */}
+                              {/* Quick Move / Add Category Dropdown */}
                               <td className="py-3.5">
-                                <div className="flex items-center gap-1.5">
-                                  <Move className="w-3.5 h-3.5 text-muted-foreground" />
-                                  <select
-                                    value={category.name}
-                                    onChange={(e) =>
-                                      handleChangeProductCategory(prod, e.target.value)
-                                    }
-                                    className="bg-background border border-border rounded-lg px-2.5 py-1 text-[11px] font-semibold text-foreground focus:ring-1 focus:ring-primary cursor-pointer hover:border-primary transition-colors"
-                                  >
-                                    {categories.map((c) => (
-                                      <option key={c.name} value={c.name}>
-                                        Mover para: {c.icon} {c.name}
-                                      </option>
-                                    ))}
-                                  </select>
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <Move className="w-3.5 h-3.5 text-muted-foreground" />
+                                    <select
+                                      value={category.name}
+                                      onChange={(e) =>
+                                        handleRequestCategoryChange(
+                                          prod,
+                                          category.name,
+                                          e.target.value
+                                        )
+                                      }
+                                      className="bg-background border border-border rounded-lg px-2.5 py-1 text-[11px] font-semibold text-foreground focus:ring-1 focus:ring-primary cursor-pointer hover:border-primary transition-colors"
+                                    >
+                                      {categories.map((c) => (
+                                        <option key={c.name} value={c.name}>
+                                          {c.name === category.name
+                                            ? `Atual: ${c.icon} ${c.name}`
+                                            : `Mover / Incluir em: ${c.icon} ${c.name}`}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  {getProductCategories(prod).length > 1 && (
+                                    <div className="flex items-center gap-1 flex-wrap">
+                                      <span className="text-[9px] text-amber-600 dark:text-amber-400 font-bold">
+                                        Em {getProductCategories(prod).length} categorias:
+                                      </span>
+                                      {getProductCategories(prod).map((cName) => (
+                                        <span
+                                          key={cName}
+                                          className="text-[9px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-semibold flex items-center gap-1"
+                                        >
+                                          <span>{cName}</span>
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              handleRemoveProductFromThisCategory(prod, cName)
+                                            }
+                                            className="hover:text-rose-500 font-bold"
+                                            title={`Remover apenas da categoria "${cName}"`}
+                                          >
+                                            ×
+                                          </button>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
                               </td>
 
                               {/* Actions */}
                               <td className="py-3.5 text-right pr-2">
-                                <div className="flex items-center justify-end gap-1">
+                                <div className="flex items-center justify-end gap-1.5">
                                   <button
                                     onClick={() => handleOpenEditProduct(prod)}
                                     className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted transition-colors"
@@ -871,11 +963,14 @@ export const AdminCategoriesPage: React.FC = () => {
                                   </button>
 
                                   <button
-                                    onClick={() => handleDeleteProduct(prod)}
-                                    className="p-1.5 text-muted-foreground hover:text-destructive rounded-lg hover:bg-muted transition-colors"
-                                    title="Excluir produto"
+                                    onClick={() =>
+                                      handleRemoveProductFromThisCategory(prod, category.name)
+                                    }
+                                    className="px-2 py-1 text-rose-600 hover:text-white hover:bg-rose-600 rounded-lg border border-rose-500/30 transition-colors flex items-center gap-1 text-[10px] font-bold"
+                                    title={`Remover "${prod.name}" apenas da categoria "${category.name}"`}
                                   >
-                                    <Trash2 className="w-4 h-4" />
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <span className="hidden xl:inline">Remover da Categoria</span>
                                   </button>
                                 </div>
                               </td>
@@ -1186,6 +1281,82 @@ export const AdminCategoriesPage: React.FC = () => {
               </div>
             </form>
           </motion.div>
+        </div>
+      )}
+
+      {/* Modal de Confirmação: Mover vs Colocar em Duas Categorias */}
+      {pendingCategoryMove && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="bg-card border border-border rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-start justify-between gap-3 border-b border-border pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/15 text-amber-500 flex items-center justify-center shrink-0">
+                  <FolderTree className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-serif font-bold text-base text-foreground">
+                    Mover ou manter em 2 categorias?
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground">
+                    Confirme como deseja organizar este produto
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPendingCategoryMove(null)}
+                className="text-muted-foreground hover:text-foreground p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="bg-muted/40 border border-border rounded-2xl p-3.5 space-y-2 text-xs">
+              <p className="font-bold text-foreground">{pendingCategoryMove.product.name}</p>
+              <p className="text-muted-foreground leading-relaxed">
+                Este produto está em{' '}
+                <strong className="text-foreground">"{pendingCategoryMove.sourceCategory}"</strong> e
+                você selecionou{' '}
+                <strong className="text-primary">"{pendingCategoryMove.targetCategory}"</strong>.
+              </p>
+              <p className="text-amber-600 dark:text-amber-400 font-semibold text-[11px]">
+                Você deseja apenas mover o produto ou realmente deseja que ele conste nas duas categorias ao mesmo tempo?
+              </p>
+            </div>
+
+            <div className="space-y-2 pt-1">
+              <button
+                type="button"
+                onClick={() => handleConfirmCategoryMoveMode('move')}
+                className="w-full py-3 px-4 rounded-xl bg-primary hover:bg-primary-hover text-white font-bold text-xs shadow-md transition-all flex items-center justify-between"
+              >
+                <span>
+                  1. Apenas Mover para "{pendingCategoryMove.targetCategory}" (1 categoria)
+                </span>
+                <ArrowRight className="w-4 h-4 shrink-0" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleConfirmCategoryMoveMode('add-both')}
+                className="w-full py-3 px-4 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-bold text-xs transition-all flex items-center justify-between"
+              >
+                <span>
+                  2. Sim, colocar nas 2 categorias ("{pendingCategoryMove.sourceCategory}" + "
+                  {pendingCategoryMove.targetCategory}")
+                </span>
+                <Check className="w-4 h-4 shrink-0" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPendingCategoryMove(null)}
+                className="w-full py-2.5 px-4 rounded-xl bg-secondary text-muted-foreground hover:text-foreground font-semibold text-xs transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

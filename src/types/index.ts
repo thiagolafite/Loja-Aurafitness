@@ -16,6 +16,7 @@ export interface Product {
   description: string;
   fullDescription: string;
   category: string;
+  additionalCategories?: string[];
   price: number;
   promotionalPrice?: number;
   sku: string;

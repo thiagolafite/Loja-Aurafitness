@@ -27,19 +27,20 @@ import {
 } from '../data/initialData';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 import {
-  getEffectiveProductCategory,
+  getCanonicalGarmentCategoryFromName,
+  areCategoriesEquivalent,
   getEffectiveProductColors,
   getProductSizes,
   getStoredCategories,
 } from './productClassifier';
 
-function normalizeProductData(p: Product, activeCategories = getStoredCategories()): Product {
-  const effectiveCategory = getEffectiveProductCategory(p, activeCategories);
+function normalizeProductData(p: Product, _activeCategories = getStoredCategories()): Product {
   const effectiveColors = getEffectiveProductColors(p);
   const effectiveSizes = getProductSizes(p);
   return {
     ...p,
-    category: effectiveCategory || p.category,
+    category: p.category || 'Conjuntos',
+    additionalCategories: Array.isArray(p.additionalCategories) ? p.additionalCategories : [],
     colors: effectiveColors.length > 0 ? effectiveColors : p.colors,
     sizes: effectiveSizes.length > 0 ? effectiveSizes : p.sizes || ['P', 'M', 'G'],
   };
@@ -156,9 +157,39 @@ function setStorageItem<T>(key: string, value: T): void {
 }
 
 // In-memory cache for synchronous reads with background Supabase sync
-let cachedProducts: Product[] = getStorageItem<Product[]>(STORAGE_KEYS.PRODUCTS, initialProducts).map(
-  (p) => normalizeProductData(p)
-);
+let cachedProducts: Product[] = (() => {
+  const rawList = getStorageItem<Product[]>(STORAGE_KEYS.PRODUCTS, initialProducts);
+  const migratedKey = 'aura_strict_single_cat_v2';
+  const alreadyMigrated =
+    typeof window !== 'undefined' && localStorage.getItem(migratedKey) === 'true';
+
+  if (!alreadyMigrated && typeof window !== 'undefined') {
+    const activeCats = getStoredCategories();
+    const cleaned = rawList.map((p) => {
+      let trueCat = (p.category || '').trim();
+      const nameGarment = getCanonicalGarmentCategoryFromName(p.name);
+      // Corrige uma única vez produtos que foram importados com fallback "Conjuntos"/"Leggings" mas cujo nome é explicitamente outra peça (ex: Macaquinho)
+      if (
+        nameGarment &&
+        (trueCat === 'Conjuntos' || trueCat === 'Leggings') &&
+        !areCategoriesEquivalent(trueCat, nameGarment)
+      ) {
+        const matchInStore = activeCats.find((c) => areCategoriesEquivalent(c.name, nameGarment));
+        trueCat = matchInStore ? matchInStore.name : nameGarment;
+      }
+      return normalizeProductData({
+        ...p,
+        category: trueCat || 'Conjuntos',
+        additionalCategories: [],
+      });
+    });
+    setStorageItem(STORAGE_KEYS.PRODUCTS, cleaned);
+    localStorage.setItem(migratedKey, 'true');
+    return cleaned;
+  }
+
+  return rawList.map((p) => normalizeProductData(p));
+})();
 let cachedOrders: Order[] = getStorageItem<Order[]>(STORAGE_KEYS.ORDERS, initialOrders);
 let cachedCustomers: CustomerProfile[] = getStorageItem<CustomerProfile[]>(STORAGE_KEYS.CUSTOMERS, initialCustomers);
 let cachedReviews: Review[] = getStorageItem<Review[]>(STORAGE_KEYS.REVIEWS, initialReviews);

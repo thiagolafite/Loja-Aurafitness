@@ -236,47 +236,124 @@ export function getCanonicalGarmentCategoryFromName(name?: string): string | nul
 }
 
 /**
- * Determina a categoria efetiva (única e sem ambiguidade) de um produto.
- * Corrige automaticamente produtos cujo nome declara explicitamente a peça (ex: "Macaquinho Fitness...")
- * mas que ficaram salvos com categoria padrão de fallback ("Conjuntos" ou "Leggings").
+ * Retorna a lista exata de categorias às quais o produto pertence.
+ * Por padrão cada produto pertence a 1 única categoria (product.category).
+ * Só pertence a mais de uma se o administrador tiver confirmado explicitamente (product.additionalCategories).
+ */
+export function getProductCategories(product: {
+  category?: string;
+  additionalCategories?: string[];
+}): string[] {
+  const list: string[] = [];
+  const primary = (product.category || '').trim();
+  if (primary && primary.toLowerCase() !== 'sem categoria') {
+    list.push(primary);
+  }
+  if (Array.isArray(product.additionalCategories)) {
+    product.additionalCategories.forEach((c) => {
+      const trimmed = (c || '').trim();
+      if (
+        trimmed &&
+        trimmed.toLowerCase() !== 'sem categoria' &&
+        !list.some((existing) => existing.toLowerCase() === trimmed.toLowerCase())
+      ) {
+        list.push(trimmed);
+      }
+    });
+  }
+  return list;
+}
+
+/**
+ * Remove um produto APENAS da categoria informada, preservando-o nas demais categorias
+ * (ou marcando-o como 'Sem Categoria' caso estivesse apenas nela, sem apagar o produto do catálogo geral).
+ */
+export function removeProductFromCategory<
+  T extends { category?: string; additionalCategories?: string[] }
+>(
+  product: T,
+  categoryToRemove: string
+): { updatedProduct: T; remainingCategories: string[] } {
+  const targetNorm = categoryToRemove.trim().toLowerCase();
+  const currentCats = getProductCategories(product);
+  const remaining = currentCats.filter((c) => c.toLowerCase() !== targetNorm);
+
+  const newPrimary = remaining[0] || 'Sem Categoria';
+  const newAdditional = remaining.slice(1);
+
+  return {
+    updatedProduct: {
+      ...product,
+      category: newPrimary,
+      additionalCategories: newAdditional,
+    },
+    remainingCategories: remaining,
+  };
+}
+
+/**
+ * Atribui um produto a uma categoria:
+ * - mode === 'move': move o produto para targetCategory (removendo da categoria anterior)
+ * - mode === 'add-both': mantém na(s) categoria(s) atual(is) e adiciona também em targetCategory
+ */
+export function assignProductToCategory<
+  T extends { category?: string; additionalCategories?: string[] }
+>(
+  product: T,
+  targetCategory: string,
+  mode: 'move' | 'add-both',
+  sourceCategory?: string
+): T {
+  const trimmedTarget = targetCategory.trim();
+  const currentCats = getProductCategories(product);
+
+  if (mode === 'move') {
+    if (sourceCategory) {
+      const sourceNorm = sourceCategory.trim().toLowerCase();
+      const filtered = currentCats.filter(
+        (c) => c.toLowerCase() !== sourceNorm && c.toLowerCase() !== trimmedTarget.toLowerCase()
+      );
+      const nextCats = [trimmedTarget, ...filtered];
+      return {
+        ...product,
+        category: nextCats[0],
+        additionalCategories: nextCats.slice(1),
+      };
+    }
+    return {
+      ...product,
+      category: trimmedTarget,
+      additionalCategories: [],
+    };
+  }
+
+  // mode === 'add-both'
+  const nextCats = [...currentCats];
+  if (!nextCats.some((c) => c.toLowerCase() === trimmedTarget.toLowerCase())) {
+    nextCats.push(trimmedTarget);
+  }
+  return {
+    ...product,
+    category: nextCats[0] || trimmedTarget,
+    additionalCategories: nextCats.slice(1),
+  };
+}
+
+/**
+ * Determina a categoria efetiva de um produto, respeitando 100% a categoria atribuída pelo administrador.
  */
 export function getEffectiveProductCategory(
-  product: { name?: string; category?: string },
-  categoriesList?: AvailableCategory[]
+  product: { name?: string; category?: string; additionalCategories?: string[] },
+  _categoriesList?: AvailableCategory[]
 ): string {
-  const activeCategories = categoriesList || getStoredCategories();
-  const rawCat = (product.category || '').trim();
-  const nameGarment = getCanonicalGarmentCategoryFromName(product.name);
-
-  let targetCat = rawCat;
-
-  if (nameGarment) {
-    if (!rawCat) {
-      targetCat = nameGarment;
-    } else if (!areCategoriesEquivalent(rawCat, nameGarment)) {
-      // Se rawCat é uma categoria padrão de vestuário diferente da peça explícita no título
-      // (ex: título diz "Macaquinho..." mas categoria ficou no padrão "Conjuntos" ou "Leggings"),
-      // corrige para a categoria real do título da peça.
-      const isRawStandardGarment = STORE_CATEGORIES.some((sc) =>
-        areCategoriesEquivalent(sc.name, rawCat)
-      );
-      if (isRawStandardGarment) {
-        targetCat = nameGarment;
-      }
-    }
+  const cats = getProductCategories(product);
+  if (cats.length > 0) {
+    return cats[0];
   }
-
-  if (!targetCat) {
-    targetCat = 'Conjuntos';
+  if ((product.category || '').trim().toLowerCase() === 'sem categoria') {
+    return 'Sem Categoria';
   }
-
-  // Resolve para o nome exato cadastrado nas categorias ativas da loja
-  const matchedActive = activeCategories.find((c) => areCategoriesEquivalent(c.name, targetCat));
-  if (matchedActive) {
-    return matchedActive.name;
-  }
-
-  return normalizeCategoryName(targetCat) || targetCat;
+  return getCanonicalGarmentCategoryFromName(product.name) || 'Conjuntos';
 }
 
 /**
@@ -286,12 +363,18 @@ export function getEffectiveProductCategory(
  */
 export function getCategoryPhoto(
   categoryName: string,
-  productsList: { name?: string; category?: string; images?: string[] }[] = []
+  productsList: {
+    name?: string;
+    category?: string;
+    additionalCategories?: string[];
+    images?: string[];
+  }[] = []
 ): string {
   const storedCats = getStoredCategories();
-  const catDef = storedCats.find((c) => areCategoriesEquivalent(c.name, categoryName));
+  const catDef = storedCats.find(
+    (c) => c.name.trim().toLowerCase() === categoryName.trim().toLowerCase()
+  );
 
-  // 1. Procura produto real nessa categoria com imagem válida (prioriza foto real da peça se a foto da categoria for padrão)
   const defaultDef = STORE_CATEGORIES.find((c) => areCategoriesEquivalent(c.name, categoryName));
   const hasCustomAdminImage =
     catDef?.image &&
@@ -305,7 +388,7 @@ export function getCategoryPhoto(
 
   if (Array.isArray(productsList) && productsList.length > 0) {
     const productWithImg = productsList.find((p) => {
-      const matchCat = areCategoriesEquivalent(getEffectiveProductCategory(p, storedCats), categoryName);
+      const matchCat = isProductMatchingCategory(p, categoryName);
       const hasImg = Array.isArray(p.images) && p.images.length > 0 && Boolean(p.images[0]);
       return matchCat && hasImg;
     });
@@ -408,12 +491,14 @@ export function getStoredCategories(): AvailableCategory[] {
   const deletedList = getDeletedCategories().map((d) => d.toLowerCase());
   categories = categories.filter((c) => !deletedList.includes(c.name.toLowerCase()));
 
-  // Desduplica categorias equivalentes (ex: se houver "Macacões" e "Macaquinho" juntos, unifica em uma só)
+  // Desduplica apenas categorias com exatamente o mesmo nome (case-insensitive)
   const dedupedCategories: AvailableCategory[] = [];
   for (const cat of categories) {
-    const existingEquiv = dedupedCategories.find((dc) => areCategoriesEquivalent(dc.name, cat.name));
-    if (!existingEquiv) {
-      // Enriquece com metadados da categoria oficial caso seja equivalente
+    if (cat.name.trim().toLowerCase() === 'sem categoria') continue;
+    const existingExact = dedupedCategories.find(
+      (dc) => dc.name.trim().toLowerCase() === cat.name.trim().toLowerCase()
+    );
+    if (!existingExact) {
       const official = STORE_CATEGORIES.find((sc) => areCategoriesEquivalent(sc.name, cat.name));
       dedupedCategories.push({
         ...cat,
@@ -433,12 +518,14 @@ export function getStoredCategories(): AvailableCategory[] {
     if (rawProducts) {
       const parsedProds = JSON.parse(rawProducts);
       if (Array.isArray(parsedProds)) {
-        parsedProds.forEach((p: { category?: string }) => {
-          if (p.category && typeof p.category === 'string' && p.category.trim()) {
-            const catName = p.category.trim();
+        parsedProds.forEach((p: { category?: string; additionalCategories?: string[] }) => {
+          const prodCats = getProductCategories(p);
+          prodCats.forEach((catName) => {
             const isDeleted = deletedList.includes(catName.toLowerCase());
-            const alreadyExists = categories.some((c) => areCategoriesEquivalent(c.name, catName));
-            if (!alreadyExists && !isDeleted) {
+            const alreadyExists = categories.some(
+              (c) => c.name.trim().toLowerCase() === catName.toLowerCase()
+            );
+            if (!alreadyExists && !isDeleted && catName.toLowerCase() !== 'sem categoria') {
               categories.push({
                 name: catName,
                 slug: catName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, ''),
@@ -447,7 +534,7 @@ export function getStoredCategories(): AvailableCategory[] {
                 keywords: [catName.toLowerCase()],
               });
             }
-          }
+          });
         });
       }
     }
@@ -702,16 +789,28 @@ export function resetCategoryPhoto(categoryName: string): AvailableCategory[] {
 
 /**
  * Verifica se um produto pertence a uma determinada categoria.
- * Usa a categoria efetiva canônica do produto (1 produto = 1 categoria exata),
- * garantindo zero sobreposição e sincronização total nos contadores.
+ * Compara estritamente com as categorias atribuídas ao produto (getProductCategories),
+ * garantindo que nenhum produto apareça em duas categorias sem confirmação explícita do usuário.
  */
 export function isProductMatchingCategory(
-  product: { name?: string; category?: string; description?: string },
+  product: {
+    name?: string;
+    category?: string;
+    additionalCategories?: string[];
+    description?: string;
+  },
   targetCategoryName: string
 ): boolean {
   if (!targetCategoryName || !targetCategoryName.trim()) return true;
-  const effectiveCat = getEffectiveProductCategory(product);
-  return areCategoriesEquivalent(effectiveCat, targetCategoryName);
+  const targetNorm = targetCategoryName.trim().toLowerCase();
+  const prodCats = getProductCategories(product);
+
+  // Correspondência exata com a(s) categoria(s) do produto
+  if (prodCats.some((c) => c.trim().toLowerCase() === targetNorm)) {
+    return true;
+  }
+
+  return false;
 }
 
 /**

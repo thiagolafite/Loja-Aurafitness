@@ -55,6 +55,10 @@ import {
   AvailableColor,
   AvailableCategory,
   normalizeCategoryName,
+  isProductMatchingCategory,
+  getProductCategories,
+  removeProductFromCategory,
+  assignProductToCategory,
   getStoredCategories,
   saveNewCategory,
   resizeImageFile,
@@ -86,6 +90,11 @@ export const AdminProductsPage: React.FC = () => {
   const [isImporterOpen, setIsImporterOpen] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
+  const [pendingCategoryMove, setPendingCategoryMove] = useState<{
+    product: Product;
+    sourceCategory: string;
+    targetCategory: string;
+  } | null>(null);
 
   // Image organizer & Live Preview states
   const [newImageUrl, setNewImageUrl] = useState('');
@@ -260,7 +269,7 @@ export const AdminProductsPage: React.FC = () => {
 
     const matchesCategory =
       selectedCategoryFilter === 'todos' ||
-      normalizeCategoryName(category) === normalizeCategoryName(selectedCategoryFilter);
+      isProductMatchingCategory(p, selectedCategoryFilter);
 
     return matchesSearch && matchesCategory;
   });
@@ -436,8 +445,31 @@ export const AdminProductsPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
+  const handleRemoveFromSpecificCategory = async (prod: Product, categoryName: string) => {
+    if (
+      !window.confirm(
+        `Remover "${prod.name}" apenas da categoria "${categoryName}"?\n\nO produto continuará salvo na loja (nas demais categorias ou em Sem Categoria).`
+      )
+    ) {
+      return;
+    }
+    const { updatedProduct } = removeProductFromCategory(prod, categoryName);
+    try {
+      await saveProductAsync(updatedProduct);
+    } catch {
+      saveProduct(updatedProduct);
+    }
+    refreshProducts();
+    showToast(`✓ Produto removido apenas da categoria "${categoryName}"!`);
+  };
+
   const handleDelete = async (id: string) => {
-    if (window.confirm('Tem certeza que deseja excluir este produto?')) {
+    const prod = products.find((p) => p.id === id);
+    if (prod && selectedCategoryFilter !== 'todos') {
+      await handleRemoveFromSpecificCategory(prod, selectedCategoryFilter);
+      return;
+    }
+    if (window.confirm('Tem certeza que deseja excluir permanentemente este produto da loja?')) {
       await bulkDeleteProductsAsync([id]);
       setSelectedProductIds((prev) => {
         const next = new Set(prev);
@@ -525,14 +557,7 @@ export const AdminProductsPage: React.FC = () => {
     if (!dropValue) return;
 
     if (dropType === 'category') {
-      if (product.category === dropValue) {
-        showToast(`O produto já pertence à categoria "${dropValue}".`);
-        return;
-      }
-      const updated = { ...product, category: dropValue };
-      saveProduct(updated);
-      setProducts(getProducts());
-      showToast(`✓ "${product.name}" associado à categoria "${dropValue}"!`);
+      handleQuickAssociateCategory(product, dropValue);
     } else if (dropType === 'color') {
       const colorObj =
         STORE_COLORS.find((c) => c.name === dropValue) || { name: dropValue, hex: '#111111' };
@@ -563,12 +588,56 @@ export const AdminProductsPage: React.FC = () => {
     }
   };
 
-  // Quick Action: Associate Category / Color directly with 1 tap (mobile shortcut)
+  // Quick Action: Associate Category / Color directly with confirmation for dual-category
   const handleQuickAssociateCategory = (product: Product, categoryName: string) => {
-    const updated = { ...product, category: categoryName };
-    saveProduct(updated);
-    setProducts(getProducts());
-    showToast(`✓ "${product.name}" associado à categoria "${categoryName}"!`);
+    if (isProductMatchingCategory(product, categoryName)) {
+      showToast(`O produto já pertence à categoria "${categoryName}".`);
+      return;
+    }
+
+    const currentCats = getProductCategories(product);
+    if (currentCats.length === 0 || product.category === 'Sem Categoria') {
+      const updated = assignProductToCategory(product, categoryName, 'move');
+      saveProductAsync(updated).catch(() => saveProduct(updated));
+      setProducts(getProducts());
+      showToast(`✓ "${product.name}" movido para a categoria "${categoryName}"!`);
+      return;
+    }
+
+    const sourceCat =
+      selectedCategoryFilter !== 'todos' ? selectedCategoryFilter : currentCats[0];
+    setPendingCategoryMove({
+      product,
+      sourceCategory: sourceCat,
+      targetCategory: categoryName,
+    });
+  };
+
+  const handleExecuteCategoryMove = async (mode: 'move' | 'both') => {
+    if (!pendingCategoryMove) return;
+    const { product, sourceCategory, targetCategory } = pendingCategoryMove;
+    setPendingCategoryMove(null);
+
+    const updated = assignProductToCategory(
+      product,
+      targetCategory,
+      mode === 'both' ? 'add-both' : 'move',
+      sourceCategory
+    );
+    try {
+      await saveProductAsync(updated);
+    } catch {
+      saveProduct(updated);
+    }
+    refreshProducts();
+
+    if (mode === 'both') {
+      showToast(
+        `✓ "${product.name}" agora consta em "${sourceCategory}" e "${targetCategory}"!`
+      );
+    } else {
+      showToast(`✓ "${product.name}" movido apenas para "${targetCategory}"!`);
+    }
   };
 
   const handleQuickAssociateColor = (product: Product, color: AvailableColor) => {
@@ -805,8 +874,8 @@ export const AdminProductsPage: React.FC = () => {
             {organizeMode === 'category' && (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                 {categories.map((cat) => {
-                  const count = products.filter(
-                    (p) => normalizeCategoryName(p.category) === cat.name
+                  const count = products.filter((p) =>
+                    isProductMatchingCategory(p, cat.name)
                   ).length;
                   return (
                     <div
@@ -1105,7 +1174,34 @@ export const AdminProductsPage: React.FC = () => {
                           Avaliações: {prod.rating} ★ ({prod.reviewCount})
                         </span>
                       </td>
-                      <td className="p-3.5 font-semibold text-primary">{prod.category}</td>
+                      <td className="p-3.5">
+                        <div className="flex flex-wrap items-center gap-1 max-w-[190px]">
+                          {getProductCategories(prod).map((catName) => (
+                            <span
+                              key={catName}
+                              className="inline-flex items-center gap-1 bg-primary/10 text-primary font-bold text-[10px] px-2 py-0.5 rounded-lg border border-primary/20"
+                            >
+                              <span>{catName}</span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRemoveFromSpecificCategory(prod, catName);
+                                }}
+                                title={`Remover apenas da categoria "${catName}"`}
+                                className="hover:text-destructive ml-0.5 font-extrabold"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                          {getProductCategories(prod).length === 0 && (
+                            <span className="text-[10px] text-muted-foreground italic">
+                              Sem Categoria
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="p-3.5">
                         <div className="flex items-center gap-1 flex-wrap max-w-[160px]">
                           {prod.colors?.map((col, idx) => (
@@ -1170,7 +1266,11 @@ export const AdminProductsPage: React.FC = () => {
                         <button
                           onClick={() => handleDelete(prod.id)}
                           className="p-1.5 hover:bg-muted text-destructive rounded-lg"
-                          title="Excluir"
+                          title={
+                            selectedCategoryFilter !== 'todos'
+                              ? `Remover apenas da categoria "${selectedCategoryFilter}"`
+                              : 'Excluir produto'
+                          }
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -1348,6 +1448,91 @@ export const AdminProductsPage: React.FC = () => {
                           + Adicionar nova categoria...
                         </option>
                       </select>
+
+                      {/* Segunda Categoria Opcional (Com Confirmação Explícita) */}
+                      <div className="mt-2 space-y-1.5">
+                        {Array.isArray(editingProduct.additionalCategories) &&
+                          editingProduct.additionalCategories.length > 0 && (
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="text-[10px] font-bold text-muted-foreground">
+                                Também em:
+                              </span>
+                              {editingProduct.additionalCategories.map((extraCat) => (
+                                <span
+                                  key={extraCat}
+                                  className="inline-flex items-center gap-1 bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-lg text-[10px] font-bold"
+                                >
+                                  <span>{extraCat}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setEditingProduct({
+                                        ...editingProduct,
+                                        additionalCategories: (
+                                          editingProduct.additionalCategories || []
+                                        ).filter((c) => c !== extraCat),
+                                      })
+                                    }
+                                    className="hover:text-destructive font-extrabold ml-0.5"
+                                    title={`Remover da categoria "${extraCat}"`}
+                                  >
+                                    ×
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            const extra = e.target.value;
+                            if (!extra) return;
+                            const primary =
+                              editingProduct.category || categories[0]?.name || 'Leggings';
+                            if (extra.toLowerCase() === primary.toLowerCase()) {
+                              alert('O produto já está nesta categoria principal.');
+                              return;
+                            }
+                            if (
+                              (editingProduct.additionalCategories || []).some(
+                                (c) => c.toLowerCase() === extra.toLowerCase()
+                              )
+                            ) {
+                              return;
+                            }
+                            if (
+                              window.confirm(
+                                `Deseja realmente colocar este produto em DUAS categorias simultaneamente ("${primary}" e "${extra}")?`
+                              )
+                            ) {
+                              setEditingProduct({
+                                ...editingProduct,
+                                additionalCategories: [
+                                  ...(editingProduct.additionalCategories || []),
+                                  extra,
+                                ],
+                              });
+                            }
+                          }}
+                          className="w-full bg-muted/60 border border-dashed border-border rounded-xl px-2.5 py-1.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground outline-none cursor-pointer"
+                        >
+                          <option value="">
+                            + Exibir também em uma 2ª categoria (opcional)...
+                          </option>
+                          {categories
+                            .filter(
+                              (c) =>
+                                c.name.toLowerCase() !==
+                                (editingProduct.category || '').toLowerCase()
+                            )
+                            .map((cat) => (
+                              <option key={`extra-${cat.name}`} value={cat.name}>
+                                {cat.name}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
                     </div>
 
                     <div>
@@ -1823,6 +2008,99 @@ export const AdminProductsPage: React.FC = () => {
               </button>
             </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal de Confirmação: Mover vs Manter em 2 Categorias */}
+      <AnimatePresence>
+        {pendingCategoryMove && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-card border-2 border-border rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-primary bg-primary/10 px-2.5 py-1 rounded-full">
+                    Confirmação de Categoria
+                  </span>
+                  <h3 className="font-serif font-bold text-lg text-foreground mt-2">
+                    Como deseja categorizar este produto?
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setPendingCategoryMove(null)}
+                  className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-3 p-3 rounded-2xl bg-muted/50 border border-border">
+                <img
+                  src={pendingCategoryMove.product.images?.[0] || '/images/look-3103.png'}
+                  alt={pendingCategoryMove.product.name}
+                  className="w-12 h-14 rounded-xl object-cover border border-border shrink-0"
+                />
+                <div className="min-w-0">
+                  <p className="font-bold text-xs text-foreground truncate">
+                    {pendingCategoryMove.product.name}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Categoria atual:{' '}
+                    <strong className="text-foreground">
+                      {pendingCategoryMove.sourceCategory}
+                    </strong>
+                  </p>
+                  <p className="text-[11px] text-primary font-semibold">
+                    Nova selecionada: <strong>{pendingCategoryMove.targetCategory}</strong>
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Deseja <strong>apenas mover</strong> o produto para{' '}
+                <strong className="text-foreground">"{pendingCategoryMove.targetCategory}"</strong>{' '}
+                (saindo de "{pendingCategoryMove.sourceCategory}") ou você realmente deseja que ele
+                fique nas <strong>duas categorias ao mesmo tempo</strong>?
+              </p>
+
+              <div className="space-y-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => handleExecuteCategoryMove('move')}
+                  className="w-full py-3 px-4 rounded-xl bg-primary hover:bg-primary-hover text-white font-bold text-xs shadow-md transition-all flex items-center justify-between"
+                >
+                  <span>
+                    1. Apenas Mover para "{pendingCategoryMove.targetCategory}" (1 categoria)
+                  </span>
+                  <Check className="w-4 h-4 shrink-0" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleExecuteCategoryMove('both')}
+                  className="w-full py-3 px-4 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-200 border border-amber-500/30 font-bold text-xs transition-all flex items-center justify-between"
+                >
+                  <span>
+                    2. Sim, colocar nas 2 categorias ("{pendingCategoryMove.sourceCategory}" + "
+                    {pendingCategoryMove.targetCategory}")
+                  </span>
+                  <Layers className="w-4 h-4 shrink-0" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPendingCategoryMove(null)}
+                  className="w-full py-2.5 px-4 rounded-xl bg-muted hover:bg-muted/80 text-muted-foreground font-semibold text-xs transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
