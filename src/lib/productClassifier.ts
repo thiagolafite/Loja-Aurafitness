@@ -57,14 +57,24 @@ export const STORE_CATEGORIES: AvailableCategory[] = [
     ],
   },
   {
-    name: 'Macacões',
-    slug: 'macacoes',
+    name: 'Macacão',
+    slug: 'macacao',
     icon: '🩱',
     image: '/images/macaco-bless.png',
-    description: 'Macaquinhos e macacões anatômicos com costas abertas e efeito modelador.',
+    description: 'Macacões longos anatômicos com costas abertas e efeito modelador.',
     keywords: [
-      'macacao', 'macacão', 'macaquinho', 'macaquinhos', 'jumpsuit',
-      'body', 'bodies', 'catsuit', 'one piece', 'maiô'
+      'macacao', 'macacão', 'macacoes', 'macacões', 'jumpsuit',
+      'catsuit', 'one piece'
+    ],
+  },
+  {
+    name: 'Macaquinho',
+    slug: 'macaquinho',
+    icon: '🩱',
+    image: '/images/macaco-bless.png',
+    description: 'Macaquinhos curtos esportivos com alta sustentação e liberdade de movimentos.',
+    keywords: [
+      'macaquinho', 'macaquinhos', 'romper', 'short jumpsuit'
     ],
   },
   {
@@ -163,9 +173,13 @@ export function areCategoriesEquivalent(catA?: string, catB?: string): boolean {
   const stripPlural = (s: string) => s.replace(/oes$/, 'ao').replace(/es$/, '').replace(/s$/, '');
   if (stripPlural(a) === stripPlural(b)) return true;
 
-  // Grupos de equivalência canônica de moda fitness
-  const isMacacao = (s: string) => s.includes('macac') || s.includes('macaquinh') || s === 'jumpsuit';
+  // Grupos de equivalência canônica de moda fitness (Macacão e Macaquinho são categorias DISTINTAS!)
+  const isMacacao = (s: string) =>
+    (s.includes('macac') && !s.includes('macaquinh')) || s === 'jumpsuit';
   if (isMacacao(a) && isMacacao(b)) return true;
+
+  const isMacaquinho = (s: string) => s.includes('macaquinh');
+  if (isMacaquinho(a) && isMacaquinho(b)) return true;
 
   const isConjunto = (s: string) => s.includes('conjunt');
   if (isConjunto(a) && isConjunto(b)) return true;
@@ -202,8 +216,11 @@ export function getCanonicalGarmentCategoryFromName(name?: string): string | nul
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
 
-  if (/\b(macaquinh\w*|macacao|macacoes|jumpsuit|catsuit)\b/.test(norm)) {
-    return 'Macacões';
+  if (/\b(macaquinh\w*)\b/.test(norm)) {
+    return 'Macaquinho';
+  }
+  if (/\b(macacao|macacoes|jumpsuit|catsuit)\b/.test(norm)) {
+    return 'Macacão';
   }
   if (
     /\b(conjunt\w*|kit|combo|look completo)\b/.test(norm) ||
@@ -246,26 +263,48 @@ export function resolveSingleCategoryName(rawCategory?: string, productName?: st
     return 'Sem Categoria';
   }
 
-  const nameGarment = getCanonicalGarmentCategoryFromName(productName);
-  // Se o produto é explicitamente um Macaquinho/Macacão pelo nome, mas estava com o fallback antigo "Conjuntos"
-  if (
-    nameGarment === 'Macacões' &&
-    (!trimmed || trimmed.toLowerCase() === 'conjuntos' || trimmed.toLowerCase() === 'leggings')
-  ) {
-    return 'Macacões';
-  }
-
-  if (!trimmed) {
-    return nameGarment || 'Conjuntos';
-  }
-
   const norm = trimmed
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
 
-  if (norm === 'macacao' || norm === 'macacoes' || norm === 'macaquinho' || norm === 'macaquinhos') {
-    return 'Macacões';
+  // Só usa productName para inferir quando productName é passado explicitamente (migração inicial ou categoria vazia)
+  if (productName) {
+    const nameGarment = getCanonicalGarmentCategoryFromName(productName);
+    if (
+      nameGarment === 'Macaquinho' &&
+      (!trimmed ||
+        norm === 'conjuntos' ||
+        norm === 'leggings' ||
+        norm === 'macacao' ||
+        norm === 'macacoes')
+    ) {
+      return 'Macaquinho';
+    }
+    if (
+      nameGarment === 'Macacão' &&
+      (!trimmed ||
+        norm === 'conjuntos' ||
+        norm === 'leggings' ||
+        norm === 'macaquinho' ||
+        norm === 'macaquinhos')
+    ) {
+      return 'Macacão';
+    }
+    if (!trimmed && nameGarment) {
+      return nameGarment;
+    }
+  }
+
+  if (!trimmed) {
+    return 'Conjuntos';
+  }
+
+  if (norm === 'macaquinho' || norm === 'macaquinhos') {
+    return 'Macaquinho';
+  }
+  if (norm === 'macacao' || norm === 'macacoes') {
+    return 'Macacão';
   }
   if (norm === 'conjunto' || norm === 'conjuntos') {
     return 'Conjuntos';
@@ -302,7 +341,7 @@ export function getProductCategories(product: {
   const list: string[] = [];
   const rawPrimary = (product.category || '').trim();
   if (rawPrimary && rawPrimary.toLowerCase() !== 'sem categoria') {
-    const primary = resolveSingleCategoryName(rawPrimary, product.name);
+    const primary = resolveSingleCategoryName(rawPrimary);
     if (primary && primary.toLowerCase() !== 'sem categoria') {
       list.push(primary);
     }
@@ -517,7 +556,8 @@ export function normalizeCategoryName(rawCategory?: string): string {
     .toLowerCase();
 
   if (norm.includes('conjunto') && isNotDeleted('Conjuntos')) return 'Conjuntos';
-  if ((norm.includes('macac') || norm.includes('macaquinh')) && isNotDeleted('Macacões')) return 'Macacões';
+  if (norm.includes('macaquinh') && isNotDeleted('Macaquinho')) return 'Macaquinho';
+  if (norm.includes('macac') && !norm.includes('macaquinh') && isNotDeleted('Macacão')) return 'Macacão';
   if ((norm.includes('legging') || norm.includes('calca')) && isNotDeleted('Leggings')) return 'Leggings';
   if ((norm.includes('top') || norm.includes('sutia') || norm.includes('cropped')) && isNotDeleted('Tops')) return 'Tops';
   if ((norm.includes('short') || norm.includes('bermuda')) && isNotDeleted('Shorts & Bermudas')) return 'Shorts & Bermudas';
@@ -555,11 +595,11 @@ export function getDeletedCategories(): string[] {
  * desduplicando sinônimos equivalentes (ex: evita criar "Macaquinho" duplicado se "Macacões" já existe).
  */
 export function getStoredCategories(): AvailableCategory[] {
-  // Restaura uma única vez a categoria oficial "Macacões" caso tenha sido ocultada ou duplicada como "Macaquinho"
+  // Garante que "Macacão" e "Macaquinho" existam como duas categorias independentes e nunca misturadas
   try {
     if (
       typeof window !== 'undefined' &&
-      localStorage.getItem('aura_restore_macacoes_cat_v4') !== 'true'
+      localStorage.getItem('aura_separate_macacao_macaquinho_cat_v5') !== 'true'
     ) {
       const rawDel = localStorage.getItem(DELETED_CATEGORIES_KEY);
       if (rawDel) {
@@ -579,33 +619,48 @@ export function getStoredCategories(): AvailableCategory[] {
       if (rawCats) {
         const parsedCats: AvailableCategory[] = JSON.parse(rawCats);
         if (Array.isArray(parsedCats)) {
-          // Remove duplicata "Macaquinho"/"Macaquinhos" e garante "Macacões" oficial
-          const withoutDupMacaquinho = parsedCats.filter((c) => {
+          // Normaliza eventual "Macacões" para "Macacão" e garante que ambos "Macacão" e "Macaquinho" estejam presentes separadamente
+          const normalizedCats = parsedCats.map((c) => {
             const n = (c.name || '')
               .normalize('NFD')
               .replace(/[\u0300-\u036f]/g, '')
               .toLowerCase()
               .trim();
-            return n !== 'macaquinho' && n !== 'macaquinhos' && n !== 'macacao';
-          });
-          const hasMacacoes = withoutDupMacaquinho.some(
-            (c) =>
-              (c.name || '')
-                .normalize('NFD')
-                .replace(/[\u0300-\u036f]/g, '')
-                .toLowerCase()
-                .trim() === 'macacoes'
-          );
-          if (!hasMacacoes) {
-            const officialMacacoes = STORE_CATEGORIES.find((sc) => sc.name === 'Macacões');
-            if (officialMacacoes) {
-              withoutDupMacaquinho.splice(1, 0, officialMacacoes);
+            if (n === 'macacoes' || n === 'macacao') {
+              return {
+                ...c,
+                name: 'Macacão',
+                slug: 'macacao',
+                keywords: ['macacao', 'macacão', 'macacoes', 'macacões', 'jumpsuit', 'catsuit'],
+              };
             }
+            if (n === 'macaquinhos' || n === 'macaquinho') {
+              return {
+                ...c,
+                name: 'Macaquinho',
+                slug: 'macaquinho',
+                keywords: ['macaquinho', 'macaquinhos', 'romper'],
+              };
+            }
+            return c;
+          });
+
+          const hasMacacao = normalizedCats.some((c) => c.name === 'Macacão');
+          const hasMacaquinho = normalizedCats.some((c) => c.name === 'Macaquinho');
+
+          if (!hasMacacao) {
+            const officialMacacao = STORE_CATEGORIES.find((sc) => sc.name === 'Macacão');
+            if (officialMacacao) normalizedCats.splice(1, 0, officialMacacao);
           }
-          localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(withoutDupMacaquinho));
+          if (!hasMacaquinho) {
+            const officialMacaquinho = STORE_CATEGORIES.find((sc) => sc.name === 'Macaquinho');
+            if (officialMacaquinho) normalizedCats.splice(2, 0, officialMacaquinho);
+          }
+
+          localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(normalizedCats));
         }
       }
-      localStorage.setItem('aura_restore_macacoes_cat_v4', 'true');
+      localStorage.setItem('aura_separate_macacao_macaquinho_cat_v5', 'true');
     }
   } catch {}
 

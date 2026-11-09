@@ -47,7 +47,7 @@ function normalizeProductData(p: Product, _activeCategories = getStoredCategorie
 
   return {
     ...p,
-    category: resolveSingleCategoryName(p.category, p.name),
+    category: resolveSingleCategoryName(p.category),
     additionalCategories: rawAdditional.map((c: string) => resolveSingleCategoryName(c)),
     colors: effectiveColors.length > 0 ? effectiveColors : p.colors,
     sizes: effectiveSizes.length > 0 ? effectiveSizes : p.sizes || ['P', 'M', 'G'],
@@ -166,21 +166,16 @@ function setStorageItem<T>(key: string, value: T): void {
 
 // In-memory cache for synchronous reads with background Supabase sync
 let cachedProducts: Product[] = (() => {
-  if (
-    typeof window !== 'undefined' &&
-    localStorage.getItem('aura_restore_macacoes_prods_v4') !== 'true'
-  ) {
-    // Limpa eventuais IDs de produtos de Macacões/Macaquinhos que tenham sido ocultados antes da separação de exclusão por categoria
-    localStorage.removeItem('aura_deleted_product_ids_v1');
-    localStorage.setItem('aura_restore_macacoes_prods_v4', 'true');
-  }
-
   const rawList = getStorageItem<Product[]>(STORAGE_KEYS.PRODUCTS, initialProducts);
-  const migratedKey = 'aura_strict_single_cat_v4';
+  const migratedKey = 'aura_separate_macacao_macaquinho_prods_v5';
   const alreadyMigrated =
     typeof window !== 'undefined' && localStorage.getItem(migratedKey) === 'true';
 
   if (!alreadyMigrated && typeof window !== 'undefined') {
+    // Limpa exclusões ou overrides acidentais gerados quando Macacão e Macaquinho estavam unificados
+    localStorage.removeItem('aura_deleted_product_ids_v1');
+    localStorage.removeItem('aura_updated_products_v1');
+
     const cleaned = rawList.map((p) =>
       normalizeProductData({
         ...p,
