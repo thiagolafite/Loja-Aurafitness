@@ -26,6 +26,24 @@ import {
   initialStoreSettings,
 } from '../data/initialData';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
+import {
+  getEffectiveProductCategory,
+  getEffectiveProductColors,
+  getProductSizes,
+  getStoredCategories,
+} from './productClassifier';
+
+function normalizeProductData(p: Product, activeCategories = getStoredCategories()): Product {
+  const effectiveCategory = getEffectiveProductCategory(p, activeCategories);
+  const effectiveColors = getEffectiveProductColors(p);
+  const effectiveSizes = getProductSizes(p);
+  return {
+    ...p,
+    category: effectiveCategory || p.category,
+    colors: effectiveColors.length > 0 ? effectiveColors : p.colors,
+    sizes: effectiveSizes.length > 0 ? effectiveSizes : p.sizes || ['P', 'M', 'G'],
+  };
+}
 
 const STORAGE_KEYS = {
   PRODUCTS: 'aura_products_v1',
@@ -138,7 +156,9 @@ function setStorageItem<T>(key: string, value: T): void {
 }
 
 // In-memory cache for synchronous reads with background Supabase sync
-let cachedProducts: Product[] = getStorageItem<Product[]>(STORAGE_KEYS.PRODUCTS, initialProducts);
+let cachedProducts: Product[] = getStorageItem<Product[]>(STORAGE_KEYS.PRODUCTS, initialProducts).map(
+  (p) => normalizeProductData(p)
+);
 let cachedOrders: Order[] = getStorageItem<Order[]>(STORAGE_KEYS.ORDERS, initialOrders);
 let cachedCustomers: CustomerProfile[] = getStorageItem<CustomerProfile[]>(STORAGE_KEYS.CUSTOMERS, initialCustomers);
 let cachedReviews: Review[] = getStorageItem<Review[]>(STORAGE_KEYS.REVIEWS, initialReviews);
@@ -206,7 +226,10 @@ export async function syncWithSupabase(): Promise<void> {
           )
       );
 
-      cachedProducts = [...cleanDbProducts, ...pendingLocalProducts];
+      const activeCats = getStoredCategories();
+      cachedProducts = [...cleanDbProducts, ...pendingLocalProducts].map((p) =>
+        normalizeProductData(p, activeCats)
+      );
       setStorageItem(STORAGE_KEYS.PRODUCTS, cachedProducts);
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('aura_products_updated', { detail: cachedProducts }));
@@ -302,6 +325,10 @@ syncWithSupabase();
 
 // --- PRODUCTS SERVICE ---
 export function getProducts(): Product[] {
+  const activeCats = getStoredCategories();
+  cachedProducts = getStorageItem<Product[]>(STORAGE_KEYS.PRODUCTS, cachedProducts).map((p) =>
+    normalizeProductData(p, activeCats)
+  );
   return [...cachedProducts];
 }
 
@@ -309,15 +336,15 @@ export async function fetchProductsAsync(): Promise<Product[]> {
   if (isSupabaseConfigured()) {
     await syncWithSupabase();
   }
-  return cachedProducts;
+  return getProducts();
 }
 
 export function getProductById(id: string): Product | undefined {
-  return cachedProducts.find((p) => p.id === id);
+  return getProducts().find((p) => p.id === id);
 }
 
 export function getProductBySlug(slug: string): Product | undefined {
-  return cachedProducts.find((p) => p.slug === slug);
+  return getProducts().find((p) => p.slug === slug);
 }
 
 export async function saveProductAsync(productData: Partial<Product>): Promise<Product> {

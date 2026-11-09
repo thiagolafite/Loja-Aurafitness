@@ -52,19 +52,36 @@ export const Navbar: React.FC = () => {
     setProducts(getProducts());
     setCategories(getStoredCategories());
     setStoreSections(getStoreSections());
-    const syncCats = () => setCategories(getStoredCategories());
+    const syncCats = () => {
+      setCategories(getStoredCategories());
+      setProducts(getProducts());
+    };
+    const syncProds = () => {
+      setCategories(getStoredCategories());
+      setProducts(getProducts());
+    };
     const syncSections = () => setStoreSections(getStoreSections());
     window.addEventListener('aura_categories_updated', syncCats);
+    window.addEventListener('aura_products_updated', syncProds);
     window.addEventListener('aura_sections_updated', syncSections);
     window.addEventListener('storage', syncCats);
     window.addEventListener('storage', syncSections);
     return () => {
       window.removeEventListener('aura_categories_updated', syncCats);
+      window.removeEventListener('aura_products_updated', syncProds);
       window.removeEventListener('aura_sections_updated', syncSections);
       window.removeEventListener('storage', syncCats);
       window.removeEventListener('storage', syncSections);
     };
   }, []);
+
+  const visibleMenuCategories = categories.filter((cat) => {
+    const hasAnyNonEmpty = categories.some(
+      (c) => products.filter((p) => isProductMatchingCategory(p, c.name)).length > 0
+    );
+    if (!hasAnyNonEmpty) return true;
+    return products.filter((p) => isProductMatchingCategory(p, cat.name)).length > 0;
+  });
 
   const navLinks = [
     { name: 'HOME', path: '/' },
@@ -316,7 +333,7 @@ export const Navbar: React.FC = () => {
 
                   {/* 2-Column Categories Grid */}
                   <div className="grid grid-cols-2 gap-2.5">
-                    {categories.map((cat) => {
+                    {visibleMenuCategories.map((cat) => {
                       const count = products.filter(
                         (p) => isProductMatchingCategory(p, cat.name)
                       ).length;
@@ -465,7 +482,7 @@ export const Navbar: React.FC = () => {
                         exit={{ opacity: 0, height: 0 }}
                         className="pl-2 pt-2 pb-1 space-y-1.5 border-l border-white/20 ml-2 mt-2"
                       >
-                        {categories.map((cat) => {
+                        {visibleMenuCategories.map((cat) => {
                           const count = products.filter(
                             (p) => isProductMatchingCategory(p, cat.name)
                           ).length;

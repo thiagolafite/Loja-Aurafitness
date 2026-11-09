@@ -140,26 +140,172 @@ export const STORE_CATEGORIES: AvailableCategory[] = [
 ];
 
 /**
+ * Verifica se dois nomes de categoria representam a mesma categoria lógica/canônica
+ * (ex: "Macaquinho" <-> "Macacões", "Conjunto" <-> "Conjuntos", "Top" <-> "Tops")
+ */
+export function areCategoriesEquivalent(catA?: string, catB?: string): boolean {
+  if (!catA || !catB) return false;
+  const a = catA
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+  const b = catB
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+  if (!a || !b) return false;
+  if (a === b) return true;
+
+  // Variações de singular/plural diretas
+  const stripPlural = (s: string) => s.replace(/oes$/, 'ao').replace(/es$/, '').replace(/s$/, '');
+  if (stripPlural(a) === stripPlural(b)) return true;
+
+  // Grupos de equivalência canônica de moda fitness
+  const isMacacao = (s: string) => s.includes('macac') || s.includes('macaquinh') || s === 'jumpsuit';
+  if (isMacacao(a) && isMacacao(b)) return true;
+
+  const isConjunto = (s: string) => s.includes('conjunt');
+  if (isConjunto(a) && isConjunto(b)) return true;
+
+  const isLegging = (s: string) => s.includes('legging') || s.includes('leging') || s.includes('calca');
+  if (isLegging(a) && isLegging(b)) return true;
+
+  const isTop = (s: string) => s === 'top' || s === 'tops' || s.includes('cropped');
+  if (isTop(a) && isTop(b)) return true;
+
+  const isShort = (s: string) => s.includes('short') || s.includes('bermuda');
+  if (isShort(a) && isShort(b)) return true;
+
+  const isRegata = (s: string) => s.includes('regata') || s.includes('camiseta') || s.includes('blusa');
+  if (isRegata(a) && isRegata(b)) return true;
+
+  const isJaqueta = (s: string) => s.includes('jaqueta') || s.includes('casaco') || s.includes('corta');
+  if (isJaqueta(a) && isJaqueta(b)) return true;
+
+  const isAcessorio = (s: string) => s.includes('acessorio') || s.includes('meia');
+  if (isAcessorio(a) && isAcessorio(b)) return true;
+
+  return false;
+}
+
+/**
+ * Extrai a categoria canônica real a partir exclusivamente do nome da peça (quando explícito no título)
+ */
+export function getCanonicalGarmentCategoryFromName(name?: string): string | null {
+  if (!name || !name.trim()) return null;
+  const norm = name
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+  if (/\b(macaquinh\w*|macacao|macacoes|jumpsuit|catsuit)\b/.test(norm)) {
+    return 'Macacões';
+  }
+  if (
+    /\b(conjunt\w*|kit|combo|look completo)\b/.test(norm) ||
+    norm.includes('top + legging') ||
+    norm.includes('top e legging') ||
+    norm.includes('short + top') ||
+    norm.includes('short e top')
+  ) {
+    return 'Conjuntos';
+  }
+  if (/\b(top|tops|cropped\w*|sutia)\b/.test(norm)) {
+    return 'Tops';
+  }
+  if (/\b(short\w*|bermuda\w*|ciclista|biker)\b/.test(norm)) {
+    return 'Shorts & Bermudas';
+  }
+  if (/\b(legging\w*|leging\w*|calca\w*|corsario\w*|flare)\b/.test(norm)) {
+    return 'Leggings';
+  }
+  if (/\b(regata\w*|camiseta\w*|t-shirt\w*|tshirt\w*|blusa\w*)\b/.test(norm)) {
+    return 'Regatas & Camisetas';
+  }
+  if (/\b(jaqueta\w*|casaco\w*|moletom|corta-vento|corta vento)\b/.test(norm)) {
+    return 'Jaquetas';
+  }
+  if (/\b(meia\w*|garrafa\w*|squeeze|mochila\w*|bolsa\w*|faixa\w*|bone|viseira)\b/.test(norm)) {
+    return 'Acessórios';
+  }
+  return null;
+}
+
+/**
+ * Determina a categoria efetiva (única e sem ambiguidade) de um produto.
+ * Corrige automaticamente produtos cujo nome declara explicitamente a peça (ex: "Macaquinho Fitness...")
+ * mas que ficaram salvos com categoria padrão de fallback ("Conjuntos" ou "Leggings").
+ */
+export function getEffectiveProductCategory(
+  product: { name?: string; category?: string },
+  categoriesList?: AvailableCategory[]
+): string {
+  const activeCategories = categoriesList || getStoredCategories();
+  const rawCat = (product.category || '').trim();
+  const nameGarment = getCanonicalGarmentCategoryFromName(product.name);
+
+  let targetCat = rawCat;
+
+  if (nameGarment) {
+    if (!rawCat) {
+      targetCat = nameGarment;
+    } else if (!areCategoriesEquivalent(rawCat, nameGarment)) {
+      // Se rawCat é uma categoria padrão de vestuário diferente da peça explícita no título
+      // (ex: título diz "Macaquinho..." mas categoria ficou no padrão "Conjuntos" ou "Leggings"),
+      // corrige para a categoria real do título da peça.
+      const isRawStandardGarment = STORE_CATEGORIES.some((sc) =>
+        areCategoriesEquivalent(sc.name, rawCat)
+      );
+      if (isRawStandardGarment) {
+        targetCat = nameGarment;
+      }
+    }
+  }
+
+  if (!targetCat) {
+    targetCat = 'Conjuntos';
+  }
+
+  // Resolve para o nome exato cadastrado nas categorias ativas da loja
+  const matchedActive = activeCategories.find((c) => areCategoriesEquivalent(c.name, targetCat));
+  if (matchedActive) {
+    return matchedActive.name;
+  }
+
+  return normalizeCategoryName(targetCat) || targetCat;
+}
+
+/**
  * Obtém a foto da categoria configurada pelo administrador,
  * com fallback para a primeira foto de produto daquela categoria,
  * ou a imagem padrão editorial da categoria.
  */
 export function getCategoryPhoto(
   categoryName: string,
-  productsList: { category?: string; images?: string[] }[] = []
+  productsList: { name?: string; category?: string; images?: string[] }[] = []
 ): string {
-  const norm = normalizeCategoryName(categoryName);
-  const catDef = getStoredCategories().find((c) => normalizeCategoryName(c.name) === norm);
+  const storedCats = getStoredCategories();
+  const catDef = storedCats.find((c) => areCategoriesEquivalent(c.name, categoryName));
 
-  // 1. Imagem configurada pelo administrador especificamente para a categoria
-  if (catDef?.image && typeof catDef.image === 'string' && catDef.image.trim()) {
+  // 1. Procura produto real nessa categoria com imagem válida (prioriza foto real da peça se a foto da categoria for padrão)
+  const defaultDef = STORE_CATEGORIES.find((c) => areCategoriesEquivalent(c.name, categoryName));
+  const hasCustomAdminImage =
+    catDef?.image &&
+    typeof catDef.image === 'string' &&
+    catDef.image.trim() &&
+    catDef.image !== defaultDef?.image;
+
+  if (hasCustomAdminImage && catDef?.image) {
     return catDef.image;
   }
 
-  // 2. Fallback: Procura produto real nessa categoria com imagem válida
   if (Array.isArray(productsList) && productsList.length > 0) {
     const productWithImg = productsList.find((p) => {
-      const matchCat = normalizeCategoryName(p.category) === norm;
+      const matchCat = areCategoriesEquivalent(getEffectiveProductCategory(p, storedCats), categoryName);
       const hasImg = Array.isArray(p.images) && p.images.length > 0 && Boolean(p.images[0]);
       return matchCat && hasImg;
     });
@@ -169,7 +315,11 @@ export function getCategoryPhoto(
     }
   }
 
-  return '/images/look-3103.png';
+  if (catDef?.image && typeof catDef.image === 'string' && catDef.image.trim()) {
+    return catDef.image;
+  }
+
+  return defaultDef?.image || '/images/look-3103.png';
 }
 
 /**
@@ -180,10 +330,10 @@ export function normalizeCategoryName(rawCategory?: string): string {
   const trimmed = rawCategory.trim();
   const lower = trimmed.toLowerCase();
 
-  // 1. Prioridade absoluta: categoria ativa salva pelo usuário/loja
+  // 1. Prioridade absoluta: categoria ativa salva pelo usuário/loja (por igualdade ou equivalência)
   const allCategories = getStoredCategories();
   const exact = allCategories.find(
-    (c) => c.name.toLowerCase() === lower || c.slug === lower
+    (c) => c.name.toLowerCase() === lower || c.slug === lower || areCategoriesEquivalent(c.name, trimmed)
   );
   if (exact) return exact.name;
 
@@ -232,7 +382,8 @@ export function getDeletedCategories(): string[] {
 }
 
 /**
- * Obtém a lista dinâmica de categorias da loja salvas pelo administrador
+ * Obtém a lista dinâmica de categorias da loja salvas pelo administrador,
+ * desduplicando sinônimos equivalentes (ex: evita criar "Macaquinho" duplicado se "Macacões" já existe).
  */
 export function getStoredCategories(): AvailableCategory[] {
   let categories: AvailableCategory[] = [];
@@ -257,7 +408,26 @@ export function getStoredCategories(): AvailableCategory[] {
   const deletedList = getDeletedCategories().map((d) => d.toLowerCase());
   categories = categories.filter((c) => !deletedList.includes(c.name.toLowerCase()));
 
-  // Auto-descoberta: se existirem produtos com categorias que ainda não estão na lista, inclui dinamicamente
+  // Desduplica categorias equivalentes (ex: se houver "Macacões" e "Macaquinho" juntos, unifica em uma só)
+  const dedupedCategories: AvailableCategory[] = [];
+  for (const cat of categories) {
+    const existingEquiv = dedupedCategories.find((dc) => areCategoriesEquivalent(dc.name, cat.name));
+    if (!existingEquiv) {
+      // Enriquece com metadados da categoria oficial caso seja equivalente
+      const official = STORE_CATEGORIES.find((sc) => areCategoriesEquivalent(sc.name, cat.name));
+      dedupedCategories.push({
+        ...cat,
+        icon: cat.icon && cat.icon !== '🏷️' ? cat.icon : official?.icon || '🏷️',
+        image: cat.image || official?.image,
+        keywords: Array.from(
+          new Set([...(cat.keywords || []), ...(official?.keywords || []), cat.name.toLowerCase()])
+        ),
+      });
+    }
+  }
+  categories = dedupedCategories;
+
+  // Auto-descoberta: se existirem produtos com categorias personalizadas que ainda não estão na lista, inclui dinamicamente
   try {
     const rawProducts = typeof window !== 'undefined' ? localStorage.getItem('aura_products_v1') : null;
     if (rawProducts) {
@@ -267,9 +437,7 @@ export function getStoredCategories(): AvailableCategory[] {
           if (p.category && typeof p.category === 'string' && p.category.trim()) {
             const catName = p.category.trim();
             const isDeleted = deletedList.includes(catName.toLowerCase());
-            const alreadyExists = categories.some(
-              (c) => c.name.toLowerCase() === catName.toLowerCase()
-            );
+            const alreadyExists = categories.some((c) => areCategoriesEquivalent(c.name, catName));
             if (!alreadyExists && !isDeleted) {
               categories.push({
                 name: catName,
@@ -533,90 +701,149 @@ export function resetCategoryPhoto(categoryName: string): AvailableCategory[] {
 }
 
 /**
- * Verifica se um produto pertence a uma determinada categoria, considerando:
- * - Correspondência exata de nome ou slug
- * - Normalização canônica oficial
- * - Variações de singular e plural (ex: Macaquinho vs Macaquinhos, Top vs Tops, Conjunto vs Conjuntos)
- * - Sinônimos essenciais de moda fitness (ex: Macaquinho e Macacão)
- * - Palavras-chave cadastradas na categoria
- * - Nome do produto contendo a categoria
+ * Verifica se um produto pertence a uma determinada categoria.
+ * Usa a categoria efetiva canônica do produto (1 produto = 1 categoria exata),
+ * garantindo zero sobreposição e sincronização total nos contadores.
  */
 export function isProductMatchingCategory(
   product: { name?: string; category?: string; description?: string },
   targetCategoryName: string
 ): boolean {
   if (!targetCategoryName || !targetCategoryName.trim()) return true;
+  const effectiveCat = getEffectiveProductCategory(product);
+  return areCategoriesEquivalent(effectiveCat, targetCategoryName);
+}
 
-  const target = targetCategoryName.trim().toLowerCase();
-  const prodCat = (product.category || '').trim().toLowerCase();
-  const prodName = (product.name || '').trim().toLowerCase();
+/**
+ * Extrai as cores explicitamente mencionadas em um texto (ex: nome do produto)
+ */
+export function extractColorsFromText(text?: string): { name: string; hex: string }[] {
+  if (!text || !text.trim()) return [];
+  const fullText = normalizeText(text);
+  const detected: { name: string; hex: string }[] = [];
+  const added = new Set<string>();
 
-  // 1. Igualdade direta
-  if (prodCat === target) return true;
-
-  // 2. Normalização canônica
-  const normProd = normalizeCategoryName(product.category).toLowerCase();
-  const normTarget = normalizeCategoryName(targetCategoryName).toLowerCase();
-  if (normProd && normTarget && normProd === normTarget) return true;
-
-  // 3. Variações de singular / plural (ex: Macaquinho x Macaquinhos, Top x Tops, Conjunto x Conjuntos)
-  const stripPlural = (s: string) =>
-    s
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/es$/, '')
-      .replace(/s$/, '');
-
-  const rootTarget = stripPlural(target);
-  const rootProd = stripPlural(prodCat);
-
-  if (rootTarget && rootProd && (rootTarget === rootProd || rootTarget.startsWith(rootProd) || rootProd.startsWith(rootTarget))) {
-    return true;
-  }
-
-  // 4. Sinônimos fundamentais do segmento fitness
-  // Macaquinho / Macacão / Jumpsuit
-  const isMacacaoTarget = target.includes('macac') || target.includes('macaquinh');
-  const isMacacaoProd =
-    prodCat.includes('macac') ||
-    prodCat.includes('macaquinh') ||
-    prodName.includes('macaquinh') ||
-    prodName.includes('macacao') ||
-    prodName.includes('macacão');
-  if (isMacacaoTarget && isMacacaoProd) return true;
-
-  // Conjuntos / Kits / Combos
-  const isConjuntoTarget = target.includes('conjunt') || target.includes('kit') || target.includes('look');
-  const isConjuntoProd = prodCat.includes('conjunt') || prodName.includes('conjunto');
-  if (isConjuntoTarget && isConjuntoProd) return true;
-
-  // Tops / Croppeds / Sutiãs
-  const isTopTarget = target === 'top' || target === 'tops' || target.includes('cropped');
-  const isTopProd = prodCat === 'top' || prodCat === 'tops' || prodName.includes('top ') || prodName.startsWith('top');
-  if (isTopTarget && isTopProd) return true;
-
-  // Shorts / Bermudas
-  const isShortTarget = target.includes('short') || target.includes('bermuda');
-  const isShortProd = prodCat.includes('short') || prodCat.includes('bermuda') || prodName.includes('short') || prodName.includes('bermuda');
-  if (isShortTarget && isShortProd) return true;
-
-  // Leggings / Calças
-  const isLeggingTarget = target.includes('legging') || target.includes('calca') || target.includes('calça');
-  const isLeggingProd = prodCat.includes('legging') || prodCat.includes('calca') || prodName.includes('legging');
-  if (isLeggingTarget && isLeggingProd) return true;
-
-  // 5. Verifica se as palavras-chave da categoria batem com a categoria do produto ou com o nome do produto
-  const allCategories = getStoredCategories();
-  const catDef = allCategories.find((c) => c.name.toLowerCase() === target || c.slug === target);
-  if (catDef && Array.isArray(catDef.keywords) && catDef.keywords.length > 0) {
-    const matchesKeyword = catDef.keywords.some((kw) => {
-      const kwNorm = kw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-      return prodCat.includes(kwNorm) || prodName.includes(kwNorm);
+  const allColorRules: { color: AvailableColor; keyword: string }[] = [];
+  STORE_COLORS.forEach((color) => {
+    color.keywords.forEach((kw) => {
+      allColorRules.push({ color, keyword: normalizeText(kw) });
     });
-    if (matchesKeyword) return true;
+  });
+  allColorRules.sort((a, b) => b.keyword.length - a.keyword.length);
+
+  for (const rule of allColorRules) {
+    const regex = new RegExp(`(^|[^a-z0-9])${rule.keyword}([^a-z0-9]|$)`, 'i');
+    if (regex.test(fullText)) {
+      if (!added.has(rule.color.name)) {
+        added.add(rule.color.name);
+        detected.push({ name: rule.color.name, hex: rule.color.hex });
+      }
+    }
+  }
+  return detected;
+}
+
+/**
+ * Retorna a lista efetiva e corrigida de cores de um produto.
+ * Se o produto tinha apenas a cor padrão de fallback ("Preto") mas seu nome declara
+ * explicitamente outra cor (ex: "Rosa", "Purple", "Vinho", "Marrom Café"), corrige automaticamente.
+ */
+export function getEffectiveProductColors(product: {
+  name?: string;
+  colors?: { name: string; hex?: string }[];
+}): { name: string; hex: string }[] {
+  const nameColors = extractColorsFromText(product.name);
+  const rawColors = Array.isArray(product.colors) ? product.colors : [];
+
+  // Mapeia cada cor cadastrada para a cor canônica oficial da loja quando aplicável
+  const normalizedRawColors = rawColors
+    .filter((c) => c && c.name && c.name.trim())
+    .map((c) => {
+      const cNorm = normalizeText(c.name);
+      const exactStore = STORE_COLORS.find((sc) => normalizeText(sc.name) === cNorm);
+      if (exactStore) return { name: exactStore.name, hex: exactStore.hex };
+      const byKeyword = extractColorsFromText(c.name);
+      if (byKeyword.length > 0) return byKeyword[0];
+      return { name: c.name.trim(), hex: c.hex || '#111111' };
+    });
+
+  // Se o título do produto tem uma cor explícita (ex: "Rosa") e o array de cores só tinha o fallback "Preto"
+  // (sem que o título mencione Preto), substitui pelo valor real do título
+  if (nameColors.length > 0) {
+    const nameHasPreto = nameColors.some((nc) => nc.name === 'Preto');
+    const rawOnlyFallbackPreto =
+      normalizedRawColors.length === 0 ||
+      (normalizedRawColors.length === 1 && normalizedRawColors[0].name === 'Preto' && !nameHasPreto);
+
+    if (rawOnlyFallbackPreto) {
+      return nameColors;
+    }
+
+    // Combina cores do produto com as cores explícitas do título sem duplicar
+    const merged = [...normalizedRawColors];
+    nameColors.forEach((nc) => {
+      if (!merged.some((m) => normalizeText(m.name) === normalizeText(nc.name))) {
+        merged.push(nc);
+      }
+    });
+    return merged;
   }
 
-  return false;
+  return normalizedRawColors.length > 0
+    ? normalizedRawColors
+    : [{ name: 'Preto', hex: '#111111' }];
+}
+
+/**
+ * Extrai os tamanhos reais disponíveis em um produto (combinando product.sizes e chaves de product.stock)
+ */
+export function getProductSizes(product: {
+  sizes?: string[];
+  stock?: Record<string, number>;
+}): string[] {
+  const VALID_ORDER = ['PP', 'P', 'M', 'G', 'GG', 'XG', 'U'];
+  const sizeSet = new Set<string>();
+
+  if (Array.isArray(product.sizes)) {
+    product.sizes.forEach((s) => {
+      if (typeof s === 'string' && s.trim()) {
+        sizeSet.add(s.trim().toUpperCase());
+      }
+    });
+  }
+
+  if (product.stock && typeof product.stock === 'object') {
+    Object.entries(product.stock).forEach(([key, qty]) => {
+      if (typeof qty === 'number' && qty <= 0 && sizeSet.size > 0) return;
+      const prefix = key.split('-')[0]?.trim().toUpperCase();
+      if (prefix && VALID_ORDER.includes(prefix)) {
+        sizeSet.add(prefix);
+      }
+    });
+  }
+
+  const list = Array.from(sizeSet);
+  list.sort((a, b) => {
+    const idxA = VALID_ORDER.indexOf(a);
+    const idxB = VALID_ORDER.indexOf(b);
+    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+    if (idxA !== -1) return -1;
+    if (idxB !== -1) return 1;
+    return a.localeCompare(b);
+  });
+  return list;
+}
+
+/**
+ * Verifica se um produto possui determinado tamanho disponível
+ */
+export function productMatchesSize(
+  product: { sizes?: string[]; stock?: Record<string, number> },
+  sizeQuery: string
+): boolean {
+  if (!sizeQuery || !sizeQuery.trim()) return true;
+  const target = sizeQuery.trim().toUpperCase();
+  return getProductSizes(product).includes(target);
 }
 
 /**
@@ -639,12 +866,11 @@ export function isColorQuery(query: string): boolean {
 }
 
 /**
- * Verifica se um produto possui uma cor específica, buscando:
- * - No array de cores cadastradas (product.colors)
- * - Nas chaves de estoque (product.stock)
- * - No nome do produto (product.name)
- * - Na descrição do produto (product.description)
- * - Em sinônimos e termos compostos (ex: "Pink / Fúcsia", "Rosa Claro" ao buscar "Rosa")
+ * Verifica se um produto possui uma cor específica, sincronizado com getEffectiveProductColors:
+ * - Se colorQuery for o nome exato de uma cor da paleta (ex: clique na bolinha de cor da sidebar),
+ *   compara diretamente com as cores efetivas do produto.
+ * - Se colorQuery for um termo livre pesquisado (ex: "Rosa", "Verde", "Azul"),
+ *   encontra todas as variações daquela família de cor.
  */
 export function productMatchesColor(
   product: {
@@ -656,62 +882,50 @@ export function productMatchesColor(
   colorQuery: string
 ): boolean {
   if (!colorQuery || !colorQuery.trim()) return false;
-  const q = colorQuery.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const q = normalizeText(colorQuery.trim());
   if (q.length < 2) return false;
 
-  // 1. Coleta todas as palavras-chave canônicas e sinônimos associados
-  const targetKeywords = new Set<string>([q]);
+  const effectiveColors = getEffectiveProductColors(product);
 
-  // Se for parte de uma cor cadastrada no STORE_COLORS
-  STORE_COLORS.forEach((color) => {
-    const cName = color.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    const parts = cName.split(/[\/\s]+/).map((p) => p.trim());
-    const isMatch =
+  // 1. Se a busca corresponde exatamente ao nome de uma cor oficial da paleta (ex: clique no filtro lateral)
+  const exactPaletteColor = STORE_COLORS.find((sc) => normalizeText(sc.name) === q);
+  if (exactPaletteColor) {
+    return effectiveColors.some(
+      (ec) => normalizeText(ec.name) === normalizeText(exactPaletteColor.name)
+    );
+  }
+
+  // 2. Busca textual por termo/família de cor (ex: cliente digitou "Rosa", "Verde", "Azul", "Marrom")
+  const matchingPaletteNames = new Set<string>();
+  STORE_COLORS.forEach((sc) => {
+    const cName = normalizeText(sc.name);
+    const parts = cName.split(/[\/\s]+/).map((p) => p.trim()).filter(Boolean);
+    const matchesStoreColor =
       cName === q ||
-      parts.includes(q) ||
-      color.keywords.some((kw) => {
-        const kwNorm = kw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        return kwNorm === q || (q.length >= 4 && kwNorm.includes(q));
+      parts.some((p) => p === q || (q.length >= 3 && p.startsWith(q))) ||
+      sc.keywords.some((kw) => {
+        const kwNorm = normalizeText(kw);
+        return kwNorm === q || (q.length >= 3 && kwNorm.startsWith(q));
       });
-
-    if (isMatch) {
-      targetKeywords.add(cName);
-      parts.forEach((p) => targetKeywords.add(p));
-      color.keywords.forEach((kw) => {
-        targetKeywords.add(kw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
-      });
+    if (matchesStoreColor) {
+      matchingPaletteNames.add(cName);
     }
   });
 
-  const checkTextMatches = (text: string): boolean => {
-    if (!text) return false;
-    const norm = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    for (const kw of targetKeywords) {
-      if (norm.includes(kw)) return true;
-    }
-    return false;
-  };
-
-  // 2. Cores cadastradas no produto (product.colors)
-  if (Array.isArray(product.colors) && product.colors.length > 0) {
-    const hasInColors = product.colors.some((c) => checkTextMatches(c.name));
-    if (hasInColors) return true;
-  }
-
-  // 3. Variações de estoque (ex: "P-Preto", "M-Rosa Claro")
-  if (product.stock && typeof product.stock === 'object') {
-    const hasInStock = Object.keys(product.stock).some((key) => checkTextMatches(key));
-    if (hasInStock) return true;
-  }
-
-  // 4. Nome do produto (ex: "Macaquinho Fitness Serena ... Rosa (2)")
-  if (product.name && checkTextMatches(product.name)) {
+  if (
+    effectiveColors.some((ec) => {
+      const ecNorm = normalizeText(ec.name);
+      return matchingPaletteNames.has(ecNorm) || ecNorm.includes(q);
+    })
+  ) {
     return true;
   }
 
-  // 5. Descrição do produto
-  if (product.description && checkTextMatches(product.description)) {
-    return true;
+  // Fallback para nome do produto com fronteira de palavra
+  if (product.name) {
+    const normName = normalizeText(product.name);
+    const wordRegex = new RegExp(`(^|[^a-z0-9])${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i');
+    if (wordRegex.test(normName)) return true;
   }
 
   return false;
@@ -1217,15 +1431,24 @@ export function consolidateDuplicateProducts(products: Product[]): {
         });
       }
     } else {
-      // Define nome limpo sem "(2)", "()", etc.
+      // Define nome limpo sem "(2)", "()", etc., e sincroniza categoria e cores efetivas
+      const healedName = cleanName || prod.name;
       modelMap.set(key, {
         ...prod,
-        name: cleanName || prod.name,
+        name: healedName,
+        category: getEffectiveProductCategory({ name: healedName, category: prod.category }),
+        colors: getEffectiveProductColors({ name: healedName, colors: prod.colors }),
+        sizes: getProductSizes(prod),
       });
     }
   }
 
-  const consolidated = Array.from(modelMap.values());
+  const consolidated = Array.from(modelMap.values()).map((p) => ({
+    ...p,
+    category: getEffectiveProductCategory(p),
+    colors: getEffectiveProductColors(p),
+    sizes: getProductSizes(p),
+  }));
   return { consolidated, mergedCount };
 }
 

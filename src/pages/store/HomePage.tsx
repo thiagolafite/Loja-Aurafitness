@@ -39,11 +39,19 @@ export const HomePage: React.FC = () => {
       }
     });
 
-    const syncCats = () => setCategories(getStoredCategories());
+    const syncCats = () => {
+      setCategories(getStoredCategories());
+      setProducts(getProducts());
+    };
+    const syncProds = () => {
+      setCategories(getStoredCategories());
+      setProducts(getProducts());
+    };
     const syncBanners = () => setHeroBanners(getHeroBanners());
     const syncSections = () => setStoreSections(getStoreSections());
 
     window.addEventListener('aura_categories_updated', syncCats);
+    window.addEventListener('aura_products_updated', syncProds);
     window.addEventListener('aura_banners_updated', syncBanners);
     window.addEventListener('aura_sections_updated', syncSections);
     window.addEventListener('storage', syncCats);
@@ -52,6 +60,7 @@ export const HomePage: React.FC = () => {
 
     return () => {
       window.removeEventListener('aura_categories_updated', syncCats);
+      window.removeEventListener('aura_products_updated', syncProds);
       window.removeEventListener('aura_banners_updated', syncBanners);
       window.removeEventListener('aura_sections_updated', syncSections);
       window.removeEventListener('storage', syncCats);
@@ -227,11 +236,25 @@ export const HomePage: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 sm:gap-5">
-          {categories.slice(0, 5).map((cat) => {
-            const count = products.filter(
-              (p) => isProductMatchingCategory(p, cat.name)
-            ).length;
-            const photo = getCategoryPhoto(cat.name, products);
+          {[...categories]
+            .sort((a, b) => {
+              const countA = products.filter((p) => isProductMatchingCategory(p, a.name)).length;
+              const countB = products.filter((p) => isProductMatchingCategory(p, b.name)).length;
+              return countB - countA;
+            })
+            .filter((cat) => {
+              const nonEmptyCount = categories.filter(
+                (c) => products.filter((p) => isProductMatchingCategory(p, c.name)).length > 0
+              ).length;
+              if (nonEmptyCount === 0) return true;
+              return products.filter((p) => isProductMatchingCategory(p, cat.name)).length > 0;
+            })
+            .slice(0, 5)
+            .map((cat) => {
+              const count = products.filter(
+                (p) => isProductMatchingCategory(p, cat.name)
+              ).length;
+              const photo = getCategoryPhoto(cat.name, products);
 
             return (
               <Link

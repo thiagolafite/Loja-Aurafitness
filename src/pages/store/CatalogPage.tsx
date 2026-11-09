@@ -25,6 +25,10 @@ import {
   isProductMatchingCategory,
   isColorQuery,
   productMatchesColor,
+  areCategoriesEquivalent,
+  getEffectiveProductColors,
+  getProductSizes,
+  productMatchesSize,
 } from '../../lib/productClassifier';
 import { Product, StoreSection } from '../../types';
 
@@ -40,9 +44,15 @@ export const CatalogPage: React.FC = () => {
     setStoreSections(getStoreSections());
     setAllProducts([...getProducts()]);
 
-    const syncCats = () => setCategories(getStoredCategories());
+    const syncCats = () => {
+      setCategories(getStoredCategories());
+      setAllProducts([...getProducts()]);
+    };
     const syncSections = () => setStoreSections(getStoreSections());
-    const syncProds = () => setAllProducts([...getProducts()]);
+    const syncProds = () => {
+      setCategories(getStoredCategories());
+      setAllProducts([...getProducts()]);
+    };
 
     window.addEventListener('aura_categories_updated', syncCats);
     window.addEventListener('aura_sections_updated', syncSections);
@@ -79,30 +89,141 @@ export const CatalogPage: React.FC = () => {
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   const [selectedColors, setSelectedColors] = useState<string[]>([]);
   const [selectedMaterials, setSelectedMaterials] = useState<string[]>([]);
-  const [maxPrice, setMaxPrice] = useState<number>(450);
+  const [maxPrice, setMaxPrice] = useState<number>(1000);
   const [onlyPromotions, setOnlyPromotions] = useState<boolean>(initialPromo);
   const [sortBy, setSortBy] = useState<string>('relevancia');
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState<boolean>(false);
 
-  // Sync category state when URL query params change
+  // Sync all state when URL query params change (ex: cliques na Navbar ou HomePage)
   useEffect(() => {
-    const cat = searchParams.get('categoria');
-    if (cat !== null) {
-      setSelectedCategory(cat);
+    const cat = searchParams.get('categoria') || '';
+    const s = searchParams.get('search') || '';
+    const promo = searchParams.get('promocao') === 'true';
+    const ord = searchParams.get('ordenar') || '';
+
+    setSelectedCategory((prevCat) => {
+      if (!areCategoriesEquivalent(prevCat, cat) && prevCat !== cat) {
+        // Ao navegar para outra categoria pelo menu superior, limpa sub-filtros restritivos anteriores
+        setSelectedColors([]);
+        setSelectedSizes([]);
+        setSelectedMaterials([]);
+      }
+      return cat;
+    });
+
+    setSearchQuery(s);
+    setOnlyPromotions(promo);
+
+    if (ord) {
+      const normalizedSort = ord.replace(/_/g, '-').toLowerCase();
+      setSortBy(normalizedSort);
     }
   }, [searchParams]);
 
-  // Sync search state when URL query params change
-  useEffect(() => {
-    const s = searchParams.get('search');
-    if (s !== null) {
-      setSearchQuery(s);
-    }
-  }, [searchParams]);
+  // Produtos pertencentes à seção ativa (ou todos os produtos se nenhuma seção ativa)
+  const sectionScopedProducts = useMemo(() => {
+    if (!activeSection) return allProducts;
+    return allProducts.filter((product) => {
+      const isDirectlyIncluded = (activeSection.productIds || []).includes(product.id);
+      const isCategoryIncluded = (activeSection.includedCategories || []).some((c) =>
+        isProductMatchingCategory(product, c)
+      );
+      return isDirectlyIncluded || isCategoryIncluded;
+    });
+  }, [allProducts, activeSection]);
 
-  const sizes = ['PP', 'P', 'M', 'G', 'GG'];
-  const colors = STORE_COLORS.slice(0, 12);
-  const materials = ['Poliamida', 'Elastano', 'Viscose', 'Nylon', 'LYCRA® Black'];
+  // Categorias sincronizadas e sem gaps (oculta categorias vazias na vitrine para evitar cliques sem retorno)
+  const categoriesWithCounts = useMemo(() => {
+    const mapped = categories.map((cat) => {
+      const count = sectionScopedProducts.filter((p) =>
+        isProductMatchingCategory(p, cat.name)
+      ).length;
+      return { category: cat, count };
+    });
+
+    const nonEmpty = mapped.filter(
+      (item) =>
+        item.count > 0 ||
+        (selectedCategory && areCategoriesEquivalent(selectedCategory, item.category.name))
+    );
+
+    return nonEmpty.length > 0 ? nonEmpty : mapped;
+  }, [categories, sectionScopedProducts, selectedCategory]);
+
+  // Produtos do escopo da categoria selecionada (base para sincronizar Cores, Tamanhos e Faixa de Preço sem gaps)
+  const categoryScopedProducts = useMemo(() => {
+    if (!selectedCategory) return sectionScopedProducts;
+    return sectionScopedProducts.filter((p) => isProductMatchingCategory(p, selectedCategory));
+  }, [sectionScopedProducts, selectedCategory]);
+
+  // Faixa de preço dinâmica e sincronizada com os produtos reais da categoria ativa
+  const { minPriceBound, maxPriceBound } = useMemo(() => {
+    const source = categoryScopedProducts.length > 0 ? categoryScopedProducts : allProducts;
+    if (source.length === 0) {
+      return { minPriceBound: 50, maxPriceBound: 450 };
+    }
+    const prices = source.map((p) => Number(p.promotionalPrice || p.price) || 0).filter((v) => v > 0);
+    if (prices.length === 0) {
+      return { minPriceBound: 50, maxPriceBound: 450 };
+    }
+    const minP = Math.max(10, Math.floor(Math.min(...prices) / 10) * 10);
+    const maxP = Math.max(minP + 10, Math.ceil(Math.max(...prices) / 10) * 10);
+    return { minPriceBound: minP, maxPriceBound: maxP };
+  }, [categoryScopedProducts, allProducts]);
+
+  // Mantém o slider de preço sincronizado no teto da categoria ao trocar de categoria
+  useEffect(() => {
+    setMaxPrice(maxPriceBound);
+  }, [maxPriceBound, selectedCategory]);
+
+  // Tamanhos disponíveis dinamicamente sincronizados com a categoria atual (sem tamanhos vazios)
+  const availableSizesWithCount = useMemo(() => {
+    const standardOrder = ['PP', 'P', 'M', 'G', 'GG', 'XG', 'U'];
+    const discovered = new Set<string>(standardOrder);
+    categoryScopedProducts.forEach((p) => {
+      getProductSizes(p).forEach((s) => discovered.add(s));
+    });
+
+    const items = Array.from(discovered).map((sz) => {
+      const count = categoryScopedProducts.filter((p) => productMatchesSize(p, sz)).length;
+      return { size: sz, count };
+    });
+
+    const nonEmpty = items.filter((it) => it.count > 0 || selectedSizes.includes(it.size));
+    return nonEmpty.length > 0 ? nonEmpty : items.slice(0, 5);
+  }, [categoryScopedProducts, selectedSizes]);
+
+  // Cores disponíveis dinamicamente sincronizadas com os produtos da categoria atual (todas as 16 cores + personalizadas)
+  const availableColorsWithCount = useMemo(() => {
+    const colorMap = new Map<string, { name: string; hex: string; count: number }>();
+
+    STORE_COLORS.forEach((sc) => {
+      const count = categoryScopedProducts.filter((p) => productMatchesColor(p, sc.name)).length;
+      if (count > 0 || selectedColors.includes(sc.name)) {
+        colorMap.set(sc.name.toLowerCase(), { name: sc.name, hex: sc.hex, count });
+      }
+    });
+
+    // Inclui também qualquer cor personalizada presente nos produtos
+    categoryScopedProducts.forEach((p) => {
+      getEffectiveProductColors(p).forEach((c) => {
+        const key = c.name.toLowerCase();
+        if (!colorMap.has(key)) {
+          const count = categoryScopedProducts.filter((prod) =>
+            productMatchesColor(prod, c.name)
+          ).length;
+          if (count > 0 || selectedColors.includes(c.name)) {
+            colorMap.set(key, { name: c.name, hex: c.hex || '#111111', count });
+          }
+        }
+      });
+    });
+
+    const list = Array.from(colorMap.values());
+    return list.length > 0
+      ? list
+      : STORE_COLORS.map((c) => ({ name: c.name, hex: c.hex, count: 0 }));
+  }, [categoryScopedProducts, selectedColors]);
 
   // Toggle size helper
   const toggleSize = (size: string) => {
@@ -118,13 +239,48 @@ export const CatalogPage: React.FC = () => {
     );
   };
 
-  // Select category & update URL
+  // Selecionar "Todas as Peças" (limpa categoria e sub-filtros que causariam gaps)
+  const handleSelectAllCategories = () => {
+    setSelectedCategory('');
+    setSelectedColors([]);
+    setSelectedSizes([]);
+    setSelectedMaterials([]);
+    setSearchQuery('');
+    setOnlyPromotions(false);
+    setMaxPrice(maxPriceBound);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('categoria');
+      next.delete('search');
+      next.delete('promocao');
+      return next;
+    });
+  };
+
+  // Select category & update URL (limpa filtros incompatíveis para exibir a categoria clicada imediatamente)
   const handleSelectCategory = (catName: string) => {
-    if (selectedCategory === catName) {
+    if (!catName) {
+      handleSelectAllCategories();
+      return;
+    }
+
+    const isSameCategory =
+      Boolean(selectedCategory) && areCategoriesEquivalent(selectedCategory, catName);
+
+    // Sempre limpa sub-filtros de cor/tamanho/busca ao alternar entre categorias para nunca travar em tela vazia ou na mesma cor
+    setSelectedColors([]);
+    setSelectedSizes([]);
+    setSelectedMaterials([]);
+    setSearchQuery('');
+    setOnlyPromotions(false);
+
+    if (isSameCategory) {
       setSelectedCategory('');
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
         next.delete('categoria');
+        next.delete('search');
+        next.delete('promocao');
         return next;
       });
     } else {
@@ -132,6 +288,8 @@ export const CatalogPage: React.FC = () => {
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
         next.set('categoria', catName);
+        next.delete('search');
+        next.delete('promocao');
         return next;
       });
     }
@@ -144,7 +302,7 @@ export const CatalogPage: React.FC = () => {
     setSelectedSizes([]);
     setSelectedColors([]);
     setSelectedMaterials([]);
-    setMaxPrice(450);
+    setMaxPrice(maxPriceBound);
     setOnlyPromotions(false);
     setSortBy('relevancia');
     setSearchParams({});
@@ -198,9 +356,9 @@ export const CatalogPage: React.FC = () => {
           if (!hasColor) return false;
         }
 
-        // Sizes
+        // Filtro por Tamanhos sincronizado com product.sizes e product.stock
         if (selectedSizes.length > 0) {
-          const hasSize = (product.sizes || []).some((s) => selectedSizes.includes(s));
+          const hasSize = selectedSizes.some((sz) => productMatchesSize(product, sz));
           if (!hasSize) return false;
         }
 
@@ -213,7 +371,7 @@ export const CatalogPage: React.FC = () => {
         }
 
         // Max price
-        const effectivePrice = product.promotionalPrice || product.price;
+        const effectivePrice = Number(product.promotionalPrice || product.price) || 0;
         if (effectivePrice > maxPrice) {
           return false;
         }
@@ -288,7 +446,7 @@ export const CatalogPage: React.FC = () => {
   const currentCategoryObj = useMemo(() => {
     if (!selectedCategory) return null;
     return (
-      categories.find((c) => c.name === selectedCategory) || {
+      categories.find((c) => areCategoriesEquivalent(c.name, selectedCategory)) || {
         name: selectedCategory,
         slug: 'categoria',
         icon: '🏷️',
@@ -393,7 +551,7 @@ export const CatalogPage: React.FC = () => {
           </span>
           {selectedCategory && (
             <button
-              onClick={() => handleSelectCategory(selectedCategory)}
+              onClick={handleSelectAllCategories}
               className="text-xs text-primary font-bold hover:underline"
             >
               Ver Todas as Categorias
@@ -405,7 +563,7 @@ export const CatalogPage: React.FC = () => {
         <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
           {/* "Todas as Peças" Pill */}
           <button
-            onClick={() => handleSelectCategory(selectedCategory)}
+            onClick={handleSelectAllCategories}
             className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 border ${
               selectedCategory === ''
                 ? 'bg-primary text-white border-primary shadow-md'
@@ -419,16 +577,15 @@ export const CatalogPage: React.FC = () => {
                 selectedCategory === '' ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground'
               }`}
             >
-              {allProducts.length}
+              {sectionScopedProducts.length}
             </span>
           </button>
 
-          {/* Individual Category Pills */}
-          {categories.map((cat) => {
-            const count = allProducts.filter(
-              (p) => isProductMatchingCategory(p, cat.name)
-            ).length;
-            const isSelected = selectedCategory === cat.name;
+          {/* Individual Category Pills (Sincronizadas e sem gaps de categorias vazias) */}
+          {categoriesWithCounts.map(({ category: cat, count }) => {
+            const isSelected = Boolean(
+              selectedCategory && areCategoriesEquivalent(selectedCategory, cat.name)
+            );
 
             return (
               <button
@@ -446,17 +603,15 @@ export const CatalogPage: React.FC = () => {
                   className="w-5 h-5 rounded-full object-cover object-top border border-black/10 dark:border-white/20 shrink-0"
                 />
                 <span>{cat.name}</span>
-                {count > 0 && (
-                  <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                      isSelected
-                        ? 'bg-white/20 text-white'
-                        : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
-                    }`}
-                  >
-                    {count}
-                  </span>
-                )}
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                    isSelected
+                      ? 'bg-white/20 text-white'
+                      : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                  }`}
+                >
+                  {count}
+                </span>
               </button>
             );
           })}
@@ -505,7 +660,7 @@ export const CatalogPage: React.FC = () => {
             </h4>
             <div className="space-y-1 max-h-56 overflow-y-auto pr-1">
               <button
-                onClick={() => handleSelectCategory(selectedCategory)}
+                onClick={handleSelectAllCategories}
                 className={`w-full text-left text-xs py-2 px-2.5 rounded-xl transition-colors flex items-center justify-between ${
                   selectedCategory === ''
                     ? 'bg-primary/10 font-bold text-primary'
@@ -513,14 +668,13 @@ export const CatalogPage: React.FC = () => {
                 }`}
               >
                 <span>Todas as Categorias</span>
-                <span className="text-[10px] opacity-75">{allProducts.length}</span>
+                <span className="text-[10px] opacity-75">{sectionScopedProducts.length}</span>
               </button>
 
-              {categories.map((cat) => {
-                const count = allProducts.filter(
-                  (p) => isProductMatchingCategory(p, cat.name)
-                ).length;
-                const isSelected = selectedCategory === cat.name;
+              {categoriesWithCounts.map(({ category: cat, count }) => {
+                const isSelected = Boolean(
+                  selectedCategory && areCategoriesEquivalent(selectedCategory, cat.name)
+                );
 
                 return (
                   <button
@@ -540,70 +694,137 @@ export const CatalogPage: React.FC = () => {
                       />
                       <span>{cat.name}</span>
                     </span>
-                    {count > 0 && (
-                      <span className="text-[10px] font-semibold opacity-75">{count}</span>
-                    )}
+                    <span className="text-[10px] font-semibold opacity-75">{count}</span>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Price Range Slider */}
+          {/* Price Range Slider (Dinamicamente sincronizado com os preços reais da categoria) */}
           <div>
-            <div className="flex justify-between items-center text-xs mb-2">
+            <div className="flex justify-between items-center text-xs mb-1.5">
               <span className="font-semibold text-foreground uppercase tracking-wider">Faixa de Preço</span>
-              <span className="font-serif font-bold text-primary">{formatCurrency(maxPrice)}</span>
+              <span className="font-serif font-bold text-primary">
+                Até {formatCurrency(maxPrice)}
+              </span>
             </div>
             <input
               type="range"
-              min="50"
-              max="450"
+              min={minPriceBound}
+              max={maxPriceBound}
               step="10"
-              value={maxPrice}
+              value={Math.min(Math.max(maxPrice, minPriceBound), maxPriceBound)}
               onChange={(e) => setMaxPrice(Number(e.target.value))}
               className="w-full accent-primary cursor-pointer"
             />
+            <div className="flex justify-between items-center text-[10px] text-muted-foreground mt-1">
+              <span>Mín: {formatCurrency(minPriceBound)}</span>
+              <span>Máx: {formatCurrency(maxPriceBound)}</span>
+            </div>
           </div>
 
-          {/* Size Filter */}
+          {/* Size Filter (Sincronizado com tamanhos disponíveis na categoria ativa) */}
           <div>
-            <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider mb-2">Tamanhos</h4>
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider">
+                Tamanhos
+              </h4>
+              {selectedSizes.length > 0 && (
+                <button
+                  onClick={() => setSelectedSizes([])}
+                  className="text-[10px] text-primary hover:underline font-semibold"
+                >
+                  Limpar
+                </button>
+              )}
+            </div>
             <div className="flex flex-wrap gap-1.5">
-              {sizes.map((sz) => (
+              {availableSizesWithCount.map(({ size: sz, count }) => (
                 <button
                   key={sz}
                   onClick={() => toggleSize(sz)}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-xl border transition-colors ${
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-xl border transition-colors flex items-center gap-1 ${
                     selectedSizes.includes(sz)
                       ? 'bg-primary text-white border-primary shadow-sm'
                       : 'bg-background border-border text-muted-foreground hover:border-primary/50'
                   }`}
+                  title={`${count} ${count === 1 ? 'peça disponível' : 'peças disponíveis'} no tamanho ${sz}`}
                 >
-                  {sz}
+                  <span>{sz}</span>
+                  {count > 0 && (
+                    <span
+                      className={`text-[9px] px-1 rounded-full ${
+                        selectedSizes.includes(sz)
+                          ? 'bg-white/20 text-white'
+                          : 'text-muted-foreground/70'
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Colors Filter */}
+          {/* Colors Filter (Sincronizado com as cores reais disponíveis nos produtos da categoria) */}
           <div>
-            <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider mb-2">Cores</h4>
-            <div className="flex flex-wrap gap-2">
-              {colors.map((c) => (
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider">
+                Cores
+              </h4>
+              {selectedColors.length > 0 && (
                 <button
-                  key={c.name}
-                  onClick={() => toggleColor(c.name)}
-                  className={`w-6 h-6 rounded-full border transition-transform ${
-                    selectedColors.includes(c.name)
-                      ? 'ring-2 ring-primary ring-offset-2 scale-110'
-                      : 'hover:scale-110 opacity-80 hover:opacity-100'
-                  }`}
-                  style={{ backgroundColor: c.hex }}
-                  title={c.name}
-                />
-              ))}
+                  onClick={() => setSelectedColors([])}
+                  className="text-[10px] text-primary hover:underline font-semibold"
+                >
+                  Limpar ({selectedColors.length})
+                </button>
+              )}
             </div>
+            <div className="flex flex-wrap gap-2">
+              {availableColorsWithCount.map((c) => {
+                const isColorSelected = selectedColors.includes(c.name);
+                return (
+                  <button
+                    key={c.name}
+                    onClick={() => toggleColor(c.name)}
+                    className={`w-6 h-6 rounded-full border border-black/15 dark:border-white/25 transition-transform relative flex items-center justify-center ${
+                      isColorSelected
+                        ? 'ring-2 ring-primary ring-offset-2 scale-110'
+                        : 'hover:scale-110 opacity-90 hover:opacity-100'
+                    }`}
+                    style={{ backgroundColor: c.hex }}
+                    title={`${c.name}${c.count > 0 ? ` (${c.count} ${c.count === 1 ? 'peça' : 'peças'})` : ''}`}
+                  >
+                    {isColorSelected && (
+                      <Check
+                        className={`w-3 h-3 ${
+                          c.name === 'Branco' || c.name === 'Nude / Bege' || c.name === 'Rosa Claro'
+                            ? 'text-slate-900'
+                            : 'text-white'
+                        }`}
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            {selectedColors.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-2">
+                {selectedColors.map((sc) => (
+                  <span
+                    key={sc}
+                    onClick={() => toggleColor(sc)}
+                    className="text-[10px] bg-primary/10 text-primary font-semibold px-2 py-0.5 rounded-full cursor-pointer hover:bg-primary/20 flex items-center gap-1"
+                  >
+                    <span>{sc}</span>
+                    <span>✕</span>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Promotion Only Toggle */}
