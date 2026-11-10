@@ -112,40 +112,47 @@ export const initialStoreSections: StoreSection[] = [
 export const initialHeroBanners: HeroBannerSlide[] = [
   {
     id: 'banner-1',
-    badge: 'NOVA COLEÇÃO',
-    title: 'FORÇA & ESTILO',
-    subtitle: 'Conjuntos que abraçam seu movimento com toque aveludado e zero transparência',
-    buttonText: 'VER CONJUNTOS',
-    link: '/catalogo?categoria=Conjuntos',
+    bannerStyle: 'editorial-light',
+    badge: 'PRIMEIRA COMPRA',
+    title: 'VISTA-SE DE CONFIANÇA!',
+    discountHighlight: 'R$ 30,00 DE DESCONTO',
+    couponCode: 'PRIMEIRA30',
+    subtitle: '*CUPOM VÁLIDO EM PEDIDOS DE PRIMEIRA COMPRA A PARTIR DE R$ 299',
+    disclaimer: '*Ação não cumulativa com outras ações, cupons e cashbacks, disponível por tempo limitado ou enquanto durarem os estoques.',
+    buttonText: 'COMPRAR AGORA',
+    link: '/catalogo',
     leftImage: '/images/look-3214.png',
     rightImage: '/images/macaco-bless.png',
-    centerBgColor: '#163923',
+    centerBgColor: '#f5f5f3',
     active: true,
     order: 1,
   },
   {
     id: 'banner-2',
-    badge: '☀️ MODA VERÃO',
-    title: 'BRILHO & LEVEZA',
-    subtitle: 'Tecidos em poliamida respirável para você treinar com máxima performance no verão',
-    buttonText: 'VER MODA VERÃO',
-    link: '/catalogo?secao=moda-verao',
+    bannerStyle: 'bold-dark',
+    badge: 'MAIS DESEJADOS',
+    title: 'BEST SELLERS',
+    discountHighlight: 'As mais queridinhas da Aura',
+    subtitle: 'As peças eleitas pelas nossas clientes para treinar com máxima elegância, cós anatômico e zero transparência.',
+    buttonText: 'COMPRAR AGORA',
+    link: '/catalogo?destaque=true',
     leftImage: '/images/look-3656.png',
     rightImage: '/images/banner-style.png',
-    centerBgColor: '#1a3c26',
+    centerBgColor: '#0b1610',
     active: true,
     order: 2,
   },
   {
     id: 'banner-3',
-    badge: '🔥 BLACK FRIDAY',
-    title: 'BLACK FRIDAY AURA',
-    subtitle: 'Aproveite as maiores ofertas do ano com descontos imperdíveis e pronta entrega',
-    buttonText: 'APROVEITAR BLACK FRIDAY',
-    link: '/catalogo?secao=black-friday',
-    leftImage: '/images/look-3603.png',
-    rightImage: '/images/look-3103.png',
-    centerBgColor: '#182b1d',
+    bannerStyle: 'classic-3col',
+    badge: 'NOVA COLEÇÃO 2026',
+    title: 'FORÇA & EFEITO LIPO',
+    subtitle: 'Conjuntos anatômicos que abraçam seu movimento com sustentação premium, toque macio e acabamento aveludado.',
+    buttonText: 'VER CONJUNTOS',
+    link: '/catalogo?categoria=Conjuntos',
+    leftImage: '/images/look-3103.png',
+    rightImage: '/images/look-3603.png',
+    centerBgColor: '#133923',
     active: true,
     order: 3,
   },
@@ -360,7 +367,14 @@ let cachedPromotions: Promotion[] = getStorageItem<Promotion[]>(STORAGE_KEYS.PRO
 let cachedLookSets: LookSet[] = getStorageItem<LookSet[]>(STORAGE_KEYS.LOOK_SETS, initialLookSets);
 let cachedSettings: StoreSettings = getStorageItem<StoreSettings>(STORAGE_KEYS.SETTINGS, initialStoreSettings);
 let cachedSections: StoreSection[] = getStorageItem<StoreSection[]>(STORAGE_KEYS.SECTIONS, initialStoreSections);
-let cachedHeroBanners: HeroBannerSlide[] = getStorageItem<HeroBannerSlide[]>(STORAGE_KEYS.HERO_BANNERS, initialHeroBanners);
+let cachedHeroBanners: HeroBannerSlide[] = (() => {
+  const stored = getStorageItem<HeroBannerSlide[]>(STORAGE_KEYS.HERO_BANNERS, initialHeroBanners);
+  if (!stored || stored.length === 0 || !stored.some((b) => b.bannerStyle)) {
+    setStorageItem(STORAGE_KEYS.HERO_BANNERS, initialHeroBanners);
+    return initialHeroBanners;
+  }
+  return stored;
+})();
 
 // Synchronize Supabase in background
 export async function syncWithSupabase(): Promise<void> {
@@ -1902,6 +1916,10 @@ export interface AiGeneratedBannerResult {
   centerBgColor: string;
   leftImage: string;
   rightImage: string;
+  bannerStyle?: 'classic-3col' | 'editorial-light' | 'bold-dark';
+  couponCode?: string;
+  discountHighlight?: string;
+  disclaimer?: string;
   themeNotes?: string;
   alternativeStyles: {
     name: string;
@@ -1910,6 +1928,10 @@ export interface AiGeneratedBannerResult {
     subtitle: string;
     buttonText: string;
     centerBgColor: string;
+    bannerStyle?: 'classic-3col' | 'editorial-light' | 'bold-dark';
+    couponCode?: string;
+    discountHighlight?: string;
+    disclaimer?: string;
   }[];
 }
 
@@ -1936,6 +1958,39 @@ export async function aiGenerateHeroBanner(
   const discountText = discountMatch ? discountMatch[0].toUpperCase() : '';
 
   // 2. Classificação de Tema
+  const isCouponFirstPurchase =
+    lower.includes('cupom') ||
+    lower.includes('primeira compra') ||
+    lower.includes('primeira30') ||
+    lower.includes('primeiro pedido') ||
+    lower.includes('r$ 30') ||
+    lower.includes('r$30') ||
+    lower.includes('30 de desconto') ||
+    lower.includes('confianca') ||
+    lower.includes('confiança') ||
+    lower.includes('bem vinda') ||
+    lower.includes('bem-vinda');
+
+  const isBestSeller =
+    lower.includes('best seller') ||
+    lower.includes('bestseller') ||
+    lower.includes('queridinha') ||
+    lower.includes('queridinhas') ||
+    lower.includes('mais vendid') ||
+    lower.includes('campeao') ||
+    lower.includes('top vendas') ||
+    lower.includes('favorit');
+
+  const isMinimalist =
+    lower.includes('minimal') ||
+    lower.includes('off white') ||
+    lower.includes('offwhite') ||
+    lower.includes('clean') ||
+    lower.includes('salvia') ||
+    lower.includes('sálvia') ||
+    lower.includes('nude') ||
+    lower.includes('eleganc');
+
   const isBlackFriday = lower.includes('black friday') || lower.includes('black') || lower.includes('cyber');
   const isSale =
     isBlackFriday ||
@@ -1980,7 +2035,13 @@ export async function aiGenerateHeroBanner(
   let leftImg = '/images/look-3103.png';
   let rightImg = '/images/macaco-bless.png';
 
-  if (isMacaquinho) {
+  if (isCouponFirstPurchase) {
+    leftImg = '/images/look-3214.png';
+    rightImg = '/images/macaco-bless.png';
+  } else if (isBestSeller) {
+    leftImg = '/images/look-3656.png';
+    rightImg = '/images/banner-style.png';
+  } else if (isMacaquinho) {
     leftImg = '/images/macaco-bless.png';
     rightImg = matchingProductImages[0] || '/images/look-3214.png';
   } else if (isSummer) {
@@ -2000,7 +2061,12 @@ export async function aiGenerateHeroBanner(
     rightImg = '/images/macaco-bless.png';
   }
 
-  // 4. Criação das Chamadas, Badges e Cores
+  // 4. Criação das Chamadas, Badges, Cores e Estilo
+  let bannerStyle: 'classic-3col' | 'editorial-light' | 'bold-dark' = 'classic-3col';
+  let couponCode: string | undefined = undefined;
+  let discountHighlight: string | undefined = undefined;
+  let disclaimer: string | undefined = undefined;
+
   let badge = '✨ LANÇAMENTO EXCLUSIVO';
   let title = 'FORÇA, ELEGÂNCIA & MOVIMENTO';
   let subtitle =
@@ -2009,7 +2075,36 @@ export async function aiGenerateHeroBanner(
   let link = '/catalogo';
   let centerBgColor = '#163923'; // Verde floresta Aura oficial
 
-  if (isBlackFriday) {
+  if (isCouponFirstPurchase) {
+    bannerStyle = 'editorial-light';
+    badge = 'PRIMEIRA COMPRA';
+    title = 'VISTA-SE DE CONFIANÇA!';
+    discountHighlight = 'R$ 30,00 DE DESCONTO';
+    couponCode = 'PRIMEIRA30';
+    subtitle = '*CUPOM VÁLIDO EM PEDIDOS DE PRIMEIRA COMPRA A PARTIR DE R$ 299';
+    disclaimer = '*Ação não cumulativa com outras ações, cupons e cashbacks, disponível por tempo limitado ou enquanto durarem os estoques.';
+    buttonText = 'COMPRAR AGORA';
+    link = '/catalogo';
+    centerBgColor = '#f5f5f3';
+  } else if (isBestSeller) {
+    bannerStyle = 'bold-dark';
+    badge = 'MAIS DESEJADOS';
+    title = 'BEST SELLERS';
+    discountHighlight = 'As mais queridinhas da Aura';
+    subtitle = 'Os modelos mais cobiçados e bem avaliados pelas nossas clientes, com alta compressão anatômica e zero transparência.';
+    buttonText = 'COMPRAR AGORA';
+    link = '/catalogo?destaque=true';
+    centerBgColor = '#0b1610';
+  } else if (isMinimalist) {
+    bannerStyle = 'editorial-light';
+    badge = 'LINHA MINIMALISTA';
+    title = 'ESSÊNCIA & SOFISTICAÇÃO';
+    discountHighlight = 'TOQUE AVELUDADO & POLIAMIDA NOBRE';
+    subtitle = 'Modelagens limpas em tons serenos para compor looks dentro e fora do treino com acabamento de alta costura.';
+    buttonText = 'VER PEÇAS MINIMALISTAS';
+    link = '/catalogo';
+    centerBgColor = '#f2f4f0';
+  } else if (isBlackFriday) {
     badge = discountText ? `🔥 BLACK FRIDAY • ATÉ ${discountText}` : '🔥 BLACK FRIDAY AURA';
     title = 'OS MAIORES DESCONTOS DO ANO';
     subtitle = `Condições imperdíveis nas peças mais desejadas da marca. Conjuntos e macaquinhos de alta performance com até ${discountText || '50% OFF'} por tempo estritamente limitado!`;
@@ -2081,31 +2176,67 @@ export async function aiGenerateHeroBanner(
     centerBgColor = '#163923';
   }
 
-  // 5. Gera 3 estilos alternativos para o usuário poder escolher com 1 clique
-  const alternativeStyles = [
+  // 5. Gera 6 estilos alternativos abrangendo todos os padrões (Editorial Claro, Best Sellers Dark, Lipo, etc.)
+  const alternativeStyles: AiGeneratedBannerResult['alternativeStyles'] = [
     {
-      name: 'Impacto Promocional',
-      badge: discountText ? `🔥 OFERTA LIMITADA • ${discountText}` : '🔥 DESCONTOS IMPERDÍVEIS',
-      title: discountText ? `ATÉ ${discountText} DE DESCONTO` : 'OPORTUNIDADE EXCLUSIVA',
-      subtitle: `Garanta as peças mais amadas do catálogo com preços especiais por tempo limitado. Aproveite antes que acabe o estoque!`,
-      buttonText: discountText ? `APROVEITAR ${discountText}` : 'CONFERIR DESCONTOS',
+      name: '🎟️ Cupom Primeira Compra (R$30 OFF)',
+      bannerStyle: 'editorial-light',
+      badge: 'PRIMEIRA COMPRA',
+      title: 'VISTA-SE DE CONFIANÇA!',
+      discountHighlight: 'R$ 30,00 DE DESCONTO',
+      couponCode: 'PRIMEIRA30',
+      subtitle: '*CUPOM VÁLIDO EM PEDIDOS DE PRIMEIRA COMPRA A PARTIR DE R$ 299',
+      disclaimer: '*Ação não cumulativa com outras ações, cupons e cashbacks, disponível por tempo limitado.',
+      buttonText: 'COMPRAR AGORA',
+      centerBgColor: '#f5f5f3',
+    },
+    {
+      name: '★ Best Sellers (As Queridinhas)',
+      bannerStyle: 'bold-dark',
+      badge: 'MAIS DESEJADOS',
+      title: 'BEST SELLERS',
+      discountHighlight: 'As mais queridinhas da Aura',
+      subtitle: 'As peças favoritas das clientes com alta compressão, zero transparência e efeito anatômico.',
+      buttonText: 'COMPRAR AGORA',
+      centerBgColor: '#0b1610',
+    },
+    {
+      name: '💎 Minimalista Off-White & Sálvia',
+      bannerStyle: 'editorial-light',
+      badge: 'LINHA MINIMAL',
+      title: 'ELEGÂNCIA & TOQUE SUAVE',
+      discountHighlight: 'SOFISTICAÇÃO PURA',
+      subtitle: 'Tons neutros nobres e tecidos aveludados com proteção UV para treinar com máxima classe.',
+      buttonText: 'VER LINHA MINIMAL',
+      centerBgColor: '#f1f3ee',
+    },
+    {
+      name: '🌿 Efeito Lipo & Sálvia Oficial',
+      bannerStyle: 'classic-3col',
+      badge: 'AURA EXCLUSIVE 2026',
+      title: 'MODELAGEM ANATÔMICA LIPO',
+      subtitle: 'Cós anatômico duplo que modela a cintura sem enrolar e valoriza seu corpo com conforto extremo.',
+      buttonText: 'CONHECER MODELAGEM',
+      centerBgColor: '#133923',
+    },
+    {
+      name: '🖤 All Black / Obsidian Alta Compressão',
+      bannerStyle: 'bold-dark',
+      badge: 'ALTA PERFORMANCE',
+      title: 'BLACK VELVET AURA',
+      discountHighlight: 'Zero Transparência Comprovada',
+      subtitle: 'A densidade perfeita de poliamida com elastano para agachamentos sem nenhuma surpresa.',
+      buttonText: 'QUERO AS MINHAS',
+      centerBgColor: '#0f1411',
+    },
+    {
+      name: '🔥 Impacto Promocional & Desconto',
+      bannerStyle: 'classic-3col',
+      badge: discountText ? `🔥 OFERTA RELÂMPAGO • ${discountText}` : '🔥 DESCONTOS ESPECIAIS',
+      title: discountText ? `ATÉ ${discountText} OFF NO CATÁLOGO` : 'OPORTUNIDADE POR TEMPO LIMITADO',
+      subtitle: 'Garanta as peças mais queridinhas do catálogo com preços imperdíveis antes que acabe o estoque.',
+      buttonText: discountText ? `APROVEITAR ${discountText}` : 'CONFERIR OFERTAS',
       centerBgColor: '#1a1013',
-    },
-    {
-      name: 'Editorial Luxo',
-      badge: '💎 ALTA PERFORMANCE & ELEGÂNCIA',
-      title: 'A EXCELÊNCIA EM CADA DETALHE',
-      subtitle: 'Desenvolvido para quem não abre mão de conforto extremo, acabamento premium e elegância impecável dentro e fora do treino.',
-      buttonText: 'CONHECER COLEÇÃO',
-      centerBgColor: '#163923',
-    },
-    {
-      name: 'Moderno & Ativo',
-      badge: '⚡ NOVA ENERGIA EM MOVIMENTO',
-      title: 'POTÊNCIA & LIBERDADE TOTAL',
-      subtitle: 'Tecnologia com elasticidade multidirecional e toque fresco para acompanhar o ritmo dos seus melhores treinos.',
-      buttonText: 'EU QUERO ESSA PEÇA',
-      centerBgColor: '#142538',
     },
   ];
 
@@ -2118,6 +2249,10 @@ export async function aiGenerateHeroBanner(
     centerBgColor,
     leftImage: leftImg,
     rightImage: rightImg,
+    bannerStyle,
+    couponCode,
+    discountHighlight,
+    disclaimer,
     themeNotes: `Banner gerado com sucesso pela IA com base no tema "${cleanTheme}".`,
     alternativeStyles,
   };

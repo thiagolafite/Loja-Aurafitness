@@ -265,14 +265,18 @@ export const AdminSectionsBannersPage: React.FC = () => {
   // ==========================================
   const handleOpenNewBannerModal = () => {
     setEditingBanner({
-      badge: 'NOVA COLEÇÃO',
-      title: 'AURA FITNESS',
-      subtitle: 'Peças em compressão inteligente e zero transparência',
-      buttonText: 'CONFERIR COLEÇÃO',
+      badge: 'PRIMEIRA COMPRA',
+      title: 'VISTA-SE DE CONFIANÇA!',
+      discountHighlight: 'R$ 30,00 DE DESCONTO',
+      couponCode: 'PRIMEIRA30',
+      subtitle: '*CUPOM VÁLIDO EM PEDIDOS DE PRIMEIRA COMPRA A PARTIR DE R$ 299',
+      disclaimer: '*Ação não cumulativa com outras ações, cupons e cashbacks.',
+      buttonText: 'COMPRAR AGORA',
       link: '/catalogo',
       leftImage: '/images/look-3214.png',
       rightImage: '/images/macaco-bless.png',
-      centerBgColor: '#163923',
+      centerBgColor: '#f5f5f3',
+      bannerStyle: 'editorial-light',
       active: true,
     });
     setIsBannerModalOpen(true);
@@ -367,6 +371,10 @@ export const AdminSectionsBannersPage: React.FC = () => {
         centerBgColor: res.centerBgColor,
         leftImage: res.leftImage,
         rightImage: res.rightImage,
+        bannerStyle: res.bannerStyle || 'classic-3col',
+        couponCode: res.couponCode,
+        discountHighlight: res.discountHighlight,
+        disclaimer: res.disclaimer,
         active: true,
       });
       setSelectedStyleIndex(0);
@@ -388,6 +396,10 @@ export const AdminSectionsBannersPage: React.FC = () => {
       subtitle: style.subtitle,
       buttonText: style.buttonText,
       centerBgColor: style.centerBgColor,
+      bannerStyle: style.bannerStyle || 'classic-3col',
+      couponCode: style.couponCode,
+      discountHighlight: style.discountHighlight,
+      disclaimer: style.disclaimer,
     });
   };
 
@@ -399,6 +411,7 @@ export const AdminSectionsBannersPage: React.FC = () => {
 
     const saved = saveHeroBanner({
       ...aiBannerDraft,
+      bannerStyle: aiBannerDraft.bannerStyle || 'classic-3col',
       active: true,
       order: 1, // Coloca como o primeiro slide na Home para destaque imediato
     });
@@ -1386,6 +1399,77 @@ export const AdminSectionsBannersPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Estilo Visual do Banner */}
+              <div className="bg-muted/40 p-3.5 rounded-2xl border border-border space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-foreground">
+                    Estilo Visual do Banner:
+                  </label>
+                  <span className="text-[10px] text-muted-foreground">
+                    Altera a diagramação do slide na Home
+                  </span>
+                </div>
+                <select
+                  value={editingBanner.bannerStyle || 'classic-3col'}
+                  onChange={(e) =>
+                    setEditingBanner({
+                      ...editingBanner,
+                      bannerStyle: e.target.value as any,
+                    })
+                  }
+                  className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs font-semibold outline-none"
+                >
+                  <option value="editorial-light">🎟️ Editorial Clean (Fundo Claro / Cupom / Desconto R$30)</option>
+                  <option value="bold-dark">🖤 Dark Chic (Best Sellers / Contraste Noturno)</option>
+                  <option value="classic-3col">🌿 Carrossel Clássico 3 Colunas (Verde Floresta Nobre)</option>
+                </select>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                      Destaque de Desconto:
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ex: R$ 30,00 DE DESCONTO"
+                      value={editingBanner.discountHighlight || ''}
+                      onChange={(e) =>
+                        setEditingBanner({ ...editingBanner, discountHighlight: e.target.value })
+                      }
+                      className="w-full bg-background border border-border rounded-xl px-2.5 py-1.5 text-xs outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                      Código do Cupom:
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ex: PRIMEIRA30"
+                      value={editingBanner.couponCode || ''}
+                      onChange={(e) =>
+                        setEditingBanner({ ...editingBanner, couponCode: e.target.value })
+                      }
+                      className="w-full bg-background border border-border rounded-xl px-2.5 py-1.5 text-xs outline-none font-mono font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                      Regras / Disclaimer:
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ex: *Cupom válido acima de R$ 299..."
+                      value={editingBanner.disclaimer || ''}
+                      onChange={(e) =>
+                        setEditingBanner({ ...editingBanner, disclaimer: e.target.value })
+                      }
+                      className="w-full bg-background border border-border rounded-xl px-2.5 py-1.5 text-xs outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* Textos Centrais do Banner */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -1602,12 +1686,14 @@ export const AdminSectionsBannersPage: React.FC = () => {
                     <Zap className="w-3 h-3 text-amber-500" /> Testar temas:
                   </span>
                   {[
+                    '🎟️ Cupom Primeira Compra (R$30 OFF)',
+                    '★ Best Sellers (As Queridinhas)',
+                    '💎 Minimalista Off-White & Sálvia',
+                    '🌿 Efeito Lipo & Sálvia Oficial',
+                    '🖤 All Black Alta Compressão',
                     '🔥 Black Friday 50% OFF',
                     '☀️ Coleção Verão & Moda Solar',
-                    '⚡ Queima de Estoque',
-                    '🧘‍♀️ Macaquinhos Segunda Pele',
-                    '🌸 Especial Dia das Mães',
-                    '💪 Moda Fitness Alta Performance',
+                    '⚡ Queima de Estoque Relâmpago',
                   ].map((chip) => (
                     <button
                       key={chip}
@@ -1685,116 +1771,157 @@ export const AdminSectionsBannersPage: React.FC = () => {
                   </div>
 
                   <div className="rounded-3xl border border-border/80 overflow-hidden shadow-xl bg-neutral-950 p-2 sm:p-4">
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-stretch min-h-[320px]">
-                      {/* Foto Esquerda */}
-                      <div className="md:col-span-3 relative rounded-2xl overflow-hidden bg-neutral-900 group min-h-[220px]">
-                        <img
-                          src={aiBannerDraft.leftImage || '/images/macaco-bless.png'}
-                          alt="Modelo Esquerda"
-                          className="w-full h-full object-cover object-top"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
-                        <span className="absolute top-2 left-2 bg-black/60 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded-md">
-                          Foto 1 (Esquerda)
-                        </span>
-
-                        <div className="absolute inset-x-2 bottom-2 flex flex-col gap-1.5 opacity-90 group-hover:opacity-100 transition-opacity">
-                          <button
-                            type="button"
-                            onClick={() => setIsSelectingLeftProductPhoto(true)}
-                            className="w-full bg-white/90 hover:bg-white text-neutral-900 text-[10px] font-bold py-1.5 px-2 rounded-xl flex items-center justify-center gap-1 shadow"
-                          >
-                            <LayoutGrid className="w-3 h-3" />
-                            <span>Trocar Foto do Catálogo</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => aiLeftFileRef.current?.click()}
-                            className="w-full bg-black/60 hover:bg-black/80 text-white text-[10px] font-bold py-1.5 px-2 rounded-xl flex items-center justify-center gap-1 backdrop-blur-sm border border-white/20"
-                          >
-                            <Upload className="w-3 h-3" />
-                            <span>Upload de Foto</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Card Central de Conteúdo */}
+                    {aiBannerDraft.bannerStyle === 'editorial-light' ? (
+                      /* Preview Estilo Editorial Claro (Cupom / R$30 OFF) */
                       <div
-                        className="md:col-span-6 relative rounded-2xl p-6 sm:p-8 flex flex-col items-center justify-center text-center text-white overflow-hidden shadow-2xl transition-colors duration-300"
-                        style={{ backgroundColor: aiBannerDraft.centerBgColor || '#163923' }}
+                        style={{ backgroundColor: aiBannerDraft.centerBgColor || '#f5f5f3' }}
+                        className="rounded-2xl overflow-hidden p-4 sm:p-6 flex flex-col md:flex-row items-center justify-between text-neutral-900 min-h-[300px] relative border border-neutral-300"
                       >
-                        {/* Arcos decorativos de fundo */}
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
-                          <div className="w-[340px] h-[340px] rounded-full border border-white/40" />
-                          <div className="absolute w-[440px] h-[440px] rounded-full border border-white/20" />
-                          <div className="absolute w-[540px] h-[540px] rounded-full border border-white/10" />
+                        {/* Foto Esquerda */}
+                        <div className="w-full md:w-3/12 h-44 md:h-64 relative rounded-xl overflow-hidden bg-neutral-200 shrink-0">
+                          <img
+                            src={aiBannerDraft.leftImage || '/images/look-3214.png'}
+                            alt="Modelo Esquerda"
+                            className="w-full h-full object-cover object-top"
+                          />
+                          <div className="absolute bottom-2 left-2 w-10 h-10 rounded-full border border-neutral-700/30 flex flex-col items-center justify-center text-center p-0.5 bg-white/20 select-none">
+                            <span className="text-[5px] font-extrabold text-neutral-800">AURA</span>
+                            <span className="text-[4px] text-neutral-600">FITNESS</span>
+                          </div>
                         </div>
 
-                        <div className="relative z-10 max-w-md space-y-3">
-                          {/* Badge */}
-                          <div className="inline-block bg-white/15 backdrop-blur-md border border-white/25 px-3 py-1 rounded-full text-[10px] sm:text-xs font-extrabold tracking-widest uppercase">
-                            {aiBannerDraft.badge || 'CAMPANHA AURA'}
-                          </div>
-
-                          {/* Título */}
-                          <h2 className="font-serif text-2xl sm:text-3xl lg:text-4xl font-bold leading-tight tracking-tight drop-shadow-md">
-                            {aiBannerDraft.title || 'Título da Campanha'}
-                          </h2>
-
-                          {/* Subtítulo */}
-                          <p className="text-xs sm:text-sm text-white/80 line-clamp-2 max-w-sm mx-auto font-light leading-relaxed">
-                            {aiBannerDraft.subtitle || 'Subtítulo descritivo elegante gerado pela IA'}
+                        {/* Centro Conteúdo */}
+                        <div className="w-full md:w-6/12 flex flex-col items-center text-center px-4 py-3 my-auto">
+                          <span className="text-[10px] font-extrabold tracking-widest text-neutral-600 uppercase mb-1">
+                            {aiBannerDraft.title || 'VISTA-SE DE CONFIANÇA!'}
+                          </span>
+                          {aiBannerDraft.discountHighlight && (
+                            <div className="mb-2">
+                              <span className="text-2xl sm:text-3xl font-black text-neutral-900 leading-none">
+                                {aiBannerDraft.discountHighlight}
+                              </span>
+                            </div>
+                          )}
+                          {aiBannerDraft.couponCode && (
+                            <div className="mb-2 bg-neutral-900 text-white font-mono text-xs px-3 py-1 rounded-lg border border-neutral-700">
+                              <span className="text-neutral-400 text-[9px] mr-1">CUPOM:</span>
+                              <span className="text-amber-300 font-bold">{aiBannerDraft.couponCode}</span>
+                            </div>
+                          )}
+                          <p className="text-[10px] text-neutral-600 font-medium max-w-xs mb-3">
+                            {aiBannerDraft.subtitle || '*CUPOM VÁLIDO EM PEDIDOS DE PRIMEIRA COMPRA'}
                           </p>
+                          <span className="inline-flex items-center gap-1.5 bg-white text-neutral-950 font-bold text-xs px-5 py-2 rounded-full shadow border border-neutral-300">
+                            <span>{aiBannerDraft.buttonText || 'COMPRAR AGORA'}</span>
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </span>
+                        </div>
 
-                          {/* Botão de Chamada CTA */}
-                          <div className="pt-2">
-                            <span className="inline-flex items-center gap-2 bg-white text-neutral-950 font-extrabold text-xs sm:text-sm px-6 py-2.5 rounded-full shadow-lg group-hover:scale-105 transition-transform">
-                              <span>{aiBannerDraft.buttonText || 'Ver Ofertas'}</span>
-                              <ChevronRight className="w-4 h-4" />
-                            </span>
-                          </div>
-
-                          {/* Link de Destino Indicador */}
-                          <div className="pt-1">
-                            <span className="text-[10px] text-white/50 bg-black/30 px-2 py-0.5 rounded font-mono">
-                              Destino: {aiBannerDraft.link || '/catalogo'}
-                            </span>
-                          </div>
+                        {/* Foto Direita */}
+                        <div className="hidden md:flex w-3/12 h-64 relative rounded-xl overflow-hidden bg-neutral-200 shrink-0">
+                          <img
+                            src={aiBannerDraft.rightImage || aiBannerDraft.leftImage || '/images/macaco-bless.png'}
+                            alt="Modelo Direita"
+                            className="w-full h-full object-cover object-top opacity-85"
+                          />
+                          {aiBannerDraft.disclaimer && (
+                            <div className="absolute bottom-2 right-2 text-right max-w-[140px]">
+                              <p className="text-[7px] text-neutral-500 leading-tight">
+                                {aiBannerDraft.disclaimer}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       </div>
+                    ) : aiBannerDraft.bannerStyle === 'bold-dark' ? (
+                      /* Preview Estilo Bold Dark (Best Sellers) */
+                      <div
+                        style={{ backgroundColor: aiBannerDraft.centerBgColor || '#0b1610' }}
+                        className="rounded-2xl overflow-hidden p-4 sm:p-6 flex flex-col md:flex-row items-center justify-between text-white min-h-[300px] relative border border-white/10"
+                      >
+                        <div className="w-full md:w-4/12 h-44 md:h-64 relative rounded-xl overflow-hidden bg-neutral-900 shrink-0">
+                          <img
+                            src={aiBannerDraft.leftImage || '/images/look-3656.png'}
+                            alt="Modelo Esquerda"
+                            className="w-full h-full object-cover object-top"
+                          />
+                        </div>
 
-                      {/* Foto Direita */}
-                      <div className="md:col-span-3 relative rounded-2xl overflow-hidden bg-neutral-900 group min-h-[220px]">
-                        <img
-                          src={aiBannerDraft.rightImage || aiBannerDraft.leftImage || '/images/macaco-bless.png'}
-                          alt="Modelo Direita"
-                          className="w-full h-full object-cover object-top"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
-                        <span className="absolute top-2 left-2 bg-black/60 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded-md">
-                          Foto 2 (Direita)
-                        </span>
-
-                        <div className="absolute inset-x-2 bottom-2 flex flex-col gap-1.5 opacity-90 group-hover:opacity-100 transition-opacity">
-                          <button
-                            type="button"
-                            onClick={() => setIsSelectingRightProductPhoto(true)}
-                            className="w-full bg-white/90 hover:bg-white text-neutral-900 text-[10px] font-bold py-1.5 px-2 rounded-xl flex items-center justify-center gap-1 shadow"
-                          >
-                            <LayoutGrid className="w-3 h-3" />
-                            <span>Trocar Foto do Catálogo</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => aiRightFileRef.current?.click()}
-                            className="w-full bg-black/60 hover:bg-black/80 text-white text-[10px] font-bold py-1.5 px-2 rounded-xl flex items-center justify-center gap-1 backdrop-blur-sm border border-white/20"
-                          >
-                            <Upload className="w-3 h-3" />
-                            <span>Upload de Foto</span>
-                          </button>
+                        <div className="w-full md:w-8/12 flex flex-col items-center md:items-start text-center md:text-left px-4 sm:px-8 py-3 my-auto">
+                          <span className="text-[9px] font-extrabold tracking-widest text-amber-300 bg-white/10 px-2.5 py-0.5 rounded-full mb-1">
+                            ★ {aiBannerDraft.badge || 'MAIS DESEJADOS'}
+                          </span>
+                          <h2 className="text-3xl sm:text-4xl font-serif font-black uppercase tracking-tight text-white leading-none mb-1">
+                            {aiBannerDraft.title || 'BEST SELLERS'}
+                          </h2>
+                          {aiBannerDraft.discountHighlight && (
+                            <p className="text-xs sm:text-sm italic text-rose-200/90 font-serif mb-2">
+                              {aiBannerDraft.discountHighlight}
+                            </p>
+                          )}
+                          <p className="text-[11px] text-neutral-300 font-light max-w-sm mb-4">
+                            {aiBannerDraft.subtitle}
+                          </p>
+                          <span className="inline-flex items-center gap-1.5 bg-white text-neutral-950 font-bold text-xs px-5 py-2 rounded-full shadow">
+                            <span>{aiBannerDraft.buttonText || 'COMPRAR AGORA'}</span>
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </span>
                         </div>
                       </div>
-                    </div>
+                    ) : (
+                      /* Preview Estilo Clássico 3 Colunas */
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-stretch min-h-[300px]">
+                        {/* Foto Esquerda */}
+                        <div className="md:col-span-3 relative rounded-2xl overflow-hidden bg-neutral-900 group min-h-[200px]">
+                          <img
+                            src={aiBannerDraft.leftImage || '/images/macaco-bless.png'}
+                            alt="Modelo Esquerda"
+                            className="w-full h-full object-cover object-top"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
+                          <span className="absolute top-2 left-2 bg-black/60 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded-md">
+                            Foto 1
+                          </span>
+                        </div>
+
+                        {/* Card Central de Conteúdo */}
+                        <div
+                          className="md:col-span-6 relative rounded-2xl p-6 flex flex-col items-center justify-center text-center text-white overflow-hidden shadow-2xl transition-colors duration-300"
+                          style={{ backgroundColor: aiBannerDraft.centerBgColor || '#163923' }}
+                        >
+                          <div className="relative z-10 max-w-md space-y-2">
+                            <div className="inline-block bg-white/15 backdrop-blur-md border border-white/25 px-3 py-1 rounded-full text-[10px] font-extrabold tracking-widest uppercase">
+                              {aiBannerDraft.badge || 'CAMPANHA AURA'}
+                            </div>
+                            <h2 className="font-serif text-2xl sm:text-3xl font-bold leading-tight">
+                              {aiBannerDraft.title || 'Título da Campanha'}
+                            </h2>
+                            <p className="text-xs text-white/80 line-clamp-2 max-w-xs mx-auto font-light">
+                              {aiBannerDraft.subtitle}
+                            </p>
+                            <div className="pt-1">
+                              <span className="inline-flex items-center gap-1.5 bg-white text-neutral-950 font-extrabold text-xs px-5 py-2 rounded-full shadow">
+                                <span>{aiBannerDraft.buttonText || 'Ver Ofertas'}</span>
+                                <ChevronRight className="w-3.5 h-3.5" />
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Foto Direita */}
+                        <div className="md:col-span-3 relative rounded-2xl overflow-hidden bg-neutral-900 group min-h-[200px]">
+                          <img
+                            src={aiBannerDraft.rightImage || aiBannerDraft.leftImage || '/images/macaco-bless.png'}
+                            alt="Modelo Direita"
+                            className="w-full h-full object-cover object-top"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
+                          <span className="absolute top-2 left-2 bg-black/60 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded-md">
+                            Foto 2
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -1802,6 +1929,92 @@ export const AdminSectionsBannersPage: React.FC = () => {
               {/* Ajustes Finos e Personalização */}
               {aiBannerDraft && (
                 <div className="bg-card border border-border rounded-2xl p-4 sm:p-5 space-y-4">
+                  <div className="flex items-center gap-2 border-b border-border/60 pb-3">
+                    <SlidersHorizontal className="w-4 h-4 text-primary" />
+                    <h4 className="font-bold text-xs sm:text-sm text-foreground">
+                      Ajuste Fino dos Textos, Cores e Destino
+                    </h4>
+                  </div>
+
+                  {/* Seletor do Padrão Visual do Banner */}
+                  <div className="bg-muted/40 p-3 rounded-xl border border-border space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold text-foreground">
+                        Estilo Visual do Banner:
+                      </label>
+                      <span className="text-[10px] text-muted-foreground">
+                        Alterne entre os formatos editoriais
+                      </span>
+                    </div>
+                    <select
+                      value={aiBannerDraft.bannerStyle || 'classic-3col'}
+                      onChange={(e) =>
+                        setAiBannerDraft({
+                          ...aiBannerDraft,
+                          bannerStyle: e.target.value as any,
+                        })
+                      }
+                      className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs font-semibold outline-none"
+                    >
+                      <option value="editorial-light">🎟️ Editorial Clean (Fundo Claro / Cupom / Desconto R$30)</option>
+                      <option value="bold-dark">🖤 Dark Chic (Best Sellers / Contraste Noturno)</option>
+                      <option value="classic-3col">🌿 Carrossel Clássico 3 Colunas (Verde Floresta)</option>
+                    </select>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                      <div>
+                        <label className="block text-[10px] font-semibold text-muted-foreground mb-1">
+                          Destaque de Desconto:
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Ex: R$ 30,00 DE DESCONTO"
+                          value={aiBannerDraft.discountHighlight || ''}
+                          onChange={(e) =>
+                            setAiBannerDraft({
+                              ...aiBannerDraft,
+                              discountHighlight: e.target.value,
+                            })
+                          }
+                          className="w-full bg-background border border-border rounded-xl px-2.5 py-1.5 text-xs outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold text-muted-foreground mb-1">
+                          Código do Cupom:
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Ex: PRIMEIRA30"
+                          value={aiBannerDraft.couponCode || ''}
+                          onChange={(e) =>
+                            setAiBannerDraft({
+                              ...aiBannerDraft,
+                              couponCode: e.target.value,
+                            })
+                          }
+                          className="w-full bg-background border border-border rounded-xl px-2.5 py-1.5 text-xs outline-none font-mono font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold text-muted-foreground mb-1">
+                          Regras / Disclaimer:
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Ex: *Cupom válido acima de R$ 299..."
+                          value={aiBannerDraft.disclaimer || ''}
+                          onChange={(e) =>
+                            setAiBannerDraft({
+                              ...aiBannerDraft,
+                              disclaimer: e.target.value,
+                            })
+                          }
+                          className="w-full bg-background border border-border rounded-xl px-2.5 py-1.5 text-xs outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
                   <div className="flex items-center gap-2 border-b border-border/60 pb-3">
                     <SlidersHorizontal className="w-4 h-4 text-primary" />
                     <h4 className="font-bold text-xs sm:text-sm text-foreground">

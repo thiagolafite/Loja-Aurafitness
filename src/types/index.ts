@@ -321,9 +321,14 @@ export interface HeroBannerSlide {
   link: string; // Ex: '/catalogo?secao=moda-verao' ou '/catalogo?categoria=Conjuntos'
   leftImage: string; // Foto da modelo / esquerda
   rightImage?: string; // Foto da modelo / direita
-  centerBgColor?: string; // Cor de fundo (#163923)
+  centerBgColor?: string; // Cor de fundo (#163923 ou #f4f4f2)
   active: boolean;
   order: number;
+  // Campos avançados inspirados em editoriais de moda fitness (Cupons, Best Sellers e Alta Conversão)
+  bannerStyle?: 'classic-3col' | 'editorial-light' | 'bold-dark';
+  couponCode?: string; // Ex: 'PRIMEIRA30' ou 'BEMVINDAAURA'
+  discountHighlight?: string; // Ex: 'R$ 30,00 DE DESCONTO'
+  disclaimer?: string; // Ex: '*Cupom válido em pedidos de primeira compra a partir de R$ 299...'
 }
 
 export interface FloatingVideoItem {

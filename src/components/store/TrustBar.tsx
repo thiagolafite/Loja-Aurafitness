@@ -3,12 +3,12 @@ import { Star, ShieldCheck, RefreshCw, Sparkles, Truck, Heart } from 'lucide-rea
 
 export const TrustBar: React.FC = () => {
   const items = [
-    { icon: Star, text: '★ 4.9 de avaliação das nossas clientes' },
+    { icon: Star, text: '4.9 de avaliação das nossas clientes' },
+    { icon: ShieldCheck, text: 'Zero transparência + compressão ideal' },
+    { icon: Truck, text: '99,5% das entregas antes do prazo' },
+    { icon: Heart, text: '+230 mil seguidoras no Instagram' },
+    { icon: RefreshCw, text: 'Primeira troca 100% grátis' },
     { icon: Sparkles, text: 'Modelagem Anatômica Efeito Lipo' },
-    { icon: ShieldCheck, text: 'Zero Transparência Comprovada' },
-    { icon: RefreshCw, text: 'Primeira Troca Grátis' },
-    { icon: Truck, text: 'Frete Grátis acima de R$299' },
-    { icon: Heart, text: '+1.200 mulheres apaixonadas' },
   ];
 
   // Quadruplicate to ensure smooth continuous loop

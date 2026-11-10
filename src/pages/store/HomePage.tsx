@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, ChevronLeft, ChevronRight, Heart, Sparkles } from 'lucide-react';
+import { ArrowRight, ChevronLeft, ChevronRight, Heart, Sparkles, Copy, Check } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ProductCard } from '../../components/store/ProductCard';
 import { TrustBar } from '../../components/store/TrustBar';
@@ -72,6 +72,20 @@ export const HomePage: React.FC = () => {
   const activeBanners = heroBanners.filter((b) => b.active);
   const heroSlides = activeBanners.length > 0 ? activeBanners : getHeroBanners();
 
+  const [copiedCoupon, setCopiedCoupon] = useState<string | null>(null);
+
+  const handleCopyCoupon = (code: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      navigator.clipboard.writeText(code);
+      setCopiedCoupon(code);
+      setTimeout(() => setCopiedCoupon(null), 2500);
+    } catch (err) {
+      console.warn('Erro ao copiar cupom:', err);
+    }
+  };
+
   const handleNextSlide = () => {
     setCurrentSlide((prev) => (prev + 1) % heroSlides.length);
   };
@@ -85,13 +99,13 @@ export const HomePage: React.FC = () => {
 
   return (
     <div className="space-y-12 pb-16">
-      {/* 3-Column Hero Carousel Banner Elegante & Chamativo */}
-      <section className="relative w-full bg-gradient-to-b from-[#0b2414] via-[#143d22] to-[#0e2c19] overflow-hidden select-none py-5 px-2 sm:px-6">
-        <div className="max-w-7xl mx-auto relative flex items-center justify-center gap-3 sm:gap-5 min-h-[490px] lg:h-[550px]">
+      {/* Hero Carousel Banner Elegante & Editorial (Aura High-Fashion) */}
+      <section className="relative w-full bg-gradient-to-b from-[#0b2414] via-[#143d22] to-[#0e2c19] overflow-hidden select-none py-4 sm:py-6 px-2 sm:px-6">
+        <div className="max-w-7xl mx-auto relative flex items-center justify-center min-h-[490px] lg:h-[550px]">
           {/* Floating Left Arrow */}
           <button
             onClick={handlePrevSlide}
-            className="absolute left-2 lg:left-4 z-30 p-3 rounded-full bg-black/40 hover:bg-black/80 text-rose-100 hover:text-white transition-all shadow-xl hover:scale-110 active:scale-95 border border-white/10"
+            className="absolute left-2 lg:left-4 z-30 p-3 rounded-full bg-black/50 hover:bg-black/85 text-rose-100 hover:text-white transition-all shadow-xl hover:scale-110 active:scale-95 border border-white/20"
             aria-label="Slide Anterior"
           >
             <ChevronLeft className="w-5 h-5" />
@@ -100,128 +114,352 @@ export const HomePage: React.FC = () => {
           {/* Floating Right Arrow */}
           <button
             onClick={handleNextSlide}
-            className="absolute right-2 lg:right-4 z-30 p-3 rounded-full bg-black/40 hover:bg-black/80 text-rose-100 hover:text-white transition-all shadow-xl hover:scale-110 active:scale-95 border border-white/10"
+            className="absolute right-2 lg:right-4 z-30 p-3 rounded-full bg-black/50 hover:bg-black/85 text-rose-100 hover:text-white transition-all shadow-xl hover:scale-110 active:scale-95 border border-white/20"
             aria-label="Próximo Slide"
           >
             <ChevronRight className="w-5 h-5" />
           </button>
 
-          {/* Left Card: Model Image */}
-          <div className="hidden md:block w-1/4 h-[450px] lg:h-[510px] rounded-3xl overflow-hidden shadow-2xl relative group border border-white/15">
-            <img
-              src={slide.leftImage}
-              alt="Model Aura 1"
-              className="w-full h-full object-cover object-top filter brightness-95 group-hover:scale-108 transition-transform duration-700"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
-            <div className="absolute bottom-4 left-4 right-4 text-center">
-              <span className="text-[10px] uppercase font-bold tracking-widest text-amber-200 bg-black/50 px-3 py-1 rounded-full backdrop-blur-sm border border-white/15">
-                Alta Compressão
-              </span>
-            </div>
-          </div>
-
-          {/* Center Card: Dark Forest Green Box with Radiant Gold & Rose Touches */}
-          <div
-            style={{ backgroundColor: slide.centerBgColor || '#123922' }}
-            className="w-full md:w-2/4 h-[450px] lg:h-[510px] rounded-3xl p-8 lg:p-12 flex flex-col items-center justify-center text-center text-white relative shadow-2xl overflow-hidden border border-emerald-400/30"
-          >
-            {/* Subtle Radiant Glow Background */}
-            <div className="absolute -top-24 -right-24 w-64 h-64 bg-amber-400/10 rounded-full blur-3xl pointer-events-none" />
-            <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-rose-500/15 rounded-full blur-3xl pointer-events-none" />
-
-            {/* Decorative Arcs */}
-            <svg
-              className="absolute top-4 right-4 w-20 h-12 text-rose-300/20"
-              viewBox="0 0 100 60"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
+          {/* ESTILO 1: EDITORIAL LIGHT (Inspirado no Banner de Primeira Compra / R$30 OFF) */}
+          {slide.bannerStyle === 'editorial-light' ? (
+            <div
+              style={{ backgroundColor: slide.centerBgColor || '#f4f5f2' }}
+              className="w-full h-[510px] lg:h-[550px] rounded-3xl overflow-hidden shadow-2xl relative flex flex-col md:flex-row items-center justify-between border border-white/40 text-neutral-900 transition-all duration-500"
             >
-              <path d="M 10 50 Q 50 10 90 50" />
-              <path d="M 20 50 Q 50 20 80 50" />
-            </svg>
+              {/* Gradiente sutil e nobre */}
+              <div className="absolute inset-0 bg-gradient-to-r from-[#ecefe9]/80 via-transparent to-[#ecefe9]/80 pointer-events-none" />
 
-            <svg
-              className="absolute bottom-4 left-4 w-20 h-12 text-rose-300/20 rotate-180"
-              viewBox="0 0 100 60"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M 10 50 Q 50 10 90 50" />
-              <path d="M 20 50 Q 50 20 80 50" />
-            </svg>
-
-            {/* Content */}
-            <motion.span
-              key={`badge-${currentSlide}`}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="text-[11px] font-extrabold tracking-[0.3em] uppercase text-amber-300 mb-3 bg-white/10 px-4 py-1 rounded-full border border-amber-300/30 backdrop-blur-sm"
-            >
-              ✨ {slide.badge}
-            </motion.span>
-
-            <motion.h1
-              key={`title-${currentSlide}`}
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="text-3xl sm:text-4xl lg:text-5xl font-serif tracking-wide font-normal text-[#fff9f3] uppercase mb-4 drop-shadow-md"
-            >
-              {slide.title}
-            </motion.h1>
-
-            <motion.p
-              key={`subtitle-${currentSlide}`}
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="text-xs sm:text-sm text-rose-100/90 font-light max-w-sm mb-8 leading-relaxed"
-            >
-              {slide.subtitle}
-            </motion.p>
-
-            <motion.div
-              key={`btn-${currentSlide}`}
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-            >
-              <Link
-                to={slide.link}
-                className="inline-block px-8 py-3.5 rounded-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-bold text-xs tracking-widest uppercase transition-all shadow-xl hover:scale-105 active:scale-95 hover:shadow-amber-400/30"
-              >
-                {slide.buttonText} &rarr;
-              </Link>
-            </motion.div>
-
-            {/* Slide Dots Indicator */}
-            <div className="absolute bottom-6 flex items-center gap-2">
-              {heroSlides.map((_, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setCurrentSlide(idx)}
-                  className={`h-2 rounded-full transition-all ${
-                    idx === currentSlide ? 'w-6 bg-amber-300 shadow-md' : 'w-2 bg-white/40'
-                  }`}
+              {/* Foto da Modelo / Esquerda */}
+              <div className="relative w-full md:w-4/12 h-52 sm:h-64 md:h-full flex items-end justify-center overflow-hidden shrink-0">
+                <img
+                  src={slide.leftImage}
+                  alt={slide.title}
+                  className="h-full w-full object-cover object-top filter brightness-100 contrast-[1.02] group-hover:scale-105 transition-transform duration-700"
                 />
-              ))}
-            </div>
-          </div>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent md:hidden" />
 
-          {/* Right Card: Model Image */}
-          <div className="hidden md:block w-1/4 h-[450px] lg:h-[510px] rounded-3xl overflow-hidden shadow-2xl relative group border border-white/15">
-            <img
-              src={slide.rightImage}
-              alt="Model Aura 2"
-              className="w-full h-full object-cover object-top filter brightness-95 group-hover:scale-108 transition-transform duration-700"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
-            <div className="absolute bottom-4 left-4 right-4 text-center">
-              <span className="text-[10px] uppercase font-bold tracking-widest text-amber-200 bg-black/50 px-3 py-1 rounded-full backdrop-blur-sm border border-white/15">
-                Zero Transparência
-              </span>
+                {/* Selo Redondo Watermark no Canto Inferior Esquerdo */}
+                <div className="absolute bottom-3 left-3 sm:bottom-6 sm:left-6 z-10">
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-2 border-neutral-700/30 flex flex-col items-center justify-center text-center p-1 backdrop-blur-xs select-none bg-white/10">
+                    <span className="text-[7px] sm:text-[8px] font-extrabold tracking-widest text-neutral-800 uppercase">AURA</span>
+                    <span className="text-[6px] tracking-tighter text-neutral-600 uppercase">MODA FITNESS</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Centro: Chamada, Desconto, Box de Cupom e Botão */}
+              <div className="relative z-20 w-full md:w-5/12 flex flex-col items-center text-center px-4 sm:px-6 py-4 sm:py-6 my-auto">
+                {/* Título de Confiança */}
+                <motion.h3
+                  key={`kicker-${currentSlide}`}
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-xs sm:text-sm lg:text-base font-extrabold tracking-[0.25em] text-neutral-700 uppercase mb-1 sm:mb-2"
+                >
+                  {slide.title}
+                </motion.h3>
+
+                {/* Destaque de Desconto */}
+                {slide.discountHighlight ? (
+                  <motion.div
+                    key={`disc-${currentSlide}`}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="mb-2 sm:mb-3"
+                  >
+                    <div className="text-3xl sm:text-4xl lg:text-5xl font-black text-neutral-900 tracking-tight leading-none">
+                      {slide.discountHighlight.replace(/de desconto/i, '').trim()}
+                    </div>
+                    {slide.discountHighlight.toLowerCase().includes('desconto') && (
+                      <div className="text-xs sm:text-sm font-bold tracking-[0.2em] text-neutral-600 uppercase mt-1">
+                        DE DESCONTO
+                      </div>
+                    )}
+                  </motion.div>
+                ) : null}
+
+                {/* Box de Cupom Interativo com Cópia de 1 Clique */}
+                {slide.couponCode && (
+                  <motion.div
+                    key={`coupon-${currentSlide}`}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-2.5"
+                  >
+                    <button
+                      type="button"
+                      onClick={(e) => handleCopyCoupon(slide.couponCode!, e)}
+                      title="Clique para copiar o cupom"
+                      className="group inline-flex items-center gap-2 bg-neutral-900 hover:bg-neutral-800 text-white font-mono font-bold text-xs sm:text-sm px-4 sm:px-5 py-2 rounded-xl shadow-md transition-all hover:scale-105 active:scale-95 border border-neutral-700 cursor-pointer"
+                    >
+                      <span className="text-neutral-400 font-sans text-[10px] sm:text-xs uppercase tracking-wider font-semibold">CUPOM:</span>
+                      <span className="tracking-widest text-amber-300 font-extrabold">{slide.couponCode}</span>
+                      {copiedCoupon === slide.couponCode ? (
+                        <span className="flex items-center gap-1 text-[11px] font-sans text-emerald-300 font-bold bg-emerald-950/80 px-2 py-0.5 rounded">
+                          <Check className="w-3 h-3" /> Copiado!
+                        </span>
+                      ) : (
+                        <Copy className="w-3.5 h-3.5 text-neutral-400 group-hover:text-white transition-colors" />
+                      )}
+                    </button>
+                  </motion.div>
+                )}
+
+                {/* Subtítulo / Regra */}
+                <motion.p
+                  key={`sub-${currentSlide}`}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-[11px] sm:text-xs text-neutral-600 font-medium max-w-sm mb-5 leading-relaxed"
+                >
+                  {slide.subtitle}
+                </motion.p>
+
+                {/* Botão de Compra CTA */}
+                <motion.div
+                  key={`cta-${currentSlide}`}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  <Link
+                    to={slide.link}
+                    className="inline-flex items-center gap-2 px-8 py-3 rounded-full bg-white/95 hover:bg-white text-neutral-950 font-extrabold text-xs sm:text-sm tracking-widest uppercase transition-all shadow-md hover:shadow-xl hover:scale-105 active:scale-95 border border-neutral-300/80"
+                  >
+                    <span>{slide.buttonText || 'COMPRAR AGORA'}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </Link>
+                </motion.div>
+
+                {/* Indicador de Bolinhas do Slide */}
+                <div className="flex items-center gap-2 mt-5">
+                  {heroSlides.map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setCurrentSlide(idx)}
+                      aria-label={`Ir para banner ${idx + 1}`}
+                      className={`h-2 rounded-full transition-all ${
+                        idx === currentSlide ? 'w-6 bg-neutral-900 shadow-sm' : 'w-2 bg-neutral-400/50'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Foto de Detalhe da Modelo / Direita */}
+              <div className="hidden md:flex relative w-3/12 h-full items-end justify-center overflow-hidden shrink-0">
+                <img
+                  src={slide.rightImage || slide.leftImage}
+                  alt="Detalhes da peça"
+                  className="h-full w-full object-cover object-top opacity-85 filter contrast-[1.03]"
+                />
+                <div className="absolute inset-0 bg-gradient-to-l from-transparent via-transparent to-[#ecefe9]/40" />
+
+                {/* Disclaimer no Canto Inferior Direito */}
+                {slide.disclaimer && (
+                  <div className="absolute bottom-3 right-3 sm:bottom-4 sm:right-6 max-w-[240px] text-right pointer-events-none">
+                    <p className="text-[9px] text-neutral-500 leading-tight">
+                      {slide.disclaimer}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          ) : slide.bannerStyle === 'bold-dark' ? (
+            /* ESTILO 2: BOLD DARK (Inspirado no Banner Best Sellers) */
+            <div
+              style={{ backgroundColor: slide.centerBgColor || '#0b1610' }}
+              className="w-full h-[510px] lg:h-[550px] rounded-3xl overflow-hidden shadow-2xl relative flex flex-col md:flex-row items-center justify-between border border-white/10 text-white transition-all duration-500"
+            >
+              {/* Brilhos radiantes de fundo */}
+              <div className="absolute -top-20 -right-20 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute -bottom-20 -left-20 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+
+              {/* Foto da Modelo / Esquerda */}
+              <div className="relative w-full md:w-5/12 h-52 sm:h-64 md:h-full flex items-end justify-center overflow-hidden shrink-0">
+                <img
+                  src={slide.leftImage}
+                  alt={slide.title}
+                  className="h-full w-full object-cover object-top filter brightness-95 contrast-105"
+                />
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-[#0b1610] hidden md:block" />
+
+                {/* Selo Redondo Watermark */}
+                <div className="absolute bottom-3 left-3 sm:bottom-6 sm:left-6 z-10">
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border border-white/30 flex flex-col items-center justify-center text-center p-1 backdrop-blur-xs select-none bg-black/20">
+                    <span className="text-[7px] sm:text-[8px] font-extrabold tracking-widest text-white uppercase">AURA</span>
+                    <span className="text-[6px] tracking-tighter text-white/70 uppercase">MODA FITNESS</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Conteúdo Central e Tipografia Marcante */}
+              <div className="relative z-20 w-full md:w-7/12 flex flex-col items-center md:items-start text-center md:text-left px-6 sm:px-12 py-6 my-auto">
+                <motion.div
+                  key={`badge-dark-${currentSlide}`}
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-2"
+                >
+                  <span className="text-[10px] sm:text-xs font-extrabold tracking-[0.3em] uppercase text-amber-300 bg-white/10 px-3.5 py-1 rounded-full border border-white/15">
+                    ★ {slide.badge || 'MAIS DESEJADOS'}
+                  </span>
+                </motion.div>
+
+                <motion.h1
+                  key={`title-dark-${currentSlide}`}
+                  initial={{ opacity: 0, x: -15 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="text-4xl sm:text-6xl lg:text-7xl font-serif font-black tracking-tight text-white uppercase leading-[0.95] mb-2 drop-shadow-md"
+                >
+                  {slide.title}
+                </motion.h1>
+
+                {slide.discountHighlight && (
+                  <motion.p
+                    key={`high-dark-${currentSlide}`}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-sm sm:text-base lg:text-lg font-serif italic text-rose-200/95 mb-3"
+                  >
+                    {slide.discountHighlight}
+                  </motion.p>
+                )}
+
+                <motion.p
+                  key={`sub-dark-${currentSlide}`}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-xs sm:text-sm text-neutral-300 font-light max-w-md mb-7 leading-relaxed"
+                >
+                  {slide.subtitle}
+                </motion.p>
+
+                <motion.div
+                  key={`btn-dark-${currentSlide}`}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                >
+                  <Link
+                    to={slide.link}
+                    className="inline-flex items-center gap-2 px-8 py-3.5 rounded-full bg-white hover:bg-neutral-100 text-neutral-950 font-extrabold text-xs tracking-widest uppercase transition-all shadow-xl hover:scale-105 active:scale-95"
+                  >
+                    <span>{slide.buttonText || 'COMPRAR AGORA'}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </Link>
+                </motion.div>
+
+                {/* Indicador de Bolinhas do Slide */}
+                <div className="flex items-center gap-2 mt-7">
+                  {heroSlides.map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setCurrentSlide(idx)}
+                      aria-label={`Ir para banner ${idx + 1}`}
+                      className={`h-2 rounded-full transition-all ${
+                        idx === currentSlide ? 'w-6 bg-white shadow-md' : 'w-2 bg-white/40'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* ESTILO 3: CARROSSEL CLÁSSICO 3 COLUNAS (Verde Floresta Nobre) */
+            <div className="w-full flex items-center justify-center gap-3 sm:gap-5 h-full">
+              {/* Foto Modelo Esquerda */}
+              <div className="hidden md:block w-1/4 h-[450px] lg:h-[510px] rounded-3xl overflow-hidden shadow-2xl relative group border border-white/15 shrink-0">
+                <img
+                  src={slide.leftImage}
+                  alt="Model Aura 1"
+                  className="w-full h-full object-cover object-top filter brightness-95 group-hover:scale-108 transition-transform duration-700"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
+                <div className="absolute bottom-4 left-4 right-4 text-center">
+                  <span className="text-[10px] uppercase font-bold tracking-widest text-amber-200 bg-black/50 px-3 py-1 rounded-full backdrop-blur-sm border border-white/15">
+                    Alta Compressão
+                  </span>
+                </div>
+              </div>
+
+              {/* Card Central */}
+              <div
+                style={{ backgroundColor: slide.centerBgColor || '#123922' }}
+                className="w-full md:w-2/4 h-[450px] lg:h-[510px] rounded-3xl p-8 lg:p-12 flex flex-col items-center justify-center text-center text-white relative shadow-2xl overflow-hidden border border-emerald-400/30"
+              >
+                <div className="absolute -top-24 -right-24 w-64 h-64 bg-amber-400/10 rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-rose-500/15 rounded-full blur-3xl pointer-events-none" />
+
+                <motion.span
+                  key={`badge-${currentSlide}`}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-[11px] font-extrabold tracking-[0.3em] uppercase text-amber-300 mb-3 bg-white/10 px-4 py-1 rounded-full border border-amber-300/30 backdrop-blur-sm"
+                >
+                  ✨ {slide.badge}
+                </motion.span>
+
+                <motion.h1
+                  key={`title-${currentSlide}`}
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-3xl sm:text-4xl lg:text-5xl font-serif tracking-wide font-normal text-[#fff9f3] uppercase mb-4 drop-shadow-md"
+                >
+                  {slide.title}
+                </motion.h1>
+
+                <motion.p
+                  key={`subtitle-${currentSlide}`}
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-xs sm:text-sm text-rose-100/90 font-light max-w-sm mb-8 leading-relaxed"
+                >
+                  {slide.subtitle}
+                </motion.p>
+
+                <motion.div
+                  key={`btn-${currentSlide}`}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                >
+                  <Link
+                    to={slide.link}
+                    className="inline-block px-8 py-3.5 rounded-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-bold text-xs tracking-widest uppercase transition-all shadow-xl hover:scale-105 active:scale-95 hover:shadow-amber-400/30"
+                  >
+                    {slide.buttonText} &rarr;
+                  </Link>
+                </motion.div>
+
+                {/* Bolinhas */}
+                <div className="absolute bottom-6 flex items-center gap-2">
+                  {heroSlides.map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setCurrentSlide(idx)}
+                      aria-label={`Ir para slide ${idx + 1}`}
+                      className={`h-2 rounded-full transition-all ${
+                        idx === currentSlide ? 'w-6 bg-amber-300 shadow-md' : 'w-2 bg-white/40'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Foto Modelo Direita */}
+              <div className="hidden md:block w-1/4 h-[450px] lg:h-[510px] rounded-3xl overflow-hidden shadow-2xl relative group border border-white/15 shrink-0">
+                <img
+                  src={slide.rightImage}
+                  alt="Model Aura 2"
+                  className="w-full h-full object-cover object-top filter brightness-95 group-hover:scale-108 transition-transform duration-700"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
+                <div className="absolute bottom-4 left-4 right-4 text-center">
+                  <span className="text-[10px] uppercase font-bold tracking-widest text-amber-200 bg-black/50 px-3 py-1 rounded-full backdrop-blur-sm border border-white/15">
+                    Zero Transparência
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 

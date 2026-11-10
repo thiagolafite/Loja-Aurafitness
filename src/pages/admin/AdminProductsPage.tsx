@@ -28,6 +28,7 @@ import {
   Eye,
   ImageIcon,
   FolderTree,
+  RefreshCw,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -410,23 +411,20 @@ export const AdminProductsPage: React.FC = () => {
     return count;
   }, [products]);
 
+  const [isConsolidatingDuplicates, setIsConsolidatingDuplicates] = React.useState(false);
+
   // Unifica automaticamente produtos duplicados com numeração no catálogo
   const handleConsolidateDuplicates = async () => {
-    const { consolidated, mergedCount, absorbedIds } = consolidateDuplicateProducts(products);
-    if (mergedCount === 0) {
-      showToast('Nenhum modelo repetido foi encontrado.');
-      return;
-    }
-
-    if (
-      !window.confirm(
-        `Detectamos ${mergedCount} variações de modelos duplicadas com numeração (ex: Rosa (2), Purple ()).\n\nDeseja unificar tudo em anúncios únicos, limpando os nomes e reunindo todas as fotos no carrossel do produto?`
-      )
-    ) {
-      return;
-    }
-
+    if (isConsolidatingDuplicates) return;
+    setIsConsolidatingDuplicates(true);
     try {
+      const { consolidated, mergedCount, absorbedIds } = consolidateDuplicateProducts(products);
+      if (mergedCount === 0) {
+        showToast('Nenhum modelo repetido foi encontrado.');
+        setIsConsolidatingDuplicates(false);
+        return;
+      }
+
       // Atualiza o estado da tela imediatamente com os produtos consolidados para sumir com o banner na hora
       setProducts(consolidated);
       await saveAllProductsAsync(consolidated, absorbedIds);
@@ -435,6 +433,8 @@ export const AdminProductsPage: React.FC = () => {
     } catch (err) {
       console.error(err);
       showToast('Erro ao unificar modelos.');
+    } finally {
+      setIsConsolidatingDuplicates(false);
     }
   };
 
@@ -802,10 +802,15 @@ export const AdminProductsPage: React.FC = () => {
           </div>
           <button
             onClick={handleConsolidateDuplicates}
-            className="px-4 py-2.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white font-bold text-xs rounded-xl transition-all shadow-md shrink-0 flex items-center gap-2 self-start sm:self-auto"
+            disabled={isConsolidatingDuplicates}
+            className="px-4 py-2.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition-all shadow-md shrink-0 flex items-center gap-2 self-start sm:self-auto cursor-pointer"
           >
-            <Sparkles className="w-4 h-4 text-amber-200" />
-            <span>Unificar Modelos & Fotos</span>
+            {isConsolidatingDuplicates ? (
+              <RefreshCw className="w-4 h-4 text-amber-200 animate-spin" />
+            ) : (
+              <Sparkles className="w-4 h-4 text-amber-200" />
+            )}
+            <span>{isConsolidatingDuplicates ? 'Unificando modelos...' : 'Unificar Modelos & Fotos'}</span>
           </button>
         </div>
       )}
