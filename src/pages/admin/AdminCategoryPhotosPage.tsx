@@ -16,12 +16,15 @@ import {
   Info,
   X,
   Trash2,
+  ArrowLeft,
+  ArrowUpDown,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   getStoredCategories,
   updateCategoryPhoto,
   resetCategoryPhoto,
+  moveCategoryToPosition,
   deleteStoredCategory,
   getCategoryPhoto,
   normalizeCategoryName,

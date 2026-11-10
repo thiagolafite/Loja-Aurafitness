@@ -204,16 +204,16 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         {/* Top-Left Badge (offset if zoom button present) */}
         <div className="absolute top-12 left-3 flex flex-col gap-1.5 z-10 pointer-events-none">
           {discountPercent > 0 ? (
-            <span className="bg-[#38672b] text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full shadow-sm">
-              -{discountPercent}%
+            <span className="bg-gradient-to-r from-rose-600 to-pink-600 text-white text-[11px] font-extrabold px-2.5 py-0.5 rounded-full shadow-md tracking-wider">
+              -{discountPercent}% OFF
             </span>
           ) : product.isBestSeller ? (
-            <span className="bg-[#111111] text-white text-[10px] font-bold tracking-wider uppercase px-2.5 py-0.5 rounded-full shadow-sm">
-              BEST SELLER
+            <span className="bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 text-[10px] font-extrabold tracking-wider uppercase px-2.5 py-0.5 rounded-full shadow-md">
+              ★ BEST SELLER
             </span>
           ) : product.isNewArrival ? (
-            <span className="bg-[#284e20] text-white text-[10px] font-bold tracking-wider uppercase px-2.5 py-0.5 rounded-full shadow-sm">
-              NOVO
+            <span className="bg-gradient-to-r from-[#174828] to-[#256338] text-white text-[10px] font-bold tracking-wider uppercase px-2.5 py-0.5 rounded-full shadow-md border border-white/20">
+              NOVIDADE
             </span>
           ) : null}
         </div>
@@ -247,10 +247,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
               1
             );
           }}
-          className="absolute bottom-2.5 left-2.5 right-2.5 sm:bottom-3 sm:left-3 sm:right-3 z-20 py-2 rounded-xl bg-white/92 dark:bg-slate-900/92 backdrop-blur-md text-[#284e20] dark:text-amber-300 font-semibold text-[11px] sm:text-xs flex items-center justify-center gap-1.5 opacity-95 sm:opacity-0 sm:group-hover:opacity-100 sm:translate-y-2 sm:group-hover:translate-y-0 transition-all duration-300 shadow-lg hover:bg-white active:scale-95"
+          className="absolute bottom-2.5 left-2.5 right-2.5 sm:bottom-3 sm:left-3 sm:right-3 z-20 py-2.5 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md text-[#164225] hover:text-white hover:bg-gradient-to-r hover:from-[#174828] hover:to-[#225734] font-bold text-[11px] sm:text-xs flex items-center justify-center gap-1.5 opacity-95 sm:opacity-0 sm:group-hover:opacity-100 sm:translate-y-2 sm:group-hover:translate-y-0 transition-all duration-300 shadow-xl border border-rose-200/40 hover:border-transparent active:scale-95"
+          title="Adicionar look à sacola"
         >
           <ShoppingBag className="w-3.5 h-3.5" />
-          <span>Comprar Rápido</span>
+          <span>Comprar Agora</span>
         </button>
       </div>
 

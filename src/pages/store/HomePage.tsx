@@ -85,13 +85,13 @@ export const HomePage: React.FC = () => {
 
   return (
     <div className="space-y-12 pb-16">
-      {/* 3-Column Hero Carousel Banner (Matching Image 1) */}
-      <section className="relative w-full bg-[#183521] overflow-hidden select-none py-4 px-2 sm:px-6">
-        <div className="max-w-7xl mx-auto relative flex items-center justify-center gap-3 sm:gap-4 min-h-[480px] lg:h-[540px]">
+      {/* 3-Column Hero Carousel Banner Elegante & Chamativo */}
+      <section className="relative w-full bg-gradient-to-b from-[#0b2414] via-[#143d22] to-[#0e2c19] overflow-hidden select-none py-5 px-2 sm:px-6">
+        <div className="max-w-7xl mx-auto relative flex items-center justify-center gap-3 sm:gap-5 min-h-[490px] lg:h-[550px]">
           {/* Floating Left Arrow */}
           <button
             onClick={handlePrevSlide}
-            className="absolute left-2 lg:left-4 z-30 p-2.5 rounded-full bg-black/40 text-white hover:bg-black/70 transition-colors shadow-lg"
+            className="absolute left-2 lg:left-4 z-30 p-3 rounded-full bg-black/40 hover:bg-black/80 text-rose-100 hover:text-white transition-all shadow-xl hover:scale-110 active:scale-95 border border-white/10"
             aria-label="Slide Anterior"
           >
             <ChevronLeft className="w-5 h-5" />
@@ -100,30 +100,39 @@ export const HomePage: React.FC = () => {
           {/* Floating Right Arrow */}
           <button
             onClick={handleNextSlide}
-            className="absolute right-2 lg:right-4 z-30 p-2.5 rounded-full bg-black/40 text-white hover:bg-black/70 transition-colors shadow-lg"
+            className="absolute right-2 lg:right-4 z-30 p-3 rounded-full bg-black/40 hover:bg-black/80 text-rose-100 hover:text-white transition-all shadow-xl hover:scale-110 active:scale-95 border border-white/10"
             aria-label="Próximo Slide"
           >
             <ChevronRight className="w-5 h-5" />
           </button>
 
           {/* Left Card: Model Image */}
-          <div className="hidden md:block w-1/4 h-[440px] lg:h-[500px] rounded-2xl overflow-hidden shadow-xl relative group">
+          <div className="hidden md:block w-1/4 h-[450px] lg:h-[510px] rounded-3xl overflow-hidden shadow-2xl relative group border border-white/15">
             <img
               src={slide.leftImage}
               alt="Model Aura 1"
-              className="w-full h-full object-cover object-top filter brightness-90 group-hover:scale-105 transition-transform duration-700"
+              className="w-full h-full object-cover object-top filter brightness-95 group-hover:scale-108 transition-transform duration-700"
             />
-            <div className="absolute inset-0 bg-black/10" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
+            <div className="absolute bottom-4 left-4 right-4 text-center">
+              <span className="text-[10px] uppercase font-bold tracking-widest text-amber-200 bg-black/50 px-3 py-1 rounded-full backdrop-blur-sm border border-white/15">
+                Alta Compressão
+              </span>
+            </div>
           </div>
 
-          {/* Center Card: Dark Forest Green Box with Arcs */}
+          {/* Center Card: Dark Forest Green Box with Radiant Gold & Rose Touches */}
           <div
-            style={{ backgroundColor: slide.centerBgColor || '#163923' }}
-            className="w-full md:w-2/4 h-[440px] lg:h-[500px] rounded-2xl p-8 lg:p-12 flex flex-col items-center justify-center text-center text-white relative shadow-2xl overflow-hidden border border-[#275336]"
+            style={{ backgroundColor: slide.centerBgColor || '#123922' }}
+            className="w-full md:w-2/4 h-[450px] lg:h-[510px] rounded-3xl p-8 lg:p-12 flex flex-col items-center justify-center text-center text-white relative shadow-2xl overflow-hidden border border-emerald-400/30"
           >
+            {/* Subtle Radiant Glow Background */}
+            <div className="absolute -top-24 -right-24 w-64 h-64 bg-amber-400/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-rose-500/15 rounded-full blur-3xl pointer-events-none" />
+
             {/* Decorative Arcs */}
             <svg
-              className="absolute top-4 right-4 w-20 h-12 text-emerald-400/20"
+              className="absolute top-4 right-4 w-20 h-12 text-rose-300/20"
               viewBox="0 0 100 60"
               fill="none"
               stroke="currentColor"
@@ -134,7 +143,7 @@ export const HomePage: React.FC = () => {
             </svg>
 
             <svg
-              className="absolute bottom-4 left-4 w-20 h-12 text-emerald-400/20 rotate-180"
+              className="absolute bottom-4 left-4 w-20 h-12 text-rose-300/20 rotate-180"
               viewBox="0 0 100 60"
               fill="none"
               stroke="currentColor"
@@ -149,16 +158,16 @@ export const HomePage: React.FC = () => {
               key={`badge-${currentSlide}`}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="text-[11px] font-bold tracking-[0.3em] uppercase text-[#a8c69d] mb-3"
+              className="text-[11px] font-extrabold tracking-[0.3em] uppercase text-amber-300 mb-3 bg-white/10 px-4 py-1 rounded-full border border-amber-300/30 backdrop-blur-sm"
             >
-              {slide.badge}
+              ✨ {slide.badge}
             </motion.span>
 
             <motion.h1
               key={`title-${currentSlide}`}
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
-              className="text-3xl sm:text-4xl lg:text-5xl font-serif tracking-wider font-light text-[#ecefe9] uppercase mb-4"
+              className="text-3xl sm:text-4xl lg:text-5xl font-serif tracking-wide font-normal text-[#fff9f3] uppercase mb-4 drop-shadow-md"
             >
               {slide.title}
             </motion.h1>
@@ -167,7 +176,7 @@ export const HomePage: React.FC = () => {
               key={`subtitle-${currentSlide}`}
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
-              className="text-xs sm:text-sm text-[#b2c8a9] font-light max-w-sm mb-8"
+              className="text-xs sm:text-sm text-rose-100/90 font-light max-w-sm mb-8 leading-relaxed"
             >
               {slide.subtitle}
             </motion.p>
@@ -179,9 +188,9 @@ export const HomePage: React.FC = () => {
             >
               <Link
                 to={slide.link}
-                className="inline-block px-7 py-3 rounded-full border border-[#3e6f4e] bg-[#1a442a]/80 text-[#d8e6d2] hover:bg-[#346241] hover:text-white font-medium text-xs tracking-widest uppercase transition-all shadow-lg"
+                className="inline-block px-8 py-3.5 rounded-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-bold text-xs tracking-widest uppercase transition-all shadow-xl hover:scale-105 active:scale-95 hover:shadow-amber-400/30"
               >
-                {slide.buttonText}
+                {slide.buttonText} &rarr;
               </Link>
             </motion.div>
 
@@ -191,8 +200,8 @@ export const HomePage: React.FC = () => {
                 <button
                   key={idx}
                   onClick={() => setCurrentSlide(idx)}
-                  className={`w-2 h-2 rounded-full transition-all ${
-                    idx === currentSlide ? 'w-5 bg-emerald-300' : 'bg-white/30'
+                  className={`h-2 rounded-full transition-all ${
+                    idx === currentSlide ? 'w-6 bg-amber-300 shadow-md' : 'w-2 bg-white/40'
                   }`}
                 />
               ))}
@@ -200,13 +209,18 @@ export const HomePage: React.FC = () => {
           </div>
 
           {/* Right Card: Model Image */}
-          <div className="hidden md:block w-1/4 h-[440px] lg:h-[500px] rounded-2xl overflow-hidden shadow-xl relative group">
+          <div className="hidden md:block w-1/4 h-[450px] lg:h-[510px] rounded-3xl overflow-hidden shadow-2xl relative group border border-white/15">
             <img
               src={slide.rightImage}
               alt="Model Aura 2"
-              className="w-full h-full object-cover object-top filter brightness-90 group-hover:scale-105 transition-transform duration-700"
+              className="w-full h-full object-cover object-top filter brightness-95 group-hover:scale-108 transition-transform duration-700"
             />
-            <div className="absolute inset-0 bg-black/10" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
+            <div className="absolute bottom-4 left-4 right-4 text-center">
+              <span className="text-[10px] uppercase font-bold tracking-widest text-amber-200 bg-black/50 px-3 py-1 rounded-full backdrop-blur-sm border border-white/15">
+                Zero Transparência
+              </span>
+            </div>
           </div>
         </div>
       </section>
@@ -214,34 +228,30 @@ export const HomePage: React.FC = () => {
       {/* Trust Ticker Bar (Matching Image 2) */}
       <TrustBar />
 
-      {/* Navegue por Categoria Showcase */}
+      {/* Navegue por Categoria Showcase com Ordem Personalizada */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
         <div className="flex items-end justify-between border-b border-border pb-4 mb-6">
           <div className="space-y-1 text-left">
-            <span className="text-[11px] font-bold tracking-widest uppercase text-[#38672b] dark:text-amber-400 block">
-              COLEÇÕES AURA
+            <span className="text-[11px] font-extrabold tracking-widest uppercase text-emerald-800 dark:text-amber-400 block flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span>COLEÇÕES OFICIAIS AURA</span>
             </span>
             <h2 className="text-2xl sm:text-3xl font-serif font-normal text-foreground flex items-center gap-2">
               <span>Navegue por Categoria</span>
-              <Sparkles className="w-5 h-5 text-amber-500" />
+              <Heart className="w-5 h-5 text-rose-500 fill-rose-500/20" />
             </h2>
           </div>
           <Link
             to="/catalogo"
-            className="text-xs font-semibold uppercase tracking-wider text-[#38672b] hover:text-[#23421b] dark:text-amber-400 flex items-center gap-1 transition-colors"
+            className="text-xs font-bold uppercase tracking-wider text-[#164024] hover:text-[#0b2414] dark:text-amber-400 flex items-center gap-1.5 transition-colors group"
           >
-            <span>VER CATÁLOGO COMPLETO</span>
-            <ArrowRight className="w-3.5 h-3.5" />
+            <span className="group-hover:underline">VER CATÁLOGO COMPLETO</span>
+            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
           </Link>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 sm:gap-5">
-          {[...categories]
-            .sort((a, b) => {
-              const countA = products.filter((p) => isProductMatchingCategory(p, a.name)).length;
-              const countB = products.filter((p) => isProductMatchingCategory(p, b.name)).length;
-              return countB - countA;
-            })
+          {categories
             .filter((cat) => {
               const nonEmptyCount = categories.filter(
                 (c) => products.filter((p) => isProductMatchingCategory(p, c.name)).length > 0
@@ -250,7 +260,7 @@ export const HomePage: React.FC = () => {
               return products.filter((p) => isProductMatchingCategory(p, cat.name)).length > 0;
             })
             .slice(0, 5)
-            .map((cat) => {
+            .map((cat, idx) => {
               const count = products.filter(
                 (p) => isProductMatchingCategory(p, cat.name)
               ).length;
@@ -260,39 +270,39 @@ export const HomePage: React.FC = () => {
               <Link
                 key={cat.name}
                 to={`/catalogo?categoria=${encodeURIComponent(cat.name)}`}
-                className="group relative h-[300px] sm:h-[350px] rounded-3xl overflow-hidden shadow-sm hover:shadow-2xl transition-all duration-500 flex flex-col justify-between p-4 sm:p-5 border border-border/40 hover:border-emerald-600/70"
+                className="group relative h-[310px] sm:h-[360px] rounded-3xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-500 flex flex-col justify-between p-4 sm:p-5 border border-emerald-900/10 hover:border-emerald-600/60"
               >
                 {/* Imagem Real de Produto de Acordo com a Categoria */}
                 <img
                   src={photo}
                   alt={cat.name}
-                  className="absolute inset-0 w-full h-full object-cover object-top group-hover:scale-108 transition-transform duration-700 ease-out filter brightness-[0.92]"
+                  className="absolute inset-0 w-full h-full object-cover object-top group-hover:scale-108 transition-transform duration-700 ease-out filter brightness-[0.93]"
                 />
 
                 {/* Gradiente Elegante para Máxima Leitura */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/15 group-hover:from-black/95 group-hover:via-black/45 transition-colors duration-500" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-black/10 group-hover:from-black/95 group-hover:via-black/40 transition-colors duration-500" />
 
                 {/* Badge Superior: Quantidade de Peças */}
                 <div className="relative z-10 flex items-center justify-between">
-                  <span className="bg-black/50 backdrop-blur-md border border-white/20 text-white text-[10px] font-bold tracking-wider uppercase px-3 py-1 rounded-full shadow-sm">
+                  <span className="bg-black/60 backdrop-blur-md border border-white/20 text-white text-[10px] font-extrabold tracking-wider uppercase px-3 py-1 rounded-full shadow-sm">
                     {count > 0 ? `${count} ${count === 1 ? 'modelo' : 'modelos'}` : 'Explorar'}
                   </span>
-                  <span className="w-7 h-7 rounded-full bg-white/20 backdrop-blur-md text-white flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:scale-110 transition-all duration-300 shadow">
-                    <ArrowRight className="w-3.5 h-3.5 text-white" />
+                  <span className="w-8 h-8 rounded-full bg-white/20 hover:bg-white text-white hover:text-slate-900 backdrop-blur-md flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:scale-110 transition-all duration-300 shadow">
+                    <ArrowRight className="w-4 h-4" />
                   </span>
                 </div>
 
                 {/* Informações da Categoria no Rodapé do Card */}
                 <div className="relative z-10 space-y-1 text-left">
-                  <span className="text-[10px] uppercase tracking-widest font-bold text-emerald-300/90 block">
-                    Coleções Aura
+                  <span className="text-[10px] uppercase tracking-widest font-extrabold text-amber-300 block">
+                    {idx + 1}ª Coleção Aura
                   </span>
-                  <h3 className="font-serif font-bold text-lg sm:text-xl text-white tracking-wide group-hover:text-emerald-200 transition-colors drop-shadow-md">
+                  <h3 className="font-serif font-bold text-lg sm:text-xl text-white tracking-wide group-hover:text-rose-200 transition-colors drop-shadow-md">
                     {cat.name}
                   </h3>
-                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-white/90 group-hover:text-white pt-0.5">
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-rose-100 group-hover:text-white pt-0.5">
                     <span>Ver Coleção</span>
-                    <ArrowRight className="w-3.5 h-3.5 text-emerald-400 group-hover:translate-x-1 transition-transform" />
+                    <ArrowRight className="w-3.5 h-3.5 text-amber-400 group-hover:translate-x-1 transition-transform" />
                   </div>
                 </div>
               </Link>

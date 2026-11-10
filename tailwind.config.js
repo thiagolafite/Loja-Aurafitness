@@ -14,29 +14,34 @@ export default {
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         primary: {
-          DEFAULT: "hsl(86, 28%, 38%)", // Olive green HSL(86, 28%, 38%)
-          foreground: "hsl(0, 0%, 100%)",
-          hover: "hsl(86, 28%, 30%)",
-          light: "hsl(86, 28%, 92%)",
-          dark: "hsl(86, 28%, 25%)",
+          DEFAULT: "#194a2b", // Verde Esmeralda Botânico Profundo e Sofisticado
+          foreground: "#ffffff",
+          hover: "#123720",
+          light: "#e8f2eb",
+          dark: "#0b2214",
+        },
+        rose: {
+          aura: "#e8809c",
+          soft: "#faeef1",
+          gold: "#f5d0c5",
         },
         secondary: {
-          DEFAULT: "hsl(40, 20%, 94%)",
-          foreground: "hsl(86, 28%, 20%)",
-          dark: "hsl(220, 14%, 18%)",
+          DEFAULT: "hsl(345, 38%, 95%)",
+          foreground: "#194a2b",
+          dark: "hsl(156, 25%, 16%)",
         },
         destructive: {
           DEFAULT: "hsl(0, 84.2%, 60.2%)",
           foreground: "hsl(0, 0%, 98%)",
         },
         muted: {
-          DEFAULT: "hsl(86, 10%, 94%)",
-          foreground: "hsl(86, 10%, 40%)",
-          dark: "hsl(220, 10%, 20%)",
+          DEFAULT: "hsl(150, 15%, 95%)",
+          foreground: "hsl(150, 12%, 42%)",
+          dark: "hsl(156, 20%, 15%)",
         },
         accent: {
-          DEFAULT: "hsl(42, 60%, 55%)", // Warm Gold
-          foreground: "hsl(0, 0%, 100%)",
+          DEFAULT: "#d4a359", // Warm Champagne Gold
+          foreground: "#ffffff",
         },
         card: {
           DEFAULT: "hsl(var(--card))",

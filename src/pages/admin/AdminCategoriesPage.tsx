@@ -27,6 +27,9 @@ import {
   Filter,
   Maximize2,
   Image as ImageIcon,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -47,6 +50,7 @@ import {
   getStoredCategories,
   saveStoredCategories,
   saveNewCategory,
+  moveCategoryToPosition,
   deleteStoredCategory,
   renameStoredCategory,
   getCategoryPhoto,
@@ -77,7 +81,10 @@ export const AdminCategoriesPage: React.FC = () => {
 
   // Modals
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<(Partial<AvailableCategory> & { originalName?: string }) | null>(null);
+  const [isReorderPanelOpen, setIsReorderPanelOpen] = useState(true);
+  const [editingCategory, setEditingCategory] = useState<
+    (Partial<AvailableCategory> & { originalName?: string; targetPositionIndex?: number }) | null
+  >(null);
 
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
@@ -246,6 +253,13 @@ export const AdminCategoriesPage: React.FC = () => {
     }
   };
 
+  // Organiza a posição exata da categoria (1ª, 2ª, 3ª, 4ª...)
+  const handleMoveCategoryPosition = (categoryName: string, targetIndex: number) => {
+    const updated = moveCategoryToPosition(categoryName, targetIndex);
+    setCategories([...updated]);
+    showToast(`✓ Categoria "${categoryName}" organizada na ${targetIndex + 1}ª posição!`);
+  };
+
   // Open New Category Modal
   const handleOpenNewCategoryModal = () => {
     setEditingCategory({
@@ -254,15 +268,20 @@ export const AdminCategoriesPage: React.FC = () => {
       icon: '✨',
       description: '',
       keywords: [],
+      targetPositionIndex: categories.length,
     });
     setIsCategoryModalOpen(true);
   };
 
   // Open Edit Category Modal
   const handleOpenEditCategoryModal = (cat: AvailableCategory) => {
+    const currentIdx = categories.findIndex(
+      (c) => c.name.trim().toLowerCase() === cat.name.trim().toLowerCase()
+    );
     setEditingCategory({
       ...cat,
       originalName: cat.name,
+      targetPositionIndex: currentIdx !== -1 ? currentIdx : 0,
     });
     setIsCategoryModalOpen(true);
   };
@@ -322,13 +341,17 @@ export const AdminCategoriesPage: React.FC = () => {
           }
         });
 
-        setCategories(updatedCategories);
+        let finalCats = updatedCategories;
+        if (typeof editingCategory.targetPositionIndex === 'number') {
+          finalCats = moveCategoryToPosition(trimmedName, editingCategory.targetPositionIndex);
+        }
+        setCategories([...finalCats]);
         setProducts([...getProducts()]);
         showToast(
           `✓ Categoria renomeada para "${trimmedName}"! ${migratedCount} produto(s) atualizado(s).`
         );
       } else {
-        // Atualiza apenas ícone ou descrição
+        // Atualiza apenas ícone, descrição ou posição
         const existingIndex = categories.findIndex(
           (c) => c.name.trim().toLowerCase() === originalName.trim().toLowerCase()
         );
@@ -341,19 +364,26 @@ export const AdminCategoriesPage: React.FC = () => {
             slug,
           };
         }
-        setCategories(updatedList);
         saveStoredCategories(updatedList);
+        if (typeof editingCategory.targetPositionIndex === 'number') {
+          updatedList = moveCategoryToPosition(trimmedName, editingCategory.targetPositionIndex);
+        }
+        setCategories([...updatedList]);
         showToast(`✓ Categoria "${trimmedName}" atualizada com sucesso!`);
       }
     } else {
-      // Nova categoria criada
-      const updatedList = saveNewCategory(trimmedName, {
-        slug,
-        icon: editingCategory.icon || '🏷️',
-        description: editingCategory.description || '',
-        keywords: [trimmedName.toLowerCase()],
-      });
-      setCategories(updatedList);
+      // Nova categoria criada na posição escolhida
+      const updatedList = saveNewCategory(
+        trimmedName,
+        {
+          slug,
+          icon: editingCategory.icon || '🏷️',
+          description: editingCategory.description || '',
+          keywords: [trimmedName.toLowerCase()],
+        },
+        editingCategory.targetPositionIndex
+      );
+      setCategories([...updatedList]);
       setSelectedCategoryTab('todos');
       setHideEmptyCategories(false);
       setSearchQuery('');
@@ -520,6 +550,20 @@ export const AdminCategoriesPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setIsReorderPanelOpen((prev) => !prev)}
+            className={`px-4 py-2.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm ${
+              isReorderPanelOpen
+                ? 'bg-emerald-600 text-white border-emerald-600'
+                : 'border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+            }`}
+            title="Escolher qual categoria aparece na 1ª, 2ª, 3ª, 4ª posição na loja"
+          >
+            <ArrowUpDown className="w-4 h-4" />
+            <span>Organizar Ordem (1º, 2º, 3º, 4º...)</span>
+          </button>
+
           <Link
             to="/admin/fotos-catalogos"
             className="px-4 py-2.5 rounded-xl border border-primary/40 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm"
@@ -614,6 +658,126 @@ export const AdminCategoriesPage: React.FC = () => {
         </div>
       </div>
 
+      {/* ============================================================== */}
+      {/* PAINEL DE ORGANIZAÇÃO DE ORDEM DAS CATEGORIAS (1º, 2º, 3º, 4º) */}
+      {/* ============================================================== */}
+      <AnimatePresence>
+        {isReorderPanelOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="bg-card border-2 border-emerald-500/30 rounded-2xl p-4 sm:p-5 shadow-md space-y-4 overflow-hidden"
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border pb-3">
+              <div>
+                <h2 className="font-serif font-bold text-base sm:text-lg text-foreground flex items-center gap-2">
+                  <ArrowUpDown className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                  <span>Ordem de Exibição das Categorias (1ª, 2ª, 3ª, 4ª Posição...)</span>
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Defina exatamente qual categoria aparece em <strong>1º, 2º, 3º, 4º lugar</strong> na
+                  página inicial ("Navegue por Categoria"), no menu superior e no catálogo completo.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsReorderPanelOpen(false)}
+                className="text-xs text-muted-foreground hover:text-foreground font-semibold self-end sm:self-auto px-2.5 py-1 rounded-lg hover:bg-muted"
+              >
+                Ocultar painel ✕
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+              {categories.map((cat, idx) => {
+                const count = products.filter((p) => isProductMatchingCategory(p, cat.name)).length;
+                return (
+                  <div
+                    key={cat.name}
+                    className={`flex items-center justify-between gap-2.5 p-3 rounded-2xl border transition-all ${
+                      idx < 4
+                        ? 'bg-emerald-500/5 border-emerald-500/40 shadow-sm'
+                        : 'bg-background border-border'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {/* Position Badge */}
+                      <div
+                        className={`w-8 h-8 rounded-xl flex items-center justify-center font-extrabold text-xs shrink-0 shadow-sm ${
+                          idx === 0
+                            ? 'bg-amber-500 text-slate-950'
+                            : idx < 4
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-muted text-foreground border border-border'
+                        }`}
+                        title={`${idx + 1}ª Posição`}
+                      >
+                        {idx + 1}º
+                      </div>
+
+                      <img
+                        src={getCategoryPhoto(cat.name, products)}
+                        alt={cat.name}
+                        className="w-10 h-10 rounded-xl object-cover object-top border border-border shrink-0"
+                      />
+
+                      <div className="min-w-0">
+                        <div className="font-bold text-xs text-foreground truncate">
+                          {cat.name}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground">
+                          {count} {count === 1 ? 'produto' : 'produtos'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Controls: Direct Position Select + Up/Down */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      <select
+                        value={idx}
+                        onChange={(e) =>
+                          handleMoveCategoryPosition(cat.name, Number(e.target.value))
+                        }
+                        className="bg-card border border-border rounded-lg px-2 py-1 text-[11px] font-bold text-foreground cursor-pointer hover:border-primary focus:ring-1 focus:ring-primary outline-none"
+                        title={`Escolher posição para ${cat.name}`}
+                      >
+                        {categories.map((_, posIdx) => (
+                          <option key={posIdx} value={posIdx}>
+                            {posIdx + 1}ª Posição
+                          </option>
+                        ))}
+                      </select>
+
+                      <div className="flex flex-col gap-0.5">
+                        <button
+                          type="button"
+                          disabled={idx === 0}
+                          onClick={() => handleMoveCategoryPosition(cat.name, idx - 1)}
+                          className="p-1 rounded bg-muted hover:bg-primary hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                          title="Subir 1 posição"
+                        >
+                          <ArrowUp className="w-3 h-3" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={idx === categories.length - 1}
+                          onClick={() => handleMoveCategoryPosition(cat.name, idx + 1)}
+                          className="p-1 rounded bg-muted hover:bg-primary hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                          title="Descer 1 posição"
+                        >
+                          <ArrowDown className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Control Bar: Filter Tabs & Search */}
       <div className="bg-card border border-border p-4 rounded-2xl shadow-sm space-y-3">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -659,7 +823,7 @@ export const AdminCategoriesPage: React.FC = () => {
             </span>
           </button>
 
-          {categories.map((cat) => {
+          {categories.map((cat, idx) => {
             const count = products.filter((p) => isProductMatchingCategory(p, cat.name)).length;
             const isSelected = selectedCategoryTab === cat.name;
 
@@ -673,6 +837,15 @@ export const AdminCategoriesPage: React.FC = () => {
                     : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'
                 }`}
               >
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-md font-extrabold ${
+                    isSelected
+                      ? 'bg-white/25 text-white'
+                      : 'bg-primary/15 text-primary'
+                  }`}
+                >
+                  {idx + 1}º
+                </span>
                 <img
                   src={getCategoryPhoto(cat.name, products)}
                   alt={cat.name}
@@ -710,7 +883,12 @@ export const AdminCategoriesPage: React.FC = () => {
             }
             return true;
           })
-          .map(({ category, items, matchingItems, totalStock, avgPrice }) => (
+          .map(({ category, items, matchingItems, totalStock, avgPrice }) => {
+            const categoryPositionIdx = categories.findIndex(
+              (c) => c.name.trim().toLowerCase() === category.name.trim().toLowerCase()
+            );
+
+            return (
             <div
               key={category.name}
               className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden transition-all"
@@ -718,12 +896,17 @@ export const AdminCategoriesPage: React.FC = () => {
               {/* Category Header Card */}
               <div className="bg-secondary/40 border-b border-border p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-start sm:items-center gap-3.5">
-                  <div className="w-14 h-14 rounded-2xl overflow-hidden bg-card border border-border shadow-sm shrink-0">
+                  <div className="relative w-14 h-14 rounded-2xl overflow-hidden bg-card border border-border shadow-sm shrink-0">
                     <img
                       src={getCategoryPhoto(category.name, products)}
                       alt={category.name}
                       className="w-full h-full object-cover"
                     />
+                    {categoryPositionIdx !== -1 && (
+                      <span className="absolute top-0 left-0 bg-primary text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded-br-lg shadow">
+                        {categoryPositionIdx + 1}º
+                      </span>
+                    )}
                   </div>
 
                   <div>
@@ -738,6 +921,53 @@ export const AdminCategoriesPage: React.FC = () => {
                         <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
                           {totalStock} un. em estoque
                         </span>
+                      )}
+
+                      {/* Direct Position Selector on Category Header */}
+                      {categoryPositionIdx !== -1 && (
+                        <div className="flex items-center gap-1 bg-card border border-border rounded-xl px-2 py-1 shadow-sm">
+                          <ArrowUpDown className="w-3.5 h-3.5 text-primary shrink-0" />
+                          <select
+                            value={categoryPositionIdx}
+                            onChange={(e) =>
+                              handleMoveCategoryPosition(category.name, Number(e.target.value))
+                            }
+                            className="bg-transparent text-[11px] font-bold text-foreground cursor-pointer outline-none"
+                            title="Definir a posição desta categoria na loja (1ª, 2ª, 3ª, 4ª...)"
+                          >
+                            {categories.map((_, posIdx) => (
+                              <option
+                                key={posIdx}
+                                value={posIdx}
+                                className="bg-card text-foreground"
+                              >
+                                {posIdx + 1}ª Posição na Loja
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            disabled={categoryPositionIdx === 0}
+                            onClick={() =>
+                              handleMoveCategoryPosition(category.name, categoryPositionIdx - 1)
+                            }
+                            className="p-0.5 rounded hover:bg-primary hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                            title="Subir posição"
+                          >
+                            <ArrowUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={categoryPositionIdx === categories.length - 1}
+                            onClick={() =>
+                              handleMoveCategoryPosition(category.name, categoryPositionIdx + 1)
+                            }
+                            className="p-0.5 rounded hover:bg-primary hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                            title="Descer posição"
+                          >
+                            <ArrowDown className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       )}
                     </div>
 
@@ -1074,7 +1304,8 @@ export const AdminCategoriesPage: React.FC = () => {
                 )}
               </div>
             </div>
-          ))}
+            );
+          })}
       </div>
 
       {/* ============================================================== */}
@@ -1123,6 +1354,31 @@ export const AdminCategoriesPage: React.FC = () => {
                   }
                   className="w-full bg-background border border-border rounded-xl p-2.5 text-foreground focus:ring-2 focus:ring-primary outline-none"
                 />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-foreground mb-1">
+                  Posição de Exibição na Loja (1º, 2º, 3º, 4º...)
+                </label>
+                <select
+                  value={editingCategory.targetPositionIndex ?? 0}
+                  onChange={(e) =>
+                    setEditingCategory({
+                      ...editingCategory,
+                      targetPositionIndex: Number(e.target.value),
+                    })
+                  }
+                  className="w-full bg-background border border-border rounded-xl p-2.5 text-foreground font-bold focus:ring-2 focus:ring-primary outline-none cursor-pointer"
+                >
+                  {(editingCategory.originalName
+                    ? categories
+                    : [...categories, { name: editingCategory.name || 'Nova Categoria' }]
+                  ).map((c, idx) => (
+                    <option key={idx} value={idx}>
+                      {idx + 1}ª Posição ({idx + 1}º lugar na vitrine e nos menus)
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>

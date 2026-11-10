@@ -948,11 +948,35 @@ export function renameStoredCategory(
 }
 
 /**
+ * Move uma categoria para uma posição específica (0-based index: 0 = 1ª posição, 1 = 2ª posição, etc.)
+ * e sincroniza imediatamente em toda a loja e na nuvem.
+ */
+export function moveCategoryToPosition(
+  categoryName: string,
+  targetIndex: number
+): AvailableCategory[] {
+  const current = [...getStoredCategories()];
+  const fromIndex = current.findIndex(
+    (c) => c.name.trim().toLowerCase() === categoryName.trim().toLowerCase()
+  );
+  if (fromIndex === -1) return current;
+
+  const clampedTarget = Math.max(0, Math.min(current.length - 1, targetIndex));
+  if (fromIndex === clampedTarget) return current;
+
+  const [moved] = current.splice(fromIndex, 1);
+  current.splice(clampedTarget, 0, moved);
+  saveStoredCategories(current);
+  return current;
+}
+
+/**
  * Adiciona uma nova categoria e notifica toda a loja em tempo real
  */
 export function saveNewCategory(
   name: string,
-  extraData?: Partial<AvailableCategory>
+  extraData?: Partial<AvailableCategory>,
+  targetPositionIndex?: number
 ): AvailableCategory[] {
   const trimmed = name.trim();
   if (!trimmed) return getStoredCategories();
@@ -989,7 +1013,16 @@ export function saveNewCategory(
           ? extraData.keywords
           : [trimmed.toLowerCase()],
     };
-    const updated = [...current, newCat];
+    const updated = [...current];
+    if (
+      typeof targetPositionIndex === 'number' &&
+      targetPositionIndex >= 0 &&
+      targetPositionIndex <= updated.length
+    ) {
+      updated.splice(targetPositionIndex, 0, newCat);
+    } else {
+      updated.push(newCat);
+    }
     saveStoredCategories(updated);
     return updated;
   }

@@ -4,35 +4,40 @@ import { Instagram, Mail, Phone, MapPin, ShieldCheck, CreditCard, Lock, ArrowUpR
 
 export const Footer: React.FC = () => {
   return (
-    <footer className="bg-[#16271b] text-white/90 border-t border-emerald-950 pt-16 pb-12 transition-colors">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+    <footer className="bg-gradient-to-b from-[#102a19] via-[#0d2215] to-[#08180e] text-white/90 border-t border-rose-300/20 pt-16 pb-12 transition-colors relative overflow-hidden">
+      {/* Decorative subtle glow */}
+      <div className="absolute top-0 right-1/4 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-rose-500/5 rounded-full blur-3xl pointer-events-none" />
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12 relative z-10">
         {/* Main Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8">
           {/* Brand Info */}
           <div className="lg:col-span-2 space-y-4">
-            <Link to="/" className="inline-block">
-              <img
-                src="/images/logo-aura.png"
-                alt="Aura Fitness"
-                className="h-10 w-auto object-contain brightness-0 invert"
-              />
+            <Link to="/" className="inline-block group">
+              <span className="font-sirenik text-3xl font-normal tracking-[0.08em] text-[#fff9f3] group-hover:text-rose-200 transition-colors block">
+                Aura Fitness
+              </span>
+              <span className="text-[10px] uppercase font-bold tracking-[0.25em] text-amber-300">
+                Boutique de Moda Feminina
+              </span>
             </Link>
-            <p className="text-xs text-white/70 leading-relaxed max-w-sm font-light">
-              Uma boutique de moda fitness feminina com peças exclusivas, unindo performance, conforto e elegância.
+            <p className="text-xs text-rose-100/75 leading-relaxed max-w-sm font-light">
+              Criada para mulheres que buscam alta performance sem abrir mão da elegância, com tecidos de toque amanteigado e compressão anatômica.
             </p>
             <div className="flex items-center gap-3 pt-2">
               <a
                 href="https://www.instagram.com/adoro.aura/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="p-2.5 rounded-full bg-white/10 hover:bg-amber-400 hover:text-slate-900 text-white transition-colors"
+                className="p-2.5 rounded-full bg-white/10 hover:bg-gradient-to-r hover:from-rose-500 hover:to-pink-500 text-white transition-all shadow-sm hover:scale-110"
                 title="Instagram @adoro.aura"
               >
                 <Instagram className="w-4 h-4" />
               </a>
               <a
                 href="mailto:aurafitnesswork@gmail.com"
-                className="p-2.5 rounded-full bg-white/10 hover:bg-amber-400 hover:text-slate-900 text-white transition-colors"
+                className="p-2.5 rounded-full bg-white/10 hover:bg-amber-400 hover:text-slate-900 text-white transition-all shadow-sm hover:scale-110"
                 title="E-mail aurafitnesswork@gmail.com"
               >
                 <Mail className="w-4 h-4" />
@@ -43,10 +48,10 @@ export const Footer: React.FC = () => {
           {/* Quick Links */}
           <div className="space-y-3">
             <h4 className="text-xs font-bold uppercase tracking-wider text-amber-300">Navegação</h4>
-            <ul className="space-y-2 text-xs text-white/70 font-light">
+            <ul className="space-y-2 text-xs text-rose-100/75 font-light">
               <li><Link to="/catalogo" className="hover:text-white transition-colors">Catálogo Completo</Link></li>
-              <li><Link to="/catalogo?categoria=Leggings" className="hover:text-white transition-colors">Leggings High Waist</Link></li>
-              <li><Link to="/catalogo?categoria=Tops" className="hover:text-white transition-colors">Tops & Sports Bras</Link></li>
+              <li><Link to="/catalogo?categoria=Macacão" className="hover:text-white transition-colors">Macacões Longos</Link></li>
+              <li><Link to="/catalogo?categoria=Macaquinho" className="hover:text-white transition-colors">Macaquinhos Fitness</Link></li>
               <li><Link to="/catalogo?categoria=Conjuntos" className="hover:text-white transition-colors">Conjuntos em Destaque</Link></li>
               <li><Link to="/blog" className="hover:text-white transition-colors">Blog & Dicas Fitness</Link></li>
             </ul>
@@ -55,7 +60,7 @@ export const Footer: React.FC = () => {
           {/* Customer Support */}
           <div className="space-y-3">
             <h4 className="text-xs font-bold uppercase tracking-wider text-amber-300">Atendimento</h4>
-            <ul className="space-y-2 text-xs text-white/70 font-light">
+            <ul className="space-y-2 text-xs text-rose-100/75 font-light">
               <li><Link to="/minha-conta" className="hover:text-white transition-colors">Minha Conta</Link></li>
               <li><Link to="/meus-pedidos" className="hover:text-white transition-colors">Meus Pedidos</Link></li>
               <li><Link to="/favoritos" className="hover:text-white transition-colors">Lista de Desejos</Link></li>
@@ -71,7 +76,7 @@ export const Footer: React.FC = () => {
           {/* Security & Payment */}
           <div className="space-y-4">
             <h4 className="text-xs font-bold uppercase tracking-wider text-amber-300">Compra Segura</h4>
-            <div className="space-y-2 text-xs text-white/70">
+            <div className="space-y-2.5 text-xs text-rose-100/80">
               <div className="flex items-center gap-2">
                 <Lock className="w-4 h-4 text-emerald-400" />
                 <span>SSL Criptografado 256-bit</span>
@@ -82,7 +87,7 @@ export const Footer: React.FC = () => {
               </div>
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                <span>Garantia de Troca em 7 dias</span>
+                <span>Garantia de Troca em 30 dias</span>
               </div>
             </div>
           </div>
@@ -90,13 +95,13 @@ export const Footer: React.FC = () => {
 
         {/* Bottom Bar */}
         <div className="border-t border-white/10 pt-8 flex flex-wrap items-center justify-between gap-4 text-xs text-white/50 font-light">
-          <p>© 2026 Aura Fitness. Todos os direitos reservados.</p>
-          <div className="flex items-center gap-4">
+          <p>© 2026 Aura Fitness • Feito com amor para inspirar seus treinos.</p>
+          <div className="flex items-center gap-4 text-rose-100/60">
             <span>Privacidade</span>
             <span>•</span>
             <span>Termos de Uso</span>
             <span>•</span>
-            <span className="text-white/70">Aura Fitness Boutique</span>
+            <span className="text-white/80">Aura Fitness Boutique</span>
           </div>
         </div>
       </div>
