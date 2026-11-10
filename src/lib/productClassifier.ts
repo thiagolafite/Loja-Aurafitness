@@ -774,6 +774,20 @@ export function saveStoredCategories(categories: AvailableCategory[]): void {
     }
 
     window.dispatchEvent(new CustomEvent('aura_categories_updated', { detail: categories }));
+
+    fetch('/api/sync-store', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'update_store_extra',
+        payload: {
+          seoPatch: {
+            customCategories: categories,
+            deletedCategories: getDeletedCategories(),
+          },
+        },
+      }),
+    }).catch(() => {});
   }
 }
 

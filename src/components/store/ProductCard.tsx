@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, ShoppingBag, ZoomIn, ChevronLeft, ChevronRight, Play } from 'lucide-react';
 import { Product } from '../../types';
@@ -16,6 +16,10 @@ interface ProductCardProps {
 export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   const [currentImgIndex, setCurrentImgIndex] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
+  const touchStartXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+  const didSwipeRef = useRef<boolean>(false);
+
   const { isInWishlist, toggleWishlist } = useWishlist();
   const { addToCart } = useCart();
   const { openLightbox } = useLightbox();
@@ -23,7 +27,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
 
   const images = getProductMediaSlides(product);
   const coverPoster = images.find((m) => !isVideoMedia(m));
-  const hasVideo = images.some((m) => isVideoMedia(m));
+  const videoSlideIndex = images.findIndex((m) => isVideoMedia(m));
+  const hasVideo = videoSlideIndex !== -1;
 
   const safeIndex = currentImgIndex < images.length ? currentImgIndex : 0;
   const activeSlide = images[safeIndex];
@@ -31,7 +36,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
 
   const handleMouseEnter = () => {
     setIsHovered(true);
-    if (images.length > 1) {
+    if (images.length > 1 && currentImgIndex === 0) {
       setCurrentImgIndex(1);
     }
   };
@@ -41,16 +46,42 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     setCurrentImgIndex(0);
   };
 
-  const handlePrev = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handlePrev = (e?: React.MouseEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
     setCurrentImgIndex((prev) => (prev - 1 + images.length) % images.length);
   };
 
-  const handleNext = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleNext = (e?: React.MouseEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
     setCurrentImgIndex((prev) => (prev + 1) % images.length);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartXRef.current = e.touches[0]?.clientX ?? null;
+    touchStartYRef.current = e.touches[0]?.clientY ?? null;
+    didSwipeRef.current = false;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartXRef.current === null || images.length <= 1) return;
+    const endX = e.changedTouches[0]?.clientX ?? touchStartXRef.current;
+    const endY = e.changedTouches[0]?.clientY ?? (touchStartYRef.current || 0);
+    const deltaX = endX - touchStartXRef.current;
+    const deltaY = endY - (touchStartYRef.current || 0);
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+
+    // Se o gesto foi horizontal (swipe de carrossel no smartphone)
+    if (Math.abs(deltaX) > 30 && Math.abs(deltaX) > Math.abs(deltaY)) {
+      didSwipeRef.current = true;
+      if (deltaX < 0) {
+        setCurrentImgIndex((prev) => (prev + 1) % images.length);
+      } else {
+        setCurrentImgIndex((prev) => (prev - 1 + images.length) % images.length);
+      }
+    }
   };
 
   const discountPercent = product.promotionalPrice
@@ -64,8 +95,21 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
       className="group relative flex flex-col bg-transparent overflow-hidden transition-all duration-300"
     >
       {/* Image / Video Container with Badges & Carrossel */}
-      <div className="relative aspect-[3/4] w-full rounded-2xl overflow-hidden bg-[#dbe0dc] dark:bg-muted/40">
-        <Link to={`/produto/${product.id}`} className="block w-full h-full relative">
+      <div
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        className="relative aspect-[3/4] w-full rounded-2xl overflow-hidden bg-[#dbe0dc] dark:bg-muted/40"
+      >
+        <Link
+          to={`/produto/${product.id}`}
+          onClick={(e) => {
+            if (didSwipeRef.current) {
+              e.preventDefault();
+              didSwipeRef.current = false;
+            }
+          }}
+          className="block w-full h-full relative"
+        >
           <ProductMediaView
             src={activeSlide}
             alt={product.name}
@@ -73,43 +117,57 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
             autoPlay={isCurrentSlideVideo ? true : isHovered}
             muted={true}
             loop={true}
-            className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
+            className="w-full h-full object-cover object-top sm:group-hover:scale-105 transition-transform duration-500"
           />
         </Link>
 
-        {/* Video Indicator Badge */}
+        {/* Interactive Video Indicator Badge (Tap on mobile to play video immediately) */}
         {hasVideo && (
-          <div className="absolute top-3 right-12 z-10 pointer-events-none">
-            <span className="bg-black/70 backdrop-blur-sm text-white text-[9px] font-bold px-2 py-1 rounded-full shadow flex items-center gap-1">
-              <Play className="w-2.5 h-2.5 fill-white" />
-              <span>{isCurrentSlideVideo ? 'REPRODUZINDO' : 'VÍDEO'}</span>
-            </span>
-          </div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (isCurrentSlideVideo && images.length > 1) {
+                setCurrentImgIndex(0);
+              } else if (videoSlideIndex !== -1) {
+                setCurrentImgIndex(videoSlideIndex);
+              }
+            }}
+            className="absolute top-3 right-12 z-20 bg-black/75 hover:bg-black/90 backdrop-blur-sm text-white text-[9px] font-bold px-2.5 py-1 rounded-full shadow flex items-center gap-1 transition-all active:scale-95"
+            title={isCurrentSlideVideo ? 'Voltar para a foto' : 'Assistir vídeo do produto'}
+          >
+            <Play className="w-2.5 h-2.5 fill-white" />
+            <span>{isCurrentSlideVideo ? 'REPRODUZINDO' : 'VER VÍDEO'}</span>
+          </button>
         )}
 
-        {/* Carousel Navigation Arrows */}
+        {/* Carousel Navigation Arrows (Visible on Smartphone & on Desktop Hover) */}
         {images.length > 1 && (
           <>
             <button
+              type="button"
               onClick={handlePrev}
-              className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-7 h-7 rounded-full bg-white/90 dark:bg-slate-900/90 text-foreground flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all opacity-0 group-hover:opacity-100"
-              title="Foto anterior"
+              className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-7 h-7 rounded-full bg-white/90 dark:bg-slate-900/90 text-foreground flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all opacity-90 sm:opacity-0 sm:group-hover:opacity-100"
+              title="Mídia anterior"
             >
               <ChevronLeft className="w-4 h-4 text-slate-800 dark:text-slate-100" />
             </button>
             <button
+              type="button"
               onClick={handleNext}
-              className="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-7 h-7 rounded-full bg-white/90 dark:bg-slate-900/90 text-foreground flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all opacity-0 group-hover:opacity-100"
-              title="Próxima foto"
+              className="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-7 h-7 rounded-full bg-white/90 dark:bg-slate-900/90 text-foreground flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all opacity-90 sm:opacity-0 sm:group-hover:opacity-100"
+              title="Próxima mídia"
             >
               <ChevronRight className="w-4 h-4 text-slate-800 dark:text-slate-100" />
             </button>
 
-            {/* Pagination Dots */}
-            <div className="absolute bottom-12 left-0 right-0 z-20 flex justify-center items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-              {images.map((_, idx) => (
+            {/* Pagination Dots (Always visible on Smartphone so customer sees multiple poses/videos) */}
+            <div className="absolute bottom-12 left-0 right-0 z-20 flex justify-center items-center gap-1.5 opacity-95 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+              {images.map((slideItem, idx) => (
                 <button
                   key={idx}
+                  type="button"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -118,9 +176,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                   className={`h-1.5 rounded-full transition-all ${
                     idx === safeIndex
                       ? 'w-4 bg-white shadow-md'
-                      : 'w-1.5 bg-white/60 hover:bg-white'
+                      : isVideoMedia(slideItem)
+                      ? 'w-2 bg-amber-400/90 hover:bg-amber-300'
+                      : 'w-1.5 bg-white/65 hover:bg-white'
                   }`}
-                  title={`Foto ${idx + 1}`}
+                  title={isVideoMedia(slideItem) ? `Vídeo (${idx + 1})` : `Foto ${idx + 1}`}
                 />
               ))}
             </div>
@@ -129,12 +189,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
 
         {/* Zoom Expand Button */}
         <button
+          type="button"
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
             openLightbox(images, safeIndex, product.name);
           }}
-          className="absolute top-3 left-3 z-20 w-8 h-8 rounded-full bg-white/90 dark:bg-slate-900/90 text-foreground flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all opacity-0 group-hover:opacity-100"
+          className="absolute top-3 left-3 z-20 w-8 h-8 rounded-full bg-white/90 dark:bg-slate-900/90 text-foreground flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all opacity-85 sm:opacity-0 sm:group-hover:opacity-100"
           title="Ver foto em tela cheia (Expandir)"
         >
           <ZoomIn className="w-4 h-4 text-slate-700 dark:text-slate-200" />
@@ -159,18 +220,24 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
 
         {/* Top-Right Favorite Button */}
         <button
+          type="button"
           onClick={(e) => {
             e.preventDefault();
             toggleWishlist(product.id);
           }}
-          className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-white/90 dark:bg-slate-900/90 text-foreground flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all"
+          className="absolute top-3 right-3 z-20 w-8 h-8 rounded-full bg-white/90 dark:bg-slate-900/90 text-foreground flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all"
           title={isFav ? 'Remover dos Favoritos' : 'Adicionar aos Favoritos'}
         >
-          <Heart className={`w-4 h-4 ${isFav ? 'fill-rose-500 text-rose-500' : 'text-slate-700 dark:text-slate-200'}`} />
+          <Heart
+            className={`w-4 h-4 ${
+              isFav ? 'fill-rose-500 text-rose-500' : 'text-slate-700 dark:text-slate-200'
+            }`}
+          />
         </button>
 
-        {/* Quick Add Hover Button */}
+        {/* Quick Add Button */}
         <button
+          type="button"
           onClick={(e) => {
             e.preventDefault();
             addToCart(
@@ -180,7 +247,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
               1
             );
           }}
-          className="absolute bottom-3 left-3 right-3 z-10 py-2 rounded-xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md text-[#284e20] dark:text-amber-300 font-semibold text-xs flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-300 shadow-lg hover:bg-white"
+          className="absolute bottom-2.5 left-2.5 right-2.5 sm:bottom-3 sm:left-3 sm:right-3 z-20 py-2 rounded-xl bg-white/92 dark:bg-slate-900/92 backdrop-blur-md text-[#284e20] dark:text-amber-300 font-semibold text-[11px] sm:text-xs flex items-center justify-center gap-1.5 opacity-95 sm:opacity-0 sm:group-hover:opacity-100 sm:translate-y-2 sm:group-hover:translate-y-0 transition-all duration-300 shadow-lg hover:bg-white active:scale-95"
         >
           <ShoppingBag className="w-3.5 h-3.5" />
           <span>Comprar Rápido</span>
@@ -193,7 +260,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           {product.category}
         </span>
 
-        <Link to={`/produto/${product.id}`} className="block group-hover:text-[#284e20] transition-colors">
+        <Link
+          to={`/produto/${product.id}`}
+          className="block group-hover:text-[#284e20] transition-colors"
+        >
           <h3 className="font-serif text-sm font-normal text-foreground line-clamp-1">
             {product.name}
           </h3>

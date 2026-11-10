@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Play } from 'lucide-react';
 import {
   isVideoMedia,
@@ -33,7 +33,36 @@ export const ProductMediaView: React.FC<ProductMediaViewProps> = ({
   const [playableUrl, setPlayableUrl] = useState<string>(() =>
     isVideo ? getPlayableVideoUrl(src) : src || ''
   );
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  const ensureMobileVideoPlay = useCallback(
+    (el: HTMLVideoElement | null) => {
+      if (!el || !isVideo) return;
+      el.defaultMuted = muted;
+      el.muted = muted;
+      el.playsInline = true;
+      el.setAttribute('playsinline', '');
+      el.setAttribute('webkit-playsinline', '');
+      if (muted) {
+        el.setAttribute('muted', '');
+      } else {
+        el.removeAttribute('muted');
+      }
+
+      if (autoPlay && el.paused) {
+        const playPromise = el.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(() => {
+            el.defaultMuted = true;
+            el.muted = true;
+            el.setAttribute('muted', '');
+            el.play().catch(() => {});
+          });
+        }
+      }
+    },
+    [isVideo, autoPlay, muted]
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -71,20 +100,29 @@ export const ProductMediaView: React.FC<ProductMediaViewProps> = ({
     const videoEl = videoRef.current;
     if (!isVideo || !videoEl || !playableUrl) return;
 
-    videoEl.defaultMuted = muted;
-    videoEl.muted = muted;
-    videoEl.playsInline = true;
+    ensureMobileVideoPlay(videoEl);
 
-    if (autoPlay) {
-      const playPromise = videoEl.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(() => {
-          videoEl.muted = true;
-          videoEl.play().catch(() => {});
-        });
+    if (!autoPlay) return;
+
+    // Desbloqueia reprodução automática no iOS Safari / Android Chrome ao primeiro toque ou rolagem
+    const unlockOnTouch = () => {
+      if (videoRef.current && videoRef.current.paused && autoPlay) {
+        ensureMobileVideoPlay(videoRef.current);
       }
-    }
-  }, [isVideo, playableUrl, autoPlay, muted]);
+    };
+
+    window.addEventListener('touchstart', unlockOnTouch, { passive: true });
+    window.addEventListener('touchend', unlockOnTouch, { passive: true });
+    window.addEventListener('scroll', unlockOnTouch, { passive: true });
+    window.addEventListener('click', unlockOnTouch, { passive: true });
+
+    return () => {
+      window.removeEventListener('touchstart', unlockOnTouch);
+      window.removeEventListener('touchend', unlockOnTouch);
+      window.removeEventListener('scroll', unlockOnTouch);
+      window.removeEventListener('click', unlockOnTouch);
+    };
+  }, [isVideo, playableUrl, autoPlay, muted, ensureMobileVideoPlay]);
 
   if (!isVideo) {
     return (
@@ -100,7 +138,17 @@ export const ProductMediaView: React.FC<ProductMediaViewProps> = ({
     <div className="relative w-full h-full overflow-hidden">
       {playableUrl ? (
         <video
-          ref={videoRef}
+          ref={(el) => {
+            videoRef.current = el;
+            if (el) {
+              el.defaultMuted = muted;
+              el.muted = muted;
+              el.playsInline = true;
+              el.setAttribute('playsinline', '');
+              el.setAttribute('webkit-playsinline', '');
+              if (muted) el.setAttribute('muted', '');
+            }
+          }}
           key={playableUrl}
           src={playableUrl}
           poster={poster}
@@ -110,15 +158,10 @@ export const ProductMediaView: React.FC<ProductMediaViewProps> = ({
           playsInline
           controls={controls}
           preload="auto"
-          onLoadedData={(e) => {
-            const el = e.currentTarget;
-            el.defaultMuted = muted;
-            el.muted = muted;
-            if (autoPlay && el.paused) {
-              el.play().catch(() => {});
-            }
-          }}
-          className={className}
+          onLoadedMetadata={(e) => ensureMobileVideoPlay(e.currentTarget)}
+          onLoadedData={(e) => ensureMobileVideoPlay(e.currentTarget)}
+          onCanPlay={(e) => ensureMobileVideoPlay(e.currentTarget)}
+          className={`${className} ${controls ? '' : 'pointer-events-none'}`}
         />
       ) : poster ? (
         <img src={poster} alt={alt} className={className} />

@@ -38,6 +38,7 @@ import {
   saveImportedFilesRegistry,
   IMPORTED_FILES_REGISTRY_KEY,
 } from './productClassifier';
+import { syncFloatingVideoConfigFromCloud } from './videoStorage';
 
 function normalizeProductData(p: Product, _activeCategories = getStoredCategories()): Product {
   const effectiveColors = getEffectiveProductColors(p);
@@ -459,9 +460,43 @@ export async function syncWithSupabase(): Promise<void> {
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('aura_products_updated', { detail: cachedProducts }));
       }
+
+      // Sincroniza automaticamente produtos locais pendentes (prod-...) para o Supabase via API serverless
+      if (pendingLocalProducts.length > 0 && typeof window !== 'undefined') {
+        fetch('/api/sync-store', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'upsert_products',
+            payload: { products: pendingLocalProducts },
+          }),
+        })
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
+            if (data?.saved && Array.isArray(data.saved) && data.saved.length > 0) {
+              let changed = false;
+              data.saved.forEach((entry: any) => {
+                if (entry.localId && entry.dbProduct?.id && entry.localId !== entry.dbProduct.id) {
+                  const idx = cachedProducts.findIndex((cp) => cp.id === entry.localId);
+                  if (idx !== -1) {
+                    cachedProducts[idx] = { ...cachedProducts[idx], id: entry.dbProduct.id };
+                    changed = true;
+                  }
+                }
+              });
+              if (changed) {
+                saveProductsToStorage(cachedProducts);
+                window.dispatchEvent(
+                  new CustomEvent('aura_products_updated', { detail: cachedProducts })
+                );
+              }
+            }
+          })
+          .catch(() => {});
+      }
     }
 
-    // 2. Settings
+    // 2. Settings & Extra Store Metadata (Mini-Video, Custom Categories, Category Photos)
     const { data: sett } = await supabase.from('store_settings').select('*').eq('id', 'default').maybeSingle();
     if (sett) {
       cachedSettings = {
@@ -480,6 +515,41 @@ export async function syncWithSupabase(): Promise<void> {
         seo: sett.seo,
       };
       setStorageItem(STORAGE_KEYS.SETTINGS, cachedSettings);
+
+      const seoObj = (sett.seo && typeof sett.seo === 'object' ? sett.seo : {}) as Record<
+        string,
+        any
+      >;
+
+      // Restaura configuração do Mini-Vídeo Flutuante no Smartphone
+      if (seoObj.floatingVideoConfig) {
+        syncFloatingVideoConfigFromCloud(seoObj.floatingVideoConfig);
+      }
+
+      // Sincroniza categorias personalizadas entre PC e Smartphone
+      if (Array.isArray(seoObj.customCategories) && typeof window !== 'undefined') {
+        const localCustomRaw = localStorage.getItem('aura_store_categories_v1');
+        const localCustom = localCustomRaw ? JSON.parse(localCustomRaw) : [];
+        if (Array.isArray(localCustom)) {
+          const mergedMap = new Map<string, any>();
+          [...seoObj.customCategories, ...localCustom].forEach((c: any) => {
+            if (c && c.name) mergedMap.set(c.name.toLowerCase(), c);
+          });
+          localStorage.setItem(
+            'aura_store_categories_v1',
+            JSON.stringify(Array.from(mergedMap.values()))
+          );
+          window.dispatchEvent(new Event('aura_categories_updated'));
+        }
+      }
+
+      // Sincroniza fotos de capa de categorias entre PC e Smartphone
+      if (seoObj.categoryPhotos && typeof seoObj.categoryPhotos === 'object' && typeof window !== 'undefined') {
+        const localPhotosRaw = localStorage.getItem('aura_category_photos_v1');
+        const localPhotos = localPhotosRaw ? JSON.parse(localPhotosRaw) : {};
+        const mergedPhotos = { ...seoObj.categoryPhotos, ...localPhotos };
+        localStorage.setItem('aura_category_photos_v1', JSON.stringify(mergedPhotos));
+      }
     }
 
     // 3. Coupons
@@ -563,6 +633,49 @@ loadProductsFromIDB()
   .finally(() => {
     syncWithSupabase();
   });
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('aura_video_cloud_migrated', (e: Event) => {
+    const detail = (e as CustomEvent)?.detail;
+    if (!detail?.idbRef || !detail?.cloudUrl) return;
+    let updatedAny = false;
+    const updatedToSync: Product[] = [];
+
+    cachedProducts = cachedProducts.map((p) => {
+      let pChanged = false;
+      let nextVideoUrl = p.videoUrl;
+      if (p.videoUrl === detail.idbRef) {
+        nextVideoUrl = detail.cloudUrl;
+        pChanged = true;
+      }
+      let nextImages = p.images;
+      if (Array.isArray(p.images) && p.images.includes(detail.idbRef)) {
+        nextImages = p.images.map((img) => (img === detail.idbRef ? detail.cloudUrl : img));
+        pChanged = true;
+      }
+      if (pChanged) {
+        updatedAny = true;
+        const nextProd = { ...p, videoUrl: nextVideoUrl, images: nextImages };
+        updatedToSync.push(nextProd);
+        return nextProd;
+      }
+      return p;
+    });
+
+    if (updatedAny) {
+      saveProductsToStorage(cachedProducts);
+      window.dispatchEvent(new CustomEvent('aura_products_updated', { detail: cachedProducts }));
+      fetch('/api/sync-store', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'upsert_products',
+          payload: { products: updatedToSync },
+        }),
+      }).catch(() => {});
+    }
+  });
+}
 
 // --- PRODUCTS SERVICE ---
 export function getProducts(): Product[] {
@@ -654,9 +767,11 @@ export async function saveProductAsync(productData: Partial<Product>): Promise<P
     payload.id = localSaved.id;
   }
 
+  let syncedViaDirect = false;
   try {
     const { data, error } = await supabase.from('products').upsert(payload).select().maybeSingle();
     if (!error && data?.id) {
+      syncedViaDirect = true;
       const deletedSet = new Set(getStorageItem<string[]>('aura_deleted_product_ids_v1', []));
       if (deletedSet.has(data.id)) {
         deletedSet.delete(data.id);
@@ -676,6 +791,36 @@ export async function saveProductAsync(productData: Partial<Product>): Promise<P
     }
   } catch (e) {
     console.warn('Aviso ao sincronizar produto com Supabase (mantido localmente):', e);
+  }
+
+  if (!syncedViaDirect && typeof window !== 'undefined') {
+    try {
+      const apiRes = await fetch('/api/sync-store', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'upsert_products',
+          payload: { products: [localSaved] },
+        }),
+      });
+      if (apiRes.ok) {
+        const apiData = await apiRes.json();
+        const savedEntry = apiData?.saved?.[0];
+        if (savedEntry?.dbProduct?.id && localSaved.id !== savedEntry.dbProduct.id) {
+          const idx = cachedProducts.findIndex((p) => p.id === localSaved.id);
+          if (idx !== -1) {
+            cachedProducts[idx] = {
+              ...cachedProducts[idx],
+              id: savedEntry.dbProduct.id,
+            };
+            saveProductsToStorage(cachedProducts);
+            window.dispatchEvent(
+              new CustomEvent('aura_products_updated', { detail: cachedProducts })
+            );
+          }
+        }
+      }
+    } catch {}
   }
 
   return localSaved;
@@ -842,13 +987,23 @@ export async function bulkDeleteProductsAsync(ids: string[]): Promise<void> {
     window.dispatchEvent(new CustomEvent('aura_products_updated', { detail: cachedProducts }));
   }
 
-  // 3. Exclui do banco Supabase
+  // 3. Exclui do banco Supabase (cliente direto + API serverless com Service Role Key)
   if (isSupabaseConfigured()) {
     try {
       const { error } = await supabase.from('products').delete().in('id', ids);
       if (error) console.error('Erro ao excluir produtos do Supabase:', error);
     } catch (e) {
       console.error('Exceção ao excluir produtos do Supabase:', e);
+    }
+    if (typeof window !== 'undefined') {
+      fetch('/api/sync-store', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'delete_products',
+          payload: { ids },
+        }),
+      }).catch(() => {});
     }
   }
 }
@@ -882,6 +1037,13 @@ export async function deleteAllProductsAsync(): Promise<void> {
       if (error) console.error('Erro ao excluir todos os produtos no Supabase:', error);
     } catch (e) {
       console.error('Exceção ao excluir todos os produtos no Supabase:', e);
+    }
+    if (typeof window !== 'undefined') {
+      fetch('/api/sync-store', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete_all_products' }),
+      }).catch(() => {});
     }
   }
 }
@@ -1065,6 +1227,34 @@ export async function bulkImportProductsAsync(items: Partial<Product>[]): Promis
       } catch (err) {
         console.warn('Aviso ao sincronizar item importado com Supabase (mantido localmente):', err);
       }
+    }
+
+    // Fallback via /api/sync-store para itens que permaneceram com ID temporário (prod-...)
+    const remainingLocal = processedProducts.filter((p) => p.id.startsWith('prod-'));
+    if (remainingLocal.length > 0 && typeof window !== 'undefined') {
+      try {
+        const apiRes = await fetch('/api/sync-store', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'upsert_products',
+            payload: { products: remainingLocal },
+          }),
+        });
+        if (apiRes.ok) {
+          const apiData = await apiRes.json();
+          if (Array.isArray(apiData?.saved)) {
+            apiData.saved.forEach((entry: any) => {
+              if (entry.localId && entry.dbProduct?.id && entry.localId !== entry.dbProduct.id) {
+                const idx = cachedProducts.findIndex((cp) => cp.id === entry.localId);
+                if (idx !== -1) {
+                  cachedProducts[idx] = { ...cachedProducts[idx], id: entry.dbProduct.id };
+                }
+              }
+            });
+          }
+        }
+      } catch {}
     }
 
     saveProductsToStorage(cachedProducts);

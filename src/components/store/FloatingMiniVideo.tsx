@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   X,
   Volume2,
@@ -34,8 +34,9 @@ export const FloatingMiniVideo: React.FC = () => {
   const [videoFailed, setVideoFailed] = useState(false);
   const [fallbackSlideIdx, setFallbackSlideIdx] = useState(0);
 
-  const miniVideoRef = useRef<HTMLVideoElement>(null);
-  const expandedVideoRef = useRef<HTMLVideoElement>(null);
+  const miniVideoRef = useRef<HTMLVideoElement | null>(null);
+  const expandedVideoRef = useRef<HTMLVideoElement | null>(null);
+  const touchStartXRef = useRef<number | null>(null);
 
   // Sync configuration and products in real time
   useEffect(() => {
@@ -59,47 +60,77 @@ export const FloatingMiniVideo: React.FC = () => {
   const safeIndex = activeIndex < activeItems.length ? activeIndex : 0;
   const currentItem = activeItems[safeIndex];
 
-  // Linked product resolution
-  const linkedProduct = currentItem?.productId
-    ? products.find((p) => p.id === currentItem.productId)
-    : undefined;
+  // Linked product resolution (falls back to first available product if deleted/missing)
+  const linkedProduct = useMemo(() => {
+    if (currentItem?.productId) {
+      const found = products.find((p) => p.id === currentItem.productId);
+      if (found) return found;
+    }
+    const prodWithVideo = products.find((p) =>
+      getProductMediaSlides(p).some((m) => isVideoMedia(m))
+    );
+    return prodWithVideo || products[0];
+  }, [currentItem?.productId, products]);
 
-  const productEmbeddedVideo =
-    (linkedProduct && getProductMediaSlides(linkedProduct).find((m) => isVideoMedia(m))) ||
-    products.flatMap((p) => getProductMediaSlides(p)).find((m) => isVideoMedia(m));
+  // Gather candidate video sources in priority order
+  const candidateVideoSources = useMemo(() => {
+    const candidates: string[] = [];
+    if (
+      currentItem?.videoUrl &&
+      !currentItem.videoUrl.includes('assets.mixkit.co')
+    ) {
+      candidates.push(currentItem.videoUrl);
+    }
+    if (linkedProduct) {
+      const linkedVid = getProductMediaSlides(linkedProduct).find((m) => isVideoMedia(m));
+      if (linkedVid && !candidates.includes(linkedVid)) {
+        candidates.push(linkedVid);
+      }
+    }
+    for (const p of products) {
+      const vid = getProductMediaSlides(p).find((m) => isVideoMedia(m));
+      if (vid && !candidates.includes(vid)) {
+        candidates.push(vid);
+      }
+    }
+    return candidates;
+  }, [currentItem?.videoUrl, linkedProduct, products]);
 
-  const effectiveVideoSource =
-    currentItem?.videoUrl &&
-    !currentItem.videoUrl.includes('assets.mixkit.co')
-      ? currentItem.videoUrl
-      : productEmbeddedVideo || currentItem?.videoUrl || '';
-
-  // Resolve IndexedDB or direct video URL
+  // Resolve the first playable video URL from candidates
   useEffect(() => {
     let isMounted = true;
     setVideoFailed(false);
 
-    if (!effectiveVideoSource) {
-      setPlayableUrl('');
-      setVideoFailed(true);
-      return;
-    }
-
-    resolvePlayableVideoUrl(effectiveVideoSource).then((resolved) => {
-      if (isMounted) {
-        if (resolved) {
+    const resolveFirstAvailable = async () => {
+      for (const candidate of candidateVideoSources) {
+        const resolved = await resolvePlayableVideoUrl(candidate);
+        if (resolved && isMounted) {
           setPlayableUrl(resolved);
           setVideoFailed(false);
-        } else {
-          setPlayableUrl('');
-          setVideoFailed(true);
+          return;
         }
       }
-    });
+      if (isMounted) {
+        setPlayableUrl('');
+        setVideoFailed(true);
+      }
+    };
+
+    if (candidateVideoSources.length === 0) {
+      setPlayableUrl('');
+      setVideoFailed(true);
+    } else {
+      resolveFirstAvailable();
+    }
 
     const handleBlobReady = (e: Event) => {
       const detail = (e as CustomEvent)?.detail;
-      if (detail && detail.idbRef === effectiveVideoSource && detail.url && isMounted) {
+      if (
+        detail &&
+        detail.url &&
+        candidateVideoSources.includes(detail.idbRef) &&
+        isMounted
+      ) {
         setPlayableUrl(detail.url);
         setVideoFailed(false);
       }
@@ -110,26 +141,101 @@ export const FloatingMiniVideo: React.FC = () => {
       isMounted = false;
       window.removeEventListener('aura_video_blob_ready', handleBlobReady);
     };
-  }, [effectiveVideoSource, currentItem?.id]);
+  }, [candidateVideoSources, currentItem?.id]);
+
+  // Force mobile video playback helper (solves iOS Safari & Android Chrome muted autoplay restrictions)
+  const ensureVideoPlays = useCallback(
+    (el: HTMLVideoElement | null, shouldMute: boolean) => {
+      if (!el) return;
+      el.defaultMuted = shouldMute;
+      el.muted = shouldMute;
+      el.playsInline = true;
+      el.setAttribute('playsinline', '');
+      el.setAttribute('webkit-playsinline', '');
+      if (shouldMute) {
+        el.setAttribute('muted', '');
+      } else {
+        el.removeAttribute('muted');
+      }
+      if (el.paused) {
+        const p = el.play();
+        if (p !== undefined) {
+          p.catch(() => {
+            el.defaultMuted = true;
+            el.muted = true;
+            el.setAttribute('muted', '');
+            el.play().catch(() => {});
+          });
+        }
+      }
+    },
+    []
+  );
+
+  // Trigger playback whenever playableUrl, expanded state, or mute state changes, plus unlock on mobile touch/scroll
+  useEffect(() => {
+    if (videoFailed || !playableUrl) return;
+
+    if (!isExpanded && miniVideoRef.current) {
+      ensureVideoPlays(miniVideoRef.current, true);
+    }
+    if (isExpanded && expandedVideoRef.current) {
+      ensureVideoPlays(expandedVideoRef.current, isMuted);
+    }
+
+    const unlockMobilePlayback = () => {
+      if (!isExpanded && miniVideoRef.current && miniVideoRef.current.paused) {
+        ensureVideoPlays(miniVideoRef.current, true);
+      }
+      if (isExpanded && expandedVideoRef.current && expandedVideoRef.current.paused) {
+        ensureVideoPlays(expandedVideoRef.current, isMuted);
+      }
+    };
+
+    window.addEventListener('touchstart', unlockMobilePlayback, { passive: true });
+    window.addEventListener('touchend', unlockMobilePlayback, { passive: true });
+    window.addEventListener('scroll', unlockMobilePlayback, { passive: true });
+    window.addEventListener('click', unlockMobilePlayback, { passive: true });
+
+    return () => {
+      window.removeEventListener('touchstart', unlockMobilePlayback);
+      window.removeEventListener('touchend', unlockMobilePlayback);
+      window.removeEventListener('scroll', unlockMobilePlayback);
+      window.removeEventListener('click', unlockMobilePlayback);
+    };
+  }, [playableUrl, videoFailed, isExpanded, isMuted, isDismissed, ensureVideoPlays]);
 
   const targetLink =
-    currentItem?.customLink?.trim() ||
-    (linkedProduct ? `/produto/${linkedProduct.id}` : '/catalogo');
+    linkedProduct
+      ? `/produto/${linkedProduct.id}`
+      : currentItem?.customLink?.trim() || '/catalogo';
 
-  // Fallback motion images if video URL is empty or fails to load
-  const fallbackImages =
-    linkedProduct?.images && linkedProduct.images.length > 0
-      ? linkedProduct.images
-      : currentItem?.fallbackImages && currentItem.fallbackImages.length > 0
-      ? currentItem.fallbackImages
-      : products.flatMap((p) => p.images || []).filter(Boolean).slice(0, 5);
+  // Multi-pose images for fluid Reels motion lookbook when no MP4 is active
+  const fallbackImages = useMemo(() => {
+    const prodPhotos =
+      linkedProduct?.images?.filter((img) => Boolean(img) && !isVideoMedia(img)) || [];
+    const itemFallbacks =
+      currentItem?.fallbackImages?.filter((img) => Boolean(img) && !isVideoMedia(img)) || [];
+    const catalogPhotos = products
+      .flatMap((p) => p.images || [])
+      .filter((img) => Boolean(img) && !isVideoMedia(img));
 
+    const combined = Array.from(new Set([...prodPhotos, ...itemFallbacks, ...catalogPhotos])).slice(
+      0,
+      8
+    );
+    return combined.length > 0
+      ? combined
+      : ['/images/macaco-bless.png', '/images/look-3214.png', '/images/look-3656.png'];
+  }, [linkedProduct, currentItem?.fallbackImages, products]);
+
+  // Continuous Reels motion cycle across poses
   useEffect(() => {
     if (!videoFailed && playableUrl) return;
     if (fallbackImages.length <= 1) return;
     const timer = setInterval(() => {
       setFallbackSlideIdx((prev) => (prev + 1) % fallbackImages.length);
-    }, 2400);
+    }, 2000);
     return () => clearInterval(timer);
   }, [videoFailed, playableUrl, fallbackImages.length]);
 
@@ -139,13 +245,13 @@ export const FloatingMiniVideo: React.FC = () => {
 
   const positionClass =
     config.position === 'bottom-right'
-      ? 'bottom-24 right-5'
-      : 'bottom-5 left-5';
+      ? 'bottom-24 right-3.5 sm:right-5'
+      : 'bottom-4 left-3.5 sm:bottom-5 sm:left-5';
 
   const sizeClasses = {
-    sm: 'w-[100px] h-[170px]',
-    md: 'w-[122px] h-[204px] sm:w-[132px] sm:h-[220px]',
-    lg: 'w-[148px] h-[248px] sm:w-[160px] sm:h-[268px]',
+    sm: 'w-[96px] h-[162px] sm:w-[100px] sm:h-[170px]',
+    md: 'w-[110px] h-[186px] sm:w-[132px] sm:h-[220px]',
+    lg: 'w-[132px] h-[222px] sm:w-[160px] sm:h-[268px]',
   }[config.size || 'md'];
 
   const borderColor = config.borderColor || '#F27474';
@@ -153,22 +259,59 @@ export const FloatingMiniVideo: React.FC = () => {
   const handleNextStory = (e?: React.MouseEvent) => {
     e?.stopPropagation();
     e?.preventDefault();
-    setActiveIndex((prev) => (prev + 1) % activeItems.length);
+    if (activeItems.length > 1) {
+      setActiveIndex((prev) => (prev + 1) % activeItems.length);
+    } else if (fallbackImages.length > 1) {
+      setFallbackSlideIdx((prev) => (prev + 1) % fallbackImages.length);
+    }
   };
 
   const handlePrevStory = (e?: React.MouseEvent) => {
     e?.stopPropagation();
     e?.preventDefault();
-    setActiveIndex((prev) => (prev - 1 + activeItems.length) % activeItems.length);
+    if (activeItems.length > 1) {
+      setActiveIndex((prev) => (prev - 1 + activeItems.length) % activeItems.length);
+    } else if (fallbackImages.length > 1) {
+      setFallbackSlideIdx((prev) => (prev - 1 + fallbackImages.length) % fallbackImages.length);
+    }
   };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartXRef.current = e.touches[0]?.clientX ?? null;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartXRef.current === null) return;
+    const endX = e.changedTouches[0]?.clientX ?? touchStartXRef.current;
+    const deltaX = endX - touchStartXRef.current;
+    touchStartXRef.current = null;
+    if (Math.abs(deltaX) > 35) {
+      if (deltaX < 0) handleNextStory();
+      else handlePrevStory();
+    }
+  };
+
+  const handleMiniCardTap = () => {
+    if (config.clickAction === 'direct-link') {
+      navigate(targetLink);
+    } else {
+      setIsExpanded(true);
+      setIsMuted(false);
+    }
+  };
+
+  const activeFallbackImg =
+    fallbackImages[fallbackSlideIdx % Math.max(1, fallbackImages.length)] ||
+    '/images/macaco-bless.png';
 
   // Minimized pill when dismissed by visitor
   if (isDismissed) {
     return (
       <button
+        type="button"
         onClick={() => setIsDismissed(false)}
         style={{ borderColor }}
-        className={`fixed ${positionClass} z-40 bg-card/95 backdrop-blur-md text-foreground px-3 py-2 rounded-full shadow-xl border-2 flex items-center gap-2 text-xs font-bold hover:scale-105 transition-all`}
+        className={`fixed ${positionClass} z-40 bg-card/95 backdrop-blur-md text-foreground px-3 py-2 rounded-full shadow-xl border-2 flex items-center gap-2 text-xs font-bold hover:scale-105 active:scale-95 transition-all`}
         title="Abrir Vídeo em Destaque"
       >
         <span
@@ -184,7 +327,7 @@ export const FloatingMiniVideo: React.FC = () => {
 
   return (
     <>
-      {/* FLOATING MINI-VIDEO WIDGET (ESTILO LÊ ROSE) */}
+      {/* FLOATING MINI-VIDEO WIDGET (ESTILO LÊ ROSE - DESKTOP & SMARTPHONE) */}
       <AnimatePresence>
         {!isExpanded && (
           <motion.div
@@ -192,22 +335,24 @@ export const FloatingMiniVideo: React.FC = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
             transition={{ duration: 0.25 }}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
             className={`fixed ${positionClass} z-40 group select-none`}
           >
-            {/* Outer Colored Ring + Inner White Frame (Idêntico à borda dupla da Lê Rose) */}
+            {/* Outer Colored Ring + Inner White Frame (Moldura dupla estilo Lê Rose) */}
             <div
               style={{
                 borderColor,
-                boxShadow: '0 12px 32px -6px rgba(0, 0, 0, 0.35)',
+                boxShadow: '0 12px 32px -6px rgba(0, 0, 0, 0.4)',
               }}
-              className="rounded-[20px] border-[2.5px] bg-white p-[2.5px] transition-transform duration-300 group-hover:scale-[1.03] relative"
+              className="rounded-[20px] border-[2.5px] bg-white p-[2.5px] transition-transform duration-300 sm:group-hover:scale-[1.03] relative"
             >
               {/* Inner Container */}
               <div
                 style={{ borderColor }}
                 className={`${sizeClasses} rounded-[15px] border-[1.5px] overflow-hidden relative bg-neutral-900`}
               >
-                {/* Close / Minimize Button (Top Right) */}
+                {/* Close / Minimize Button (Top Right - Always visible on smartphone) */}
                 {config.showCloseButton && (
                   <button
                     type="button"
@@ -216,14 +361,14 @@ export const FloatingMiniVideo: React.FC = () => {
                       e.stopPropagation();
                       setIsDismissed(true);
                     }}
-                    className="absolute top-1.5 right-1.5 z-30 w-5 h-5 rounded-full bg-black/55 hover:bg-black/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow"
+                    className="absolute top-1.5 right-1.5 z-30 w-6 h-6 sm:w-5 sm:h-5 rounded-full bg-black/65 hover:bg-black/85 text-white flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shadow"
                     title="Minimizar vídeo"
                   >
-                    <X className="w-3 h-3" />
+                    <X className="w-3.5 h-3.5 sm:w-3 sm:h-3" />
                   </button>
                 )}
 
-                {/* Expand with Sound Button (Top Left) */}
+                {/* Expand with Sound Button (Top Left - Always visible on smartphone) */}
                 <button
                   type="button"
                   onClick={(e) => {
@@ -232,122 +377,117 @@ export const FloatingMiniVideo: React.FC = () => {
                     setIsExpanded(true);
                     setIsMuted(false);
                   }}
-                  className="absolute top-1.5 left-1.5 z-30 w-5 h-5 rounded-full bg-black/55 hover:bg-black/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow"
-                  title="Expandir vídeo com som"
+                  className="absolute top-1.5 left-1.5 z-30 w-6 h-6 sm:w-5 sm:h-5 rounded-full bg-black/65 hover:bg-black/85 text-white flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shadow"
+                  title="Expandir vídeo em tela cheia"
                 >
-                  <Maximize2 className="w-2.5 h-2.5" />
+                  <Maximize2 className="w-3 h-3 sm:w-2.5 sm:h-2.5" />
                 </button>
 
-                {/* Story Progress Bars if multiple videos */}
-                {activeItems.length > 1 && (
-                  <div className="absolute top-1 inset-x-2 z-20 flex gap-1 pointer-events-none">
-                    {activeItems.map((it, idx) => (
-                      <div
-                        key={it.id}
-                        className={`h-0.5 flex-1 rounded-full ${
-                          idx === safeIndex ? 'bg-white' : 'bg-white/40'
-                        }`}
-                      />
-                    ))}
-                  </div>
-                )}
+                {/* Story / Reels Progress Bars */}
+                <div className="absolute top-1 inset-x-2 z-20 flex gap-1 pointer-events-none">
+                  {(activeItems.length > 1 ? activeItems : fallbackImages.slice(0, 5)).map(
+                    (_, idx) => {
+                      const currentIdx =
+                        activeItems.length > 1
+                          ? safeIndex
+                          : fallbackSlideIdx % Math.min(5, fallbackImages.length);
+                      return (
+                        <div
+                          key={idx}
+                          className={`h-0.5 flex-1 rounded-full transition-colors duration-300 ${
+                            idx === currentIdx ? 'bg-white' : 'bg-white/35'
+                          }`}
+                        />
+                      );
+                    }
+                  )}
+                </div>
 
-                {/* Clickable Area: Either Direct Product Link (Lê Rose style) or Expand Player */}
-                {config.clickAction === 'direct-link' ? (
-                  <Link
-                    to={targetLink}
-                    className="block w-full h-full relative cursor-pointer"
-                    title={linkedProduct ? `Ver ${linkedProduct.name}` : currentItem.title}
-                  >
-                    {!videoFailed && playableUrl ? (
-                      <video
-                        ref={miniVideoRef}
-                        key={playableUrl}
-                        src={playableUrl}
-                        autoPlay
-                        loop
-                        muted
-                        playsInline
-                        preload="auto"
-                        onLoadedData={(e) => {
-                          const el = e.currentTarget;
+                {/* Main Tap Area (Div instead of <a> so mobile browsers never block <video> playback) */}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={handleMiniCardTap}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') handleMiniCardTap();
+                  }}
+                  className="w-full h-full relative cursor-pointer"
+                  title={
+                    linkedProduct
+                      ? `Ver ${linkedProduct.name}`
+                      : currentItem.title || 'Assistir vídeo'
+                  }
+                >
+                  {!videoFailed && playableUrl ? (
+                    <video
+                      ref={(el) => {
+                        miniVideoRef.current = el;
+                        if (el) {
                           el.defaultMuted = true;
                           el.muted = true;
-                          if (el.paused) el.play().catch(() => {});
-                        }}
-                        onError={() => setVideoFailed(true)}
-                        onEnded={() => {
-                          if (activeItems.length > 1) {
-                            handleNextStory();
-                          }
-                        }}
-                        className="w-full h-full object-cover object-top"
-                      />
-                    ) : (
-                      /* Fallback Reels Motion Lookbook */
-                      <div className="w-full h-full relative overflow-hidden bg-neutral-900">
-                        <img
-                          src={fallbackImages[fallbackSlideIdx % Math.max(1, fallbackImages.length)] || '/images/macaco-bless.png'}
+                          el.playsInline = true;
+                          el.setAttribute('muted', '');
+                          el.setAttribute('playsinline', '');
+                          el.setAttribute('webkit-playsinline', '');
+                        }
+                      }}
+                      key={playableUrl}
+                      src={playableUrl}
+                      autoPlay
+                      loop={activeItems.length <= 1}
+                      muted
+                      playsInline
+                      preload="auto"
+                      onLoadedMetadata={(e) => ensureVideoPlays(e.currentTarget, true)}
+                      onLoadedData={(e) => ensureVideoPlays(e.currentTarget, true)}
+                      onCanPlay={(e) => ensureVideoPlays(e.currentTarget, true)}
+                      onError={() => setVideoFailed(true)}
+                      onEnded={() => {
+                        if (activeItems.length > 1) {
+                          handleNextStory();
+                        } else if (miniVideoRef.current) {
+                          miniVideoRef.current.currentTime = 0;
+                          ensureVideoPlays(miniVideoRef.current, true);
+                        }
+                      }}
+                      className="w-full h-full object-cover object-top pointer-events-none"
+                    />
+                  ) : (
+                    /* Fluid Ken-Burns Reels Motion Lookbook (for when no external MP4 is active) */
+                    <div className="w-full h-full relative overflow-hidden bg-neutral-900 pointer-events-none">
+                      <AnimatePresence mode="sync">
+                        <motion.img
+                          key={activeFallbackImg}
+                          src={activeFallbackImg}
                           alt={currentItem.title}
-                          className="w-full h-full object-cover object-top animate-pulse-slow scale-105 transition-all duration-1000"
+                          initial={{ opacity: 0.25, scale: 1.02 }}
+                          animate={{ opacity: 1, scale: 1.14, y: [0, -4, 0] }}
+                          exit={{ opacity: 0 }}
+                          transition={{
+                            opacity: { duration: 0.45 },
+                            scale: { duration: 2.2, ease: 'linear' },
+                            y: { duration: 2.2, ease: 'easeInOut' },
+                          }}
+                          className="absolute inset-0 w-full h-full object-cover object-top"
                         />
-                      </div>
-                    )}
+                      </AnimatePresence>
+                    </div>
+                  )}
 
-                    {/* Subtle Bottom Gradient & Product Label on Hover */}
-                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent p-2 pt-6 opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-between">
-                      <span className="text-[10px] font-bold text-white leading-tight line-clamp-2">
-                        {linkedProduct ? linkedProduct.name : currentItem.buttonText || 'Ver Produto'}
-                      </span>
+                  {/* Bottom Product Badge (Always visible on smartphone so user knows it's interactive) */}
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/45 to-transparent p-2 pt-6 opacity-100 sm:opacity-90 sm:group-hover:opacity-100 transition-opacity flex items-end justify-between pointer-events-none">
+                    <span className="text-[10px] font-bold text-white leading-tight line-clamp-2 drop-shadow">
+                      {linkedProduct
+                        ? linkedProduct.name
+                        : currentItem.buttonText || currentItem.badgeText || 'Ver Look'}
+                    </span>
+                    {config.clickAction === 'direct-link' ? (
                       <ExternalLink className="w-3 h-3 text-white shrink-0 ml-1" />
-                    </div>
-                  </Link>
-                ) : (
-                  <div
-                    onClick={() => {
-                      setIsExpanded(true);
-                      setIsMuted(false);
-                    }}
-                    className="w-full h-full relative cursor-pointer"
-                    title="Clique para assistir e ver a peça"
-                  >
-                    {!videoFailed && playableUrl ? (
-                      <video
-                        ref={miniVideoRef}
-                        key={playableUrl}
-                        src={playableUrl}
-                        autoPlay
-                        loop
-                        muted
-                        playsInline
-                        preload="auto"
-                        onLoadedData={(e) => {
-                          const el = e.currentTarget;
-                          el.defaultMuted = true;
-                          el.muted = true;
-                          if (el.paused) el.play().catch(() => {});
-                        }}
-                        onError={() => setVideoFailed(true)}
-                        className="w-full h-full object-cover object-top"
-                      />
                     ) : (
-                      <div className="w-full h-full relative overflow-hidden bg-neutral-900">
-                        <img
-                          src={fallbackImages[fallbackSlideIdx % Math.max(1, fallbackImages.length)] || '/images/macaco-bless.png'}
-                          alt={currentItem.title}
-                          className="w-full h-full object-cover object-top scale-105 transition-all duration-1000"
-                        />
-                      </div>
+                      <Play className="w-3 h-3 text-white fill-white shrink-0 ml-1" />
                     )}
-
-                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent p-2 pt-6 flex items-end justify-between">
-                      <span className="text-[10px] font-bold text-white leading-tight line-clamp-1">
-                        {currentItem.badgeText || 'Ver Look'}
-                      </span>
-                      <Play className="w-3 h-3 text-white fill-white shrink-0" />
-                    </div>
                   </div>
-                )}
+                </div>
               </div>
             </div>
           </motion.div>
@@ -361,7 +501,7 @@ export const FloatingMiniVideo: React.FC = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4"
             onClick={() => setIsExpanded(false)}
           >
             <motion.div
@@ -369,14 +509,26 @@ export const FloatingMiniVideo: React.FC = () => {
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
               onClick={(e) => e.stopPropagation()}
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
               style={{ borderColor }}
-              className="relative w-full max-w-[340px] h-[580px] rounded-3xl border-[3px] bg-white p-1 shadow-2xl overflow-hidden"
+              className="relative w-[92vw] max-w-[350px] h-[78dvh] max-h-[590px] rounded-3xl border-[3px] bg-white p-1 shadow-2xl overflow-hidden"
             >
               <div className="w-full h-full rounded-[20px] overflow-hidden relative bg-neutral-950 flex flex-col justify-between">
                 {/* Video / Motion Background */}
                 {!videoFailed && playableUrl ? (
                   <video
-                    ref={expandedVideoRef}
+                    ref={(el) => {
+                      expandedVideoRef.current = el;
+                      if (el) {
+                        el.defaultMuted = isMuted;
+                        el.muted = isMuted;
+                        el.playsInline = true;
+                        el.setAttribute('playsinline', '');
+                        el.setAttribute('webkit-playsinline', '');
+                        if (isMuted) el.setAttribute('muted', '');
+                      }
+                    }}
                     key={`exp-${playableUrl}`}
                     src={playableUrl}
                     autoPlay
@@ -384,73 +536,98 @@ export const FloatingMiniVideo: React.FC = () => {
                     muted={isMuted}
                     playsInline
                     preload="auto"
-                    onLoadedData={(e) => {
-                      const el = e.currentTarget;
-                      el.defaultMuted = isMuted;
-                      el.muted = isMuted;
-                      if (el.paused) {
-                        el.play().catch(() => {
-                          el.muted = true;
-                          el.play().catch(() => {});
-                        });
-                      }
-                    }}
+                    onLoadedMetadata={(e) => ensureVideoPlays(e.currentTarget, isMuted)}
+                    onLoadedData={(e) => ensureVideoPlays(e.currentTarget, isMuted)}
+                    onCanPlay={(e) => ensureVideoPlays(e.currentTarget, isMuted)}
                     onError={() => setVideoFailed(true)}
-                    className="absolute inset-0 w-full h-full object-cover object-top"
+                    className="absolute inset-0 w-full h-full object-cover object-top pointer-events-none"
                   />
                 ) : (
-                  <img
-                    src={fallbackImages[fallbackSlideIdx % Math.max(1, fallbackImages.length)] || '/images/macaco-bless.png'}
-                    alt={currentItem.title}
-                    className="absolute inset-0 w-full h-full object-cover object-top"
-                  />
+                  <div className="absolute inset-0 w-full h-full overflow-hidden bg-neutral-950 pointer-events-none">
+                    <AnimatePresence mode="sync">
+                      <motion.img
+                        key={`exp-img-${activeFallbackImg}`}
+                        src={activeFallbackImg}
+                        alt={currentItem.title}
+                        initial={{ opacity: 0.3, scale: 1.02 }}
+                        animate={{ opacity: 1, scale: 1.12 }}
+                        exit={{ opacity: 0 }}
+                        transition={{
+                          opacity: { duration: 0.45 },
+                          scale: { duration: 2.2, ease: 'linear' },
+                        }}
+                        className="absolute inset-0 w-full h-full object-cover object-top"
+                      />
+                    </AnimatePresence>
+                  </div>
                 )}
 
                 {/* Top Controls Bar */}
-                <div className="relative z-20 p-3.5 bg-gradient-to-b from-black/75 via-black/30 to-transparent">
+                <div className="relative z-20 p-3.5 bg-gradient-to-b from-black/80 via-black/35 to-transparent">
                   {/* Story bars */}
-                  {activeItems.length > 1 && (
-                    <div className="flex gap-1.5 mb-2.5">
-                      {activeItems.map((it, idx) => (
-                        <button
-                          key={it.id}
-                          onClick={() => setActiveIndex(idx)}
-                          className={`h-1 flex-1 rounded-full transition-all ${
-                            idx === safeIndex ? 'bg-white' : 'bg-white/35'
-                          }`}
-                        />
-                      ))}
-                    </div>
-                  )}
+                  <div className="flex gap-1.5 mb-2.5">
+                    {(activeItems.length > 1 ? activeItems : fallbackImages.slice(0, 6)).map(
+                      (it, idx) => {
+                        const currentIdx =
+                          activeItems.length > 1
+                            ? safeIndex
+                            : fallbackSlideIdx % Math.min(6, fallbackImages.length);
+                        return (
+                          <button
+                            key={typeof it === 'string' ? idx : it.id}
+                            type="button"
+                            onClick={() => {
+                              if (activeItems.length > 1) setActiveIndex(idx);
+                              else setFallbackSlideIdx(idx);
+                            }}
+                            className={`h-1 flex-1 rounded-full transition-all ${
+                              idx === currentIdx ? 'bg-white' : 'bg-white/35'
+                            }`}
+                          />
+                        );
+                      }
+                    )}
+                  </div>
 
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
                       <span
                         style={{ backgroundColor: borderColor }}
-                        className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full text-white shadow"
+                        className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full text-white shadow shrink-0"
                       >
                         {currentItem.badgeText || 'DESTAQUE'}
                       </span>
-                      <span className="text-xs font-bold text-white truncate max-w-[160px] drop-shadow">
-                        {currentItem.title}
+                      <span className="text-xs font-bold text-white truncate drop-shadow">
+                        {linkedProduct?.name || currentItem.title}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 shrink-0">
                       {!videoFailed && playableUrl && (
                         <button
                           type="button"
-                          onClick={() => setIsMuted(!isMuted)}
-                          className="w-8 h-8 rounded-full bg-black/50 hover:bg-black/80 text-white flex items-center justify-center transition-colors"
+                          onClick={() => {
+                            const nextMuted = !isMuted;
+                            setIsMuted(nextMuted);
+                            if (expandedVideoRef.current) {
+                              expandedVideoRef.current.muted = nextMuted;
+                              expandedVideoRef.current.play().catch(() => {});
+                            }
+                          }}
+                          className="w-8 h-8 rounded-full bg-black/55 hover:bg-black/80 text-white flex items-center justify-center transition-colors"
                           title={isMuted ? 'Ativar Som' : 'Silenciar'}
                         >
-                          {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                          {isMuted ? (
+                            <VolumeX className="w-4 h-4" />
+                          ) : (
+                            <Volume2 className="w-4 h-4" />
+                          )}
                         </button>
                       )}
                       <button
                         type="button"
                         onClick={() => setIsExpanded(false)}
-                        className="w-8 h-8 rounded-full bg-black/50 hover:bg-black/80 text-white flex items-center justify-center transition-colors"
+                        className="w-8 h-8 rounded-full bg-black/55 hover:bg-black/80 text-white flex items-center justify-center transition-colors"
                         title="Minimizar para o canto"
                       >
                         <Minimize2 className="w-4 h-4" />
@@ -461,7 +638,7 @@ export const FloatingMiniVideo: React.FC = () => {
                           setIsExpanded(false);
                           setIsDismissed(true);
                         }}
-                        className="w-8 h-8 rounded-full bg-black/50 hover:bg-black/80 text-white flex items-center justify-center transition-colors"
+                        className="w-8 h-8 rounded-full bg-black/55 hover:bg-black/80 text-white flex items-center justify-center transition-colors"
                         title="Fechar"
                       >
                         <X className="w-4 h-4" />
@@ -470,20 +647,20 @@ export const FloatingMiniVideo: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Prev / Next Navigation Arrows if multiple stories */}
-                {activeItems.length > 1 && (
+                {/* Prev / Next Navigation Arrows */}
+                {(activeItems.length > 1 || fallbackImages.length > 1) && (
                   <>
                     <button
                       type="button"
                       onClick={handlePrevStory}
-                      className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-black/40 hover:bg-black/70 text-white flex items-center justify-center"
+                      className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-black/45 hover:bg-black/75 text-white flex items-center justify-center"
                     >
                       <ChevronLeft className="w-5 h-5" />
                     </button>
                     <button
                       type="button"
                       onClick={handleNextStory}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-black/40 hover:bg-black/70 text-white flex items-center justify-center"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-black/45 hover:bg-black/75 text-white flex items-center justify-center"
                     >
                       <ChevronRight className="w-5 h-5" />
                     </button>
@@ -507,7 +684,9 @@ export const FloatingMiniVideo: React.FC = () => {
                           {linkedProduct.name}
                         </h4>
                         <p className="text-xs font-serif font-bold text-primary mt-0.5">
-                          {formatCurrency(linkedProduct.promotionalPrice || linkedProduct.price)}
+                          {formatCurrency(
+                            linkedProduct.promotionalPrice || linkedProduct.price
+                          )}
                         </p>
                       </div>
                       <button

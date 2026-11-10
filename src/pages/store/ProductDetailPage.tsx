@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -12,6 +12,8 @@ import {
   ShieldCheck,
   ArrowRight,
   MessageCircle,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { getProductById, getProducts } from '../../lib/dataClient';
 import { formatCurrency, calculateDiscount } from '../../lib/utils';
@@ -54,6 +56,24 @@ export const ProductDetailPage: React.FC = () => {
   const [quantity, setQuantity] = useState(1);
   const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const touchStartXRef = useRef<number | null>(null);
+  const didSwipeRef = useRef<boolean>(false);
+
+  const activeSlideIndex = Math.max(0, mediaSlides.indexOf(activeImage));
+
+  const handlePrevSlide = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (mediaSlides.length <= 1) return;
+    const prevIdx = (activeSlideIndex - 1 + mediaSlides.length) % mediaSlides.length;
+    setActiveImage(mediaSlides[prevIdx]);
+  };
+
+  const handleNextSlide = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (mediaSlides.length <= 1) return;
+    const nextIdx = (activeSlideIndex + 1) % mediaSlides.length;
+    setActiveImage(mediaSlides[nextIdx]);
+  };
 
   React.useEffect(() => {
     setActiveImage(mediaSlides[0] || '');
@@ -103,7 +123,26 @@ export const ProductDetailPage: React.FC = () => {
         {/* Left: Image & Video Gallery */}
         <div className="lg:col-span-7 space-y-4">
           <div
+            onTouchStart={(e) => {
+              touchStartXRef.current = e.touches[0]?.clientX ?? null;
+              didSwipeRef.current = false;
+            }}
+            onTouchEnd={(e) => {
+              if (touchStartXRef.current === null || mediaSlides.length <= 1) return;
+              const endX = e.changedTouches[0]?.clientX ?? touchStartXRef.current;
+              const deltaX = endX - touchStartXRef.current;
+              touchStartXRef.current = null;
+              if (Math.abs(deltaX) > 35) {
+                didSwipeRef.current = true;
+                if (deltaX < 0) handleNextSlide();
+                else handlePrevSlide();
+              }
+            }}
             onClick={() => {
+              if (didSwipeRef.current) {
+                didSwipeRef.current = false;
+                return;
+              }
               if (!isVideoMedia(activeImage)) {
                 openLightbox(
                   mediaSlides,
@@ -125,12 +164,32 @@ export const ProductDetailPage: React.FC = () => {
               muted={true}
               loop={true}
               controls={isVideoMedia(activeImage)}
-              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+              className="w-full h-full object-cover transition-transform duration-500 sm:group-hover:scale-105"
             />
             {discountPercent > 0 && (
               <span className="absolute top-4 left-4 z-10 bg-destructive text-white text-xs font-bold px-3 py-1 rounded-full shadow-md">
                 -{discountPercent}% OFF
               </span>
+            )}
+            {mediaSlides.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={handlePrevSlide}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-white/90 dark:bg-slate-900/90 text-foreground flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-all"
+                  title="Mídia anterior"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNextSlide}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-white/90 dark:bg-slate-900/90 text-foreground flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-all"
+                  title="Próxima mídia"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </>
             )}
           </div>
 
