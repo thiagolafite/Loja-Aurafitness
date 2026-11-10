@@ -173,10 +173,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ success: true, saved });
     }
 
-    // 4. Excluir produtos por IDs
-    if (action === 'delete_products') {
+    // 4. Excluir produtos por IDs (ou por nomes duplicados)
+    if (action === 'delete_products' || action === 'bulk_delete_products') {
       const ids: string[] = Array.isArray(payload?.ids) ? payload.ids : [];
-      const validUuids = ids.filter((id) => id && !id.startsWith('prod-'));
+      const validUuids = ids.filter((id) => id && typeof id === 'string' && !id.startsWith('prod-'));
       if (validUuids.length > 0) {
         await supabaseAdmin.from('products').delete().in('id', validUuids);
       }

@@ -2095,73 +2095,174 @@ export function isFileAlreadyImported(
 
 /**
  * Unifica produtos repetidos no catálogo que possuem o mesmo modelo base
- * (ex: agrupa "Macaquinho Serena Rosa (2)" e "Macaquinho Serena Rosa ()" em um só anúncio oficial com todas as fotos)
+ * (ex: agrupa "Macaquinho Serena Rosa (2)" e "Macaquinho Serena Rosa ()", ou cópias duplicadas de "Conjunto Style Black",
+ * em um só anúncio oficial com todas as fotos, tamanhos e cores combinados)
  */
 export function consolidateDuplicateProducts(products: Product[]): {
   consolidated: Product[];
   mergedCount: number;
   absorbedIds: string[];
 } {
+  if (!Array.isArray(products) || products.length === 0) {
+    return { consolidated: [], mergedCount: 0, absorbedIds: [] };
+  }
+
   const modelMap = new Map<string, Product>();
+  const idToKey = new Map<string, string>();
+  const skuToKey = new Map<string, string>();
+  const imageToKey = new Map<string, string>();
   const absorbedIds: string[] = [];
   let mergedCount = 0;
 
   for (const prod of products) {
+    if (!prod || !prod.name) continue;
+
     const { cleanName, groupKey } = cleanModelName(prod.name);
-    const key = groupKey || normalizeText(prod.name);
+    const healedName = cleanName || prod.name.trim();
+    const effectiveCat = getEffectiveProductCategory({ name: healedName, category: prod.category });
+    const normName = normalizeText(healedName);
+    const key = groupKey || normName;
+
+    // Detecta se já existe pelo ID, pelo groupKey, pelo SKU ou pela foto primária idêntica na mesma categoria
+    let existingKey: string | undefined = undefined;
 
     if (modelMap.has(key)) {
+      existingKey = key;
+    } else if (prod.id && idToKey.has(prod.id)) {
+      existingKey = idToKey.get(prod.id);
+    } else if (prod.sku && prod.sku.trim() && skuToKey.has(prod.sku.toLowerCase().trim())) {
+      existingKey = skuToKey.get(prod.sku.toLowerCase().trim());
+    } else if (
+      prod.images &&
+      prod.images.length > 0 &&
+      prod.images[0] &&
+      !prod.images[0].includes('placeholder') &&
+      prod.images[0] !== '/images/look-3103.png'
+    ) {
+      const imgKey = `${effectiveCat.toLowerCase()}::${prod.images[0]}`;
+      if (imageToKey.has(imgKey)) {
+        existingKey = imageToKey.get(imgKey);
+      }
+    }
+
+    if (existingKey && modelMap.has(existingKey)) {
       // Mescla com o produto existente
-      const existing = modelMap.get(key)!;
+      const existing = modelMap.get(existingKey)!;
       mergedCount++;
-      if (prod.id && prod.id !== existing.id) {
-        absorbedIds.push(prod.id);
+
+      // Se o produto que estamos absorvendo tiver um UUID real do Supabase e o existing tiver um ID provisório (prod-...),
+      // promovemos o UUID real para ser a chave oficial e absorvemos o ID provisório
+      if (prod.id && !prod.id.startsWith('prod-') && existing.id.startsWith('prod-')) {
+        if (!absorbedIds.includes(existing.id)) {
+          absorbedIds.push(existing.id);
+        }
+        existing.id = prod.id;
+      } else if (prod.id && prod.id !== existing.id) {
+        if (!absorbedIds.includes(prod.id)) {
+          absorbedIds.push(prod.id);
+        }
       }
 
-      // Unifica imagens sem duplicar
+      // 1. Unifica imagens preservando todas as poses e ângulos distintos sem duplicar URLs
       const combinedImages = [...(existing.images || [])];
       (prod.images || []).forEach((img) => {
-        if (!combinedImages.includes(img)) {
+        if (img && typeof img === 'string' && img.trim() && !combinedImages.includes(img)) {
           combinedImages.push(img);
         }
       });
       existing.images = combinedImages;
 
-      // Unifica cores
+      // 2. Unifica cores
       const existingColors = existing.colors || [];
       (prod.colors || []).forEach((c) => {
-        if (!existingColors.some((ec) => ec.name.toLowerCase() === c.name.toLowerCase())) {
+        if (
+          c &&
+          !existingColors.some(
+            (ec) =>
+              ec.name.toLowerCase().trim() === c.name.toLowerCase().trim() ||
+              (c.hex && ec.hex && ec.hex.toLowerCase() === c.hex.toLowerCase())
+          )
+        ) {
           existingColors.push(c);
         }
       });
       existing.colors = existingColors;
 
-      // Unifica tamanhos
-      const existingSizes = existing.sizes || [];
-      (prod.sizes || []).forEach((s) => {
-        if (!existingSizes.includes(s)) {
-          existingSizes.push(s);
-        }
+      // 3. Unifica tamanhos mantendo ordenação padrão (PP, P, M, G, GG, XG, U)
+      const standardOrder = ['PP', 'P', 'M', 'G', 'GG', 'XG', 'U'];
+      const rawSizes = Array.from(
+        new Set([...(existing.sizes || []), ...(prod.sizes || [])])
+      );
+      existing.sizes = rawSizes.sort((a, b) => {
+        const ia = standardOrder.indexOf(a);
+        const ib = standardOrder.indexOf(b);
+        if (ia !== -1 && ib !== -1) return ia - ib;
+        if (ia !== -1) return -1;
+        if (ib !== -1) return 1;
+        return a.localeCompare(b);
       });
-      existing.sizes = existingSizes;
 
-      // Unifica estoque
-      if (prod.stock) {
+      // 4. Unifica estoque por variação
+      if (prod.stock && typeof prod.stock === 'object') {
         existing.stock = existing.stock || {};
         Object.entries(prod.stock).forEach(([stKey, qty]) => {
-          existing.stock![stKey] = (existing.stock![stKey] || 0) + qty;
+          existing.stock![stKey] = (existing.stock![stKey] || 0) + Number(qty || 0);
         });
       }
+
+      // 5. Preserva preço e melhor preço promocional
+      if ((!existing.price || existing.price <= 0) && prod.price > 0) {
+        existing.price = prod.price;
+      }
+      if (prod.promotionalPrice && prod.promotionalPrice > 0) {
+        if (!existing.promotionalPrice || prod.promotionalPrice < existing.promotionalPrice) {
+          existing.promotionalPrice = prod.promotionalPrice;
+        }
+      }
+
+      // 6. Preserva vídeo caso o existente não possua
+      if (!existing.videoUrl && prod.videoUrl) {
+        existing.videoUrl = prod.videoUrl;
+      }
+
+      // 7. Preserva descrições mais ricas/completas
+      if (
+        (!existing.description || existing.description.length < (prod.description?.length || 0)) &&
+        prod.description
+      ) {
+        existing.description = prod.description;
+      }
+      if (
+        (!existing.fullDescription ||
+          existing.fullDescription.length < (prod.fullDescription?.length || 0)) &&
+        prod.fullDescription
+      ) {
+        existing.fullDescription = prod.fullDescription;
+      }
+
+      // 8. Preserva o nome mais limpo e canônico (sem "(2)", "()", etc.)
+      const isCurrentDirty = existing.name.includes('(') || existing.name.includes(')');
+      const isNewCleaner = healedName && !healedName.includes('(') && !healedName.includes(')');
+      if (isCurrentDirty && isNewCleaner) {
+        existing.name = healedName;
+      }
     } else {
-      // Define nome limpo sem "(2)", "()", etc., e sincroniza categoria e cores efetivas
-      const healedName = cleanName || prod.name;
-      modelMap.set(key, {
+      // Cria novo registro oficial consolidado com dados canônicos
+      const canonicalProduct: Product = {
         ...prod,
         name: healedName,
-        category: getEffectiveProductCategory({ name: healedName, category: prod.category }),
+        category: effectiveCat,
         colors: getEffectiveProductColors({ name: healedName, colors: prod.colors }),
         sizes: getProductSizes(prod),
-      });
+      };
+
+      modelMap.set(key, canonicalProduct);
+      if (prod.id) idToKey.set(prod.id, key);
+      if (prod.sku && prod.sku.trim()) skuToKey.set(prod.sku.toLowerCase().trim(), key);
+      if (prod.images && prod.images[0]) {
+        const imgKey = `${effectiveCat.toLowerCase()}::${prod.images[0]}`;
+        imageToKey.set(imgKey, key);
+      }
     }
   }
 
@@ -2171,6 +2272,7 @@ export function consolidateDuplicateProducts(products: Product[]): {
     colors: getEffectiveProductColors(p),
     sizes: getProductSizes(p),
   }));
+
   return { consolidated, mergedCount, absorbedIds };
 }
 

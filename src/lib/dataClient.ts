@@ -37,6 +37,9 @@ import {
   getImportedFilesRegistry,
   saveImportedFilesRegistry,
   IMPORTED_FILES_REGISTRY_KEY,
+  consolidateDuplicateProducts,
+  cleanModelName,
+  normalizeText,
 } from './productClassifier';
 import { syncFloatingVideoConfigFromCloud } from './videoStorage';
 
@@ -335,28 +338,20 @@ let cachedProducts: Product[] = (() => {
   }
 
   const rawList = getStorageItem<Product[]>(STORAGE_KEYS.PRODUCTS, initialProducts);
-  const migratedKey = 'aura_separate_macacao_macaquinho_prods_v5';
-  const alreadyMigrated =
-    typeof window !== 'undefined' && localStorage.getItem(migratedKey) === 'true';
+  const normalized = rawList.map((p) => normalizeProductData(p));
+  const { consolidated, absorbedIds } = consolidateDuplicateProducts(normalized);
 
-  if (!alreadyMigrated && typeof window !== 'undefined') {
-    // Limpa exclusões ou overrides acidentais gerados quando Macacão e Macaquinho estavam unificados
-    localStorage.removeItem('aura_deleted_product_ids_v1');
-    localStorage.removeItem('aura_updated_products_v1');
-
-    const cleaned = rawList.map((p) =>
-      normalizeProductData({
-        ...p,
-        category: resolveSingleCategoryName(p.category, p.name),
-        additionalCategories: [],
-      })
-    );
-    setStorageItem(STORAGE_KEYS.PRODUCTS, cleaned);
-    localStorage.setItem(migratedKey, 'true');
-    return cleaned;
+  if (absorbedIds.length > 0 && typeof window !== 'undefined') {
+    const deletedSet = new Set(getStorageItem<string[]>('aura_deleted_product_ids_v1', []));
+    absorbedIds.forEach((id) => deletedSet.add(id));
+    setStorageItem('aura_deleted_product_ids_v1', Array.from(deletedSet));
+    setStorageItem(STORAGE_KEYS.PRODUCTS, consolidated);
+    setTimeout(() => {
+      bulkDeleteProductsAsync(absorbedIds).catch(() => {});
+    }, 200);
   }
 
-  return rawList.map((p) => normalizeProductData(p));
+  return consolidated;
 })();
 let cachedOrders: Order[] = getStorageItem<Order[]>(STORAGE_KEYS.ORDERS, initialOrders);
 let cachedCustomers: CustomerProfile[] = getStorageItem<CustomerProfile[]>(STORAGE_KEYS.CUSTOMERS, initialCustomers);
@@ -467,10 +462,21 @@ export async function syncWithSupabase(): Promise<void> {
       );
 
       const activeCats = getStoredCategories();
-      cachedProducts = [...cleanDbProducts, ...pendingLocalProducts].map((p) =>
+      const rawCombined = [...cleanDbProducts, ...pendingLocalProducts].map((p) =>
         normalizeProductData(p, activeCats)
       );
+
+      // Unificação e deduplicação automática no retorno do Supabase (impede retorno de produtos clonados)
+      const { consolidated, absorbedIds } = consolidateDuplicateProducts(rawCombined);
+      cachedProducts = consolidated;
       saveProductsToStorage(cachedProducts);
+
+      if (absorbedIds.length > 0) {
+        absorbedIds.forEach((id) => deletedSet.add(id));
+        setStorageItem('aura_deleted_product_ids_v1', Array.from(deletedSet));
+        bulkDeleteProductsAsync(absorbedIds).catch(() => {});
+      }
+
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('aura_products_updated', { detail: cachedProducts }));
       }
@@ -695,7 +701,26 @@ if (typeof window !== 'undefined') {
 export function getProducts(): Product[] {
   const activeCats = getStoredCategories();
   cachedProducts = cachedProducts.map((p) => normalizeProductData(p, activeCats));
-  return [...cachedProducts];
+
+  // Salvaguarda: impede que qualquer produto repetido com mesmo modelo ou id seja entregue à loja ou admin
+  const seenKeys = new Set<string>();
+  const seenIds = new Set<string>();
+  const uniqueProducts: Product[] = [];
+
+  for (const p of cachedProducts) {
+    if (!p || !p.id) continue;
+    if (seenIds.has(p.id)) continue;
+    seenIds.add(p.id);
+
+    const modelKey = cleanModelName(p.name || '').groupKey || normalizeText(p.name || '');
+    if (modelKey) {
+      if (seenKeys.has(modelKey)) continue;
+      seenKeys.add(modelKey);
+    }
+    uniqueProducts.push(p);
+  }
+
+  return uniqueProducts;
 }
 
 export async function fetchProductsAsync(): Promise<Product[]> {
@@ -999,6 +1024,22 @@ export async function bulkDeleteProductsAsync(ids: string[]): Promise<void> {
   ids.forEach((id) => deletedSet.add(id));
   setStorageItem('aura_deleted_product_ids_v1', Array.from(deletedSet));
 
+  // Limpa overrides de produtos excluídos
+  const localOverrides = getStorageItem<Record<string, Partial<Product>>>(
+    'aura_updated_products_v1',
+    {}
+  );
+  let overridesChanged = false;
+  ids.forEach((id) => {
+    if (localOverrides[id]) {
+      delete localOverrides[id];
+      overridesChanged = true;
+    }
+  });
+  if (overridesChanged) {
+    setStorageItem('aura_updated_products_v1', localOverrides);
+  }
+
   // Limpa arquivos vinculados aos produtos excluídos no registro de importação para permitir reimportá-los
   try {
     const reg = getImportedFilesRegistry();
@@ -1030,20 +1071,23 @@ export async function bulkDeleteProductsAsync(ids: string[]): Promise<void> {
   // 3. Exclui do banco Supabase (cliente direto + API serverless com Service Role Key)
   if (isSupabaseConfigured()) {
     try {
-      const { error } = await supabase.from('products').delete().in('id', ids);
-      if (error) console.error('Erro ao excluir produtos do Supabase:', error);
+      await supabase.from('products').delete().in('id', ids);
     } catch (e) {
       console.error('Exceção ao excluir produtos do Supabase:', e);
     }
     if (typeof window !== 'undefined') {
-      fetch('/api/sync-store', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'delete_products',
-          payload: { ids },
-        }),
-      }).catch(() => {});
+      try {
+        await fetch('/api/sync-store', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'delete_products',
+            payload: { ids },
+          }),
+        });
+      } catch (e) {
+        console.warn('Erro ao chamar /api/sync-store delete_products:', e);
+      }
     }
   }
 }

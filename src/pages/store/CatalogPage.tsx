@@ -31,6 +31,8 @@ import {
   getEffectiveProductColors,
   getProductSizes,
   productMatchesSize,
+  cleanModelName,
+  normalizeText,
 } from '../../lib/productClassifier';
 import { Product, StoreSection } from '../../types';
 
@@ -309,7 +311,7 @@ export const CatalogPage: React.FC = () => {
 
   // Filtered & Sorted Products
   const filteredProducts = useMemo(() => {
-    return allProducts
+    const sorted = allProducts
       .filter((product) => {
         // Se o cliente pesquisou por cor, traz TODOS os produtos que possuem aquela cor independentemente da categoria!
         if (isColorSearch) {
@@ -392,6 +394,22 @@ export const CatalogPage: React.FC = () => {
 
         return 0;
       });
+
+    // Salvaguarda visual: deduplicação por modelo e ID para impedir exibição de cards repetidos
+    const seenIds = new Set<string>();
+    const seenModelKeys = new Set<string>();
+    return sorted.filter((prod) => {
+      if (!prod || !prod.id) return false;
+      if (seenIds.has(prod.id)) return false;
+      seenIds.add(prod.id);
+
+      const modelKey = cleanModelName(prod.name || '').groupKey || normalizeText(prod.name || '');
+      if (modelKey) {
+        if (seenModelKeys.has(modelKey)) return false;
+        seenModelKeys.add(modelKey);
+      }
+      return true;
+    });
   }, [
     allProducts,
     searchQuery,

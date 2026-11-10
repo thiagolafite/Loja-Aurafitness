@@ -254,7 +254,13 @@ export const AdminProductsPage: React.FC = () => {
 
   const refreshProducts = () => {
     fetchProductsAsync().then((prods) => {
-      setProducts([...prods]);
+      const { consolidated, mergedCount, absorbedIds } = consolidateDuplicateProducts(prods);
+      if (mergedCount > 0) {
+        setProducts(consolidated);
+        saveAllProductsAsync(consolidated, absorbedIds).catch(console.error);
+      } else {
+        setProducts([...prods]);
+      }
     });
   };
 
@@ -401,14 +407,7 @@ export const AdminProductsPage: React.FC = () => {
 
   // Detecta se existem variações do mesmo modelo com numeração separada (ex: Rosa (2), Purple ())
   const duplicateStats = React.useMemo(() => {
-    const modelKeys = new Set<string>();
-    let count = 0;
-    for (const p of products) {
-      const key = cleanModelName(p.name).groupKey;
-      if (modelKeys.has(key)) count++;
-      else modelKeys.add(key);
-    }
-    return count;
+    return consolidateDuplicateProducts(products).mergedCount;
   }, [products]);
 
   const [isConsolidatingDuplicates, setIsConsolidatingDuplicates] = React.useState(false);
@@ -428,7 +427,7 @@ export const AdminProductsPage: React.FC = () => {
       // Atualiza o estado da tela imediatamente com os produtos consolidados para sumir com o banner na hora
       setProducts(consolidated);
       await saveAllProductsAsync(consolidated, absorbedIds);
-      refreshProducts();
+      setProducts([...getProducts()]);
       showToast(`✓ ${mergedCount} modelo(s) e fotos foram unificados com sucesso!`);
     } catch (err) {
       console.error(err);

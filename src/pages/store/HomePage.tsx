@@ -654,8 +654,8 @@ export const HomePage: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
-            {products.slice(4, 8).concat(products.slice(0, 2)).slice(0, 4).map((product, idx) => (
-              <ProductCard key={`${product.id}-${idx}`} product={product} />
+            {products.slice(4, 8).map((product) => (
+              <ProductCard key={product.id} product={product} />
             ))}
           </div>
         </section>
