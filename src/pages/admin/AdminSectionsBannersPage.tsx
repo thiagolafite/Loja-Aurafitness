@@ -33,6 +33,7 @@ import {
   RefreshCw,
   Palette,
   Copy,
+  Package,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -97,6 +98,7 @@ export const AdminSectionsBannersPage: React.FC = () => {
   const [banners, setBanners] = useState<HeroBannerSlide[]>(() => getHeroBanners());
   const [isBannerModalOpen, setIsBannerModalOpen] = useState(false);
   const [editingBanner, setEditingBanner] = useState<Partial<HeroBannerSlide> | null>(null);
+  const [bannerProductPhotoPickerSide, setBannerProductPhotoPickerSide] = useState<'left' | 'right' | null>(null);
   const [isUploadingBannerLeft, setIsUploadingBannerLeft] = useState(false);
   const [isUploadingBannerRight, setIsUploadingBannerRight] = useState(false);
   const leftFileRef = useRef<HTMLInputElement>(null);
@@ -284,6 +286,7 @@ export const AdminSectionsBannersPage: React.FC = () => {
 
   const handleOpenEditBannerModal = (banner: HeroBannerSlide) => {
     setEditingBanner({ ...banner });
+    setBannerProductPhotoPickerSide(null);
     setIsBannerModalOpen(true);
   };
 
@@ -291,17 +294,18 @@ export const AdminSectionsBannersPage: React.FC = () => {
     e.preventDefault();
     if (!editingBanner || !editingBanner.title?.trim()) return;
 
-    saveHeroBanner(editingBanner);
-    setBanners(getHeroBanners());
+    const saved = saveHeroBanner(editingBanner);
+    setBanners([...getHeroBanners()]);
     setIsBannerModalOpen(false);
     setEditingBanner(null);
-    showToast('Banner salvo com sucesso!');
+    setBannerProductPhotoPickerSide(null);
+    showToast(`✓ Banner "${saved.title}" salvo com sucesso!`);
   };
 
   const handleDeleteBanner = (id: string) => {
     if (window.confirm('Excluir este banner do carrossel principal?')) {
       deleteHeroBanner(id);
-      setBanners(getHeroBanners());
+      setBanners([...getHeroBanners()]);
       showToast('Banner excluído.');
     }
   };
@@ -321,24 +325,28 @@ export const AdminSectionsBannersPage: React.FC = () => {
     side: 'left' | 'right'
   ) => {
     const file = e.target.files?.[0];
-    if (!file || !editingBanner) return;
+    if (!file) return;
 
     if (side === 'left') setIsUploadingBannerLeft(true);
     else setIsUploadingBannerRight(true);
 
     try {
-      const dataUrl = await resizeImageFile(file, 1200, 1500, 0.88);
-      if (side === 'left') {
-        setEditingBanner({ ...editingBanner, leftImage: dataUrl });
-      } else {
-        setEditingBanner({ ...editingBanner, rightImage: dataUrl });
-      }
-      showToast(`Foto ${side === 'left' ? 'esquerda' : 'direita'} atualizada!`);
+      // 800x1000 @ 0.8 quality gera fotos nítidas e leves (~85KB), evitando sobrecarga de memória
+      const dataUrl = await resizeImageFile(file, 800, 1000, 0.8);
+      setEditingBanner((prev) => {
+        if (!prev) return prev;
+        return side === 'left'
+          ? { ...prev, leftImage: dataUrl, rightImage: prev.rightImage || dataUrl }
+          : { ...prev, rightImage: dataUrl };
+      });
+      showToast(`✓ Foto ${side === 'left' ? '1 (esquerda)' : '2 (direita)'} atualizada!`);
     } catch (err) {
+      console.error(err);
       alert('Erro ao processar imagem.');
     } finally {
       if (side === 'left') setIsUploadingBannerLeft(false);
       else setIsUploadingBannerRight(false);
+      e.target.value = '';
     }
   };
 
@@ -1427,14 +1435,25 @@ export const AdminSectionsBannersPage: React.FC = () => {
             <form onSubmit={handleSaveBanner} className="space-y-4 text-xs">
               {/* Fotos do Banner (Esquerda e Direita) */}
               <div className="p-4 bg-muted/30 border border-border rounded-2xl space-y-3">
-                <span className="font-bold text-foreground block">
-                  Fotos dos Modelos no Banner (Upload Fácil):
-                </span>
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-foreground block">
+                    Fotos dos Modelos no Banner (Upload Fácil):
+                  </span>
+                  {editingBanner.bannerStyle === 'bold-dark' && (
+                    <span className="text-[10px] text-amber-500 font-bold bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                      ★ Dark Chic usa a Foto 1 como modelo principal
+                    </span>
+                  )}
+                </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Foto Esquerda */}
+                  {/* Foto 1 (Esquerda / Principal) */}
                   <div className="space-y-2">
-                    <label className="block font-semibold">Foto 1 (Esquerda)</label>
+                    <label className="block font-semibold">
+                      {editingBanner.bannerStyle === 'bold-dark'
+                        ? 'Foto Principal do Modelo (Destaque)'
+                        : 'Foto 1 (Esquerda)'}
+                    </label>
                     <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-muted border border-border">
                       <img
                         src={editingBanner.leftImage || '/images/look-3214.png'}
@@ -1449,15 +1468,66 @@ export const AdminSectionsBannersPage: React.FC = () => {
                       onChange={(e) => handleUploadBannerFile(e, 'left')}
                       className="hidden"
                     />
-                    <button
-                      type="button"
-                      onClick={() => leftFileRef.current?.click()}
-                      disabled={isUploadingBannerLeft}
-                      className="w-full bg-primary hover:bg-primary-hover text-white py-2 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>{isUploadingBannerLeft ? 'Enviando...' : 'Upload da Foto 1'}</span>
-                    </button>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => leftFileRef.current?.click()}
+                        disabled={isUploadingBannerLeft}
+                        className="bg-primary hover:bg-primary-hover text-white py-2 rounded-xl font-bold flex items-center justify-center gap-1 transition-colors disabled:opacity-50 text-[11px]"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>{isUploadingBannerLeft ? 'Enviando...' : 'Do Computador'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setBannerProductPhotoPickerSide(
+                            bannerProductPhotoPickerSide === 'left' ? null : 'left'
+                          )
+                        }
+                        className="bg-muted hover:bg-muted/80 text-foreground py-2 rounded-xl font-semibold flex items-center justify-center gap-1 transition-colors border border-border text-[11px]"
+                      >
+                        <Package className="w-3.5 h-3.5 text-primary" />
+                        <span>{bannerProductPhotoPickerSide === 'left' ? 'Fechar' : 'Do Catálogo'}</span>
+                      </button>
+                    </div>
+
+                    {/* Galeria de Fotos de Produtos para Foto 1 */}
+                    {bannerProductPhotoPickerSide === 'left' && (
+                      <div className="p-2.5 bg-muted/60 border border-primary/30 rounded-xl space-y-1.5">
+                        <span className="text-[10px] font-bold text-primary block">
+                          Clique na foto desejada para aplicar na Foto 1:
+                        </span>
+                        <div className="grid grid-cols-3 gap-1.5 max-h-40 overflow-y-auto pr-1">
+                          {products.flatMap((p) =>
+                            (p.images || []).map((imgUrl, i) => (
+                              <button
+                                key={`banner-left-${p.id}-${i}`}
+                                type="button"
+                                onClick={() => {
+                                  setEditingBanner((prev) =>
+                                    prev
+                                      ? {
+                                          ...prev,
+                                          leftImage: imgUrl,
+                                          rightImage: prev.rightImage || imgUrl,
+                                        }
+                                      : prev
+                                  );
+                                  setBannerProductPhotoPickerSide(null);
+                                  showToast(`Foto do produto "${p.name}" aplicada à Foto 1!`);
+                                }}
+                                className="aspect-[3/4] rounded-lg overflow-hidden border border-border hover:border-primary transition-all relative group"
+                                title={p.name}
+                              >
+                                <img src={imgUrl} alt={p.name} className="w-full h-full object-cover object-top" />
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     <input
                       type="text"
                       placeholder="Ou cole a URL da imagem 1..."
@@ -1469,9 +1539,13 @@ export const AdminSectionsBannersPage: React.FC = () => {
                     />
                   </div>
 
-                  {/* Foto Direita */}
+                  {/* Foto 2 (Direita) */}
                   <div className="space-y-2">
-                    <label className="block font-semibold">Foto 2 (Direita)</label>
+                    <label className="block font-semibold">
+                      {editingBanner.bannerStyle === 'bold-dark'
+                        ? 'Foto 2 (Opcional no Dark Chic)'
+                        : 'Foto 2 (Direita)'}
+                    </label>
                     <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-muted border border-border">
                       <img
                         src={editingBanner.rightImage || editingBanner.leftImage || '/images/macaco-bless.png'}
@@ -1486,15 +1560,60 @@ export const AdminSectionsBannersPage: React.FC = () => {
                       onChange={(e) => handleUploadBannerFile(e, 'right')}
                       className="hidden"
                     />
-                    <button
-                      type="button"
-                      onClick={() => rightFileRef.current?.click()}
-                      disabled={isUploadingBannerRight}
-                      className="w-full bg-primary hover:bg-primary-hover text-white py-2 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>{isUploadingBannerRight ? 'Enviando...' : 'Upload da Foto 2'}</span>
-                    </button>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => rightFileRef.current?.click()}
+                        disabled={isUploadingBannerRight}
+                        className="bg-primary hover:bg-primary-hover text-white py-2 rounded-xl font-bold flex items-center justify-center gap-1 transition-colors disabled:opacity-50 text-[11px]"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>{isUploadingBannerRight ? 'Enviando...' : 'Do Computador'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setBannerProductPhotoPickerSide(
+                            bannerProductPhotoPickerSide === 'right' ? null : 'right'
+                          )
+                        }
+                        className="bg-muted hover:bg-muted/80 text-foreground py-2 rounded-xl font-semibold flex items-center justify-center gap-1 transition-colors border border-border text-[11px]"
+                      >
+                        <Package className="w-3.5 h-3.5 text-primary" />
+                        <span>{bannerProductPhotoPickerSide === 'right' ? 'Fechar' : 'Do Catálogo'}</span>
+                      </button>
+                    </div>
+
+                    {/* Galeria de Fotos de Produtos para Foto 2 */}
+                    {bannerProductPhotoPickerSide === 'right' && (
+                      <div className="p-2.5 bg-muted/60 border border-primary/30 rounded-xl space-y-1.5">
+                        <span className="text-[10px] font-bold text-primary block">
+                          Clique na foto desejada para aplicar na Foto 2:
+                        </span>
+                        <div className="grid grid-cols-3 gap-1.5 max-h-40 overflow-y-auto pr-1">
+                          {products.flatMap((p) =>
+                            (p.images || []).map((imgUrl, i) => (
+                              <button
+                                key={`banner-right-${p.id}-${i}`}
+                                type="button"
+                                onClick={() => {
+                                  setEditingBanner((prev) =>
+                                    prev ? { ...prev, rightImage: imgUrl } : prev
+                                  );
+                                  setBannerProductPhotoPickerSide(null);
+                                  showToast(`Foto do produto "${p.name}" aplicada à Foto 2!`);
+                                }}
+                                className="aspect-[3/4] rounded-lg overflow-hidden border border-border hover:border-primary transition-all relative group"
+                                title={p.name}
+                              >
+                                <img src={imgUrl} alt={p.name} className="w-full h-full object-cover object-top" />
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     <input
                       type="text"
                       placeholder="Ou cole a URL da imagem 2..."

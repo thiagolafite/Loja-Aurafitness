@@ -182,6 +182,7 @@ function setStorageItem<T>(key: string, value: T): void {
 const IDB_NAME = 'aura_fitness_media_db';
 const IDB_STORE = 'products_store';
 const IDB_KEY = 'aura_products_full_v1';
+const IDB_BANNERS_KEY = 'aura_hero_banners_full_v1';
 
 function openProductsIDB(): Promise<IDBDatabase | null> {
   if (typeof window === 'undefined' || !('indexedDB' in window)) return Promise.resolve(null);
@@ -195,6 +196,38 @@ function openProductsIDB(): Promise<IDBDatabase | null> {
         }
       };
       req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+async function saveBannersToIDB(banners: HeroBannerSlide[]): Promise<void> {
+  const db = await openProductsIDB();
+  if (!db) return;
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).put(banners, IDB_BANNERS_KEY);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => resolve();
+    } catch {
+      resolve();
+    }
+  });
+}
+
+async function loadBannersFromIDB(): Promise<HeroBannerSlide[] | null> {
+  const db = await openProductsIDB();
+  if (!db) return null;
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const req = tx.objectStore(IDB_STORE).get(IDB_BANNERS_KEY);
+      req.onsuccess = () => {
+        resolve(Array.isArray(req.result) ? req.result : null);
+      };
       req.onerror = () => resolve(null);
     } catch {
       resolve(null);
@@ -653,6 +686,15 @@ loadProductsFromIDB()
   .finally(() => {
     syncWithSupabase();
   });
+
+loadBannersFromIDB().then((idbBanners) => {
+  if (idbBanners && idbBanners.length > 0) {
+    cachedHeroBanners = idbBanners;
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('aura_banners_updated', { detail: cachedHeroBanners }));
+    }
+  }
+});
 
 if (typeof window !== 'undefined') {
   window.addEventListener('aura_video_cloud_migrated', (e: Event) => {
@@ -2439,11 +2481,14 @@ export function addCategoryProductsToSection(sectionId: string, categoryName: st
 // ==========================================
 
 export function getHeroBanners(): HeroBannerSlide[] {
-  return getStorageItem<HeroBannerSlide[]>(STORAGE_KEYS.HERO_BANNERS, cachedHeroBanners);
+  if (cachedHeroBanners && cachedHeroBanners.length > 0) {
+    return cachedHeroBanners;
+  }
+  return getStorageItem<HeroBannerSlide[]>(STORAGE_KEYS.HERO_BANNERS, initialHeroBanners);
 }
 
 export function saveHeroBanner(bannerData: Partial<HeroBannerSlide>): HeroBannerSlide {
-  const banners = getHeroBanners();
+  const banners = [...getHeroBanners()];
   let updatedBanner: HeroBannerSlide;
 
   if (bannerData.id) {
@@ -2474,7 +2519,12 @@ export function saveHeroBanner(bannerData: Partial<HeroBannerSlide>): HeroBanner
   }
 
   cachedHeroBanners = banners;
-  setStorageItem(STORAGE_KEYS.HERO_BANNERS, banners);
+  saveBannersToIDB(banners).catch(() => {});
+  try {
+    setStorageItem(STORAGE_KEYS.HERO_BANNERS, banners);
+  } catch (err) {
+    console.warn('LocalStorage cheio para banners, salvo no IndexedDB:', err);
+  }
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('aura_banners_updated', { detail: banners }));
   }
@@ -2484,7 +2534,10 @@ export function saveHeroBanner(bannerData: Partial<HeroBannerSlide>): HeroBanner
 export function deleteHeroBanner(id: string): void {
   const banners = getHeroBanners().filter((b) => b.id !== id);
   cachedHeroBanners = banners;
-  setStorageItem(STORAGE_KEYS.HERO_BANNERS, banners);
+  saveBannersToIDB(banners).catch(() => {});
+  try {
+    setStorageItem(STORAGE_KEYS.HERO_BANNERS, banners);
+  } catch {}
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('aura_banners_updated', { detail: banners }));
   }
@@ -2493,7 +2546,10 @@ export function deleteHeroBanner(id: string): void {
 export function reorderHeroBanners(newBanners: HeroBannerSlide[]): void {
   const reordered = newBanners.map((b, idx) => ({ ...b, order: idx + 1 }));
   cachedHeroBanners = reordered;
-  setStorageItem(STORAGE_KEYS.HERO_BANNERS, reordered);
+  saveBannersToIDB(reordered).catch(() => {});
+  try {
+    setStorageItem(STORAGE_KEYS.HERO_BANNERS, reordered);
+  } catch {}
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('aura_banners_updated', { detail: reordered }));
   }
