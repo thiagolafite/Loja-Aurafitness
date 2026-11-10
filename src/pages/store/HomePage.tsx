@@ -99,53 +99,54 @@ export const HomePage: React.FC = () => {
 
   return (
     <div className="space-y-12 pb-16">
-      {/* Hero Carousel Banner Elegante & Editorial (Aura High-Fashion) */}
-      <section className="relative w-full bg-gradient-to-b from-[#0b2414] via-[#143d22] to-[#0e2c19] overflow-hidden select-none py-4 sm:py-6 px-2 sm:px-6">
-        <div className="max-w-7xl mx-auto relative flex items-center justify-center min-h-[490px] lg:h-[550px]">
+      {/* Hero Carousel Banner Full-Width Edge-to-Edge (Aura High-Fashion) */}
+      <section className="relative w-full overflow-hidden select-none p-0 m-0">
+        <div className="relative w-full flex items-center justify-center min-h-[500px] lg:h-[560px]">
           {/* Floating Left Arrow */}
           <button
             onClick={handlePrevSlide}
-            className="absolute left-2 lg:left-4 z-30 p-3 rounded-full bg-black/50 hover:bg-black/85 text-rose-100 hover:text-white transition-all shadow-xl hover:scale-110 active:scale-95 border border-white/20"
+            className="absolute left-3 sm:left-6 lg:left-8 z-30 p-3 sm:p-3.5 rounded-full bg-black/40 hover:bg-black/80 text-white transition-all shadow-xl hover:scale-110 active:scale-95 border border-white/20 backdrop-blur-sm"
             aria-label="Slide Anterior"
           >
-            <ChevronLeft className="w-5 h-5" />
+            <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
 
           {/* Floating Right Arrow */}
           <button
             onClick={handleNextSlide}
-            className="absolute right-2 lg:right-4 z-30 p-3 rounded-full bg-black/50 hover:bg-black/85 text-rose-100 hover:text-white transition-all shadow-xl hover:scale-110 active:scale-95 border border-white/20"
+            className="absolute right-3 sm:right-6 lg:right-8 z-30 p-3 sm:p-3.5 rounded-full bg-black/40 hover:bg-black/80 text-white transition-all shadow-xl hover:scale-110 active:scale-95 border border-white/20 backdrop-blur-sm"
             aria-label="Próximo Slide"
           >
-            <ChevronRight className="w-5 h-5" />
+            <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
 
           {/* ESTILO 1: EDITORIAL LIGHT (Inspirado no Banner de Primeira Compra / R$30 OFF) */}
           {slide.bannerStyle === 'editorial-light' ? (
             <div
-              style={{ backgroundColor: slide.centerBgColor || '#f4f5f2' }}
-              className="w-full h-[510px] lg:h-[550px] rounded-3xl overflow-hidden shadow-2xl relative flex flex-col md:flex-row items-center justify-between border border-white/40 text-neutral-900 transition-all duration-500"
+              style={{ backgroundColor: slide.centerBgColor || '#f5f5f3' }}
+              className="w-full min-h-[500px] lg:h-[560px] relative overflow-hidden flex items-center text-neutral-900 transition-all duration-500"
             >
-              {/* Gradiente sutil e nobre */}
-              <div className="absolute inset-0 bg-gradient-to-r from-[#ecefe9]/80 via-transparent to-[#ecefe9]/80 pointer-events-none" />
+              {/* Gradiente sutil e nobre que preenche toda a tela */}
+              <div className="absolute inset-0 bg-gradient-to-r from-[#ecefe9] via-transparent to-[#ecefe9] pointer-events-none opacity-80" />
 
-              {/* Foto da Modelo / Esquerda */}
-              <div className="relative w-full md:w-4/12 h-52 sm:h-64 md:h-full flex items-end justify-center overflow-hidden shrink-0">
-                <img
-                  src={slide.leftImage}
-                  alt={slide.title}
-                  className="h-full w-full object-cover object-top filter brightness-100 contrast-[1.02] group-hover:scale-105 transition-transform duration-700"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent md:hidden" />
+              <div className="max-w-7xl mx-auto w-full h-full flex flex-col md:flex-row items-center justify-between px-4 sm:px-8 lg:px-12 relative z-10">
+                {/* Foto da Modelo / Esquerda */}
+                <div className="relative w-full md:w-4/12 h-52 sm:h-64 md:h-full flex items-end justify-center overflow-hidden shrink-0">
+                  <img
+                    src={slide.leftImage}
+                    alt={slide.title}
+                    className="h-full w-full object-cover object-top filter brightness-100 contrast-[1.02] group-hover:scale-105 transition-transform duration-700"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent md:hidden" />
 
-                {/* Selo Redondo Watermark no Canto Inferior Esquerdo */}
-                <div className="absolute bottom-3 left-3 sm:bottom-6 sm:left-6 z-10">
-                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-2 border-neutral-700/30 flex flex-col items-center justify-center text-center p-1 backdrop-blur-xs select-none bg-white/10">
-                    <span className="text-[7px] sm:text-[8px] font-extrabold tracking-widest text-neutral-800 uppercase">AURA</span>
-                    <span className="text-[6px] tracking-tighter text-neutral-600 uppercase">MODA FITNESS</span>
+                  {/* Selo Redondo Watermark no Canto Inferior Esquerdo */}
+                  <div className="absolute bottom-3 left-3 sm:bottom-6 sm:left-6 z-10">
+                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-2 border-neutral-700/30 flex flex-col items-center justify-center text-center p-1 backdrop-blur-xs select-none bg-white/20">
+                      <span className="text-[7px] sm:text-[8px] font-extrabold tracking-widest text-neutral-800 uppercase">AURA</span>
+                      <span className="text-[6px] tracking-tighter text-neutral-600 uppercase">MODA FITNESS</span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
               {/* Centro: Chamada, Desconto, Box de Cupom e Botão */}
               <div className="relative z-20 w-full md:w-5/12 flex flex-col items-center text-center px-4 sm:px-6 py-4 sm:py-6 my-auto">
@@ -264,108 +265,115 @@ export const HomePage: React.FC = () => {
                 )}
               </div>
             </div>
+            </div>
           ) : slide.bannerStyle === 'bold-dark' ? (
             /* ESTILO 2: BOLD DARK (Inspirado no Banner Best Sellers) */
             <div
               style={{ backgroundColor: slide.centerBgColor || '#0b1610' }}
-              className="w-full h-[510px] lg:h-[550px] rounded-3xl overflow-hidden shadow-2xl relative flex flex-col md:flex-row items-center justify-between border border-white/10 text-white transition-all duration-500"
+              className="w-full min-h-[500px] lg:h-[560px] relative overflow-hidden flex items-center justify-between text-white transition-all duration-500"
             >
-              {/* Brilhos radiantes de fundo */}
-              <div className="absolute -top-20 -right-20 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-              <div className="absolute -bottom-20 -left-20 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+              {/* Brilhos radiantes de fundo que preenchem 100% da tela */}
+              <div className="absolute -top-24 -right-24 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
 
-              {/* Foto da Modelo / Esquerda */}
-              <div className="relative w-full md:w-5/12 h-52 sm:h-64 md:h-full flex items-end justify-center overflow-hidden shrink-0">
-                <img
-                  src={slide.leftImage}
-                  alt={slide.title}
-                  className="h-full w-full object-cover object-top filter brightness-95 contrast-105"
-                />
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-[#0b1610] hidden md:block" />
+              <div className="max-w-7xl mx-auto w-full h-full flex flex-col md:flex-row items-center justify-between px-4 sm:px-8 lg:px-12 relative z-10">
+                {/* Foto da Modelo / Esquerda */}
+                <div className="relative w-full md:w-5/12 h-52 sm:h-64 md:h-full flex items-end justify-center overflow-hidden shrink-0">
+                  <img
+                    src={slide.leftImage}
+                    alt={slide.title}
+                    className="h-full w-full object-cover object-top filter brightness-95 contrast-105"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-[#0b1610] hidden md:block" />
 
-                {/* Selo Redondo Watermark */}
-                <div className="absolute bottom-3 left-3 sm:bottom-6 sm:left-6 z-10">
-                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border border-white/30 flex flex-col items-center justify-center text-center p-1 backdrop-blur-xs select-none bg-black/20">
-                    <span className="text-[7px] sm:text-[8px] font-extrabold tracking-widest text-white uppercase">AURA</span>
-                    <span className="text-[6px] tracking-tighter text-white/70 uppercase">MODA FITNESS</span>
+                  {/* Selo Redondo Watermark */}
+                  <div className="absolute bottom-3 left-3 sm:bottom-6 sm:left-6 z-10">
+                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border border-white/30 flex flex-col items-center justify-center text-center p-1 backdrop-blur-xs select-none bg-black/20">
+                      <span className="text-[7px] sm:text-[8px] font-extrabold tracking-widest text-white uppercase">AURA</span>
+                      <span className="text-[6px] tracking-tighter text-white/70 uppercase">MODA FITNESS</span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Conteúdo Central e Tipografia Marcante */}
-              <div className="relative z-20 w-full md:w-7/12 flex flex-col items-center md:items-start text-center md:text-left px-6 sm:px-12 py-6 my-auto">
-                <motion.div
-                  key={`badge-dark-${currentSlide}`}
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mb-2"
-                >
-                  <span className="text-[10px] sm:text-xs font-extrabold tracking-[0.3em] uppercase text-amber-300 bg-white/10 px-3.5 py-1 rounded-full border border-white/15">
-                    ★ {slide.badge || 'MAIS DESEJADOS'}
-                  </span>
-                </motion.div>
+                {/* Conteúdo Central e Tipografia Marcante */}
+                <div className="relative z-20 w-full md:w-7/12 flex flex-col items-center md:items-start text-center md:text-left px-4 sm:px-8 lg:px-12 py-6 my-auto">
+                  <motion.div
+                    key={`badge-dark-${currentSlide}`}
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-2"
+                  >
+                    <span className="text-[10px] sm:text-xs font-extrabold tracking-[0.3em] uppercase text-amber-300 bg-white/10 px-3.5 py-1 rounded-full border border-white/15">
+                      ★ {slide.badge || 'MAIS DESEJADOS'}
+                    </span>
+                  </motion.div>
 
-                <motion.h1
-                  key={`title-dark-${currentSlide}`}
-                  initial={{ opacity: 0, x: -15 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="text-4xl sm:text-6xl lg:text-7xl font-serif font-black tracking-tight text-white uppercase leading-[0.95] mb-2 drop-shadow-md"
-                >
-                  {slide.title}
-                </motion.h1>
+                  <motion.h1
+                    key={`title-dark-${currentSlide}`}
+                    initial={{ opacity: 0, x: -15 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="text-4xl sm:text-6xl lg:text-7xl font-serif font-black tracking-tight text-white uppercase leading-[0.95] mb-2 drop-shadow-md"
+                  >
+                    {slide.title}
+                  </motion.h1>
 
-                {slide.discountHighlight && (
+                  {slide.discountHighlight && (
+                    <motion.p
+                      key={`high-dark-${currentSlide}`}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="text-sm sm:text-base lg:text-lg font-serif italic text-rose-200/95 mb-3"
+                    >
+                      {slide.discountHighlight}
+                    </motion.p>
+                  )}
+
                   <motion.p
-                    key={`high-dark-${currentSlide}`}
+                    key={`sub-dark-${currentSlide}`}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="text-sm sm:text-base lg:text-lg font-serif italic text-rose-200/95 mb-3"
+                    className="text-xs sm:text-sm text-neutral-300 font-light max-w-md mb-7 leading-relaxed"
                   >
-                    {slide.discountHighlight}
+                    {slide.subtitle}
                   </motion.p>
-                )}
 
-                <motion.p
-                  key={`sub-dark-${currentSlide}`}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="text-xs sm:text-sm text-neutral-300 font-light max-w-md mb-7 leading-relaxed"
-                >
-                  {slide.subtitle}
-                </motion.p>
-
-                <motion.div
-                  key={`btn-dark-${currentSlide}`}
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                >
-                  <Link
-                    to={slide.link}
-                    className="inline-flex items-center gap-2 px-8 py-3.5 rounded-full bg-white hover:bg-neutral-100 text-neutral-950 font-extrabold text-xs tracking-widest uppercase transition-all shadow-xl hover:scale-105 active:scale-95"
+                  <motion.div
+                    key={`btn-dark-${currentSlide}`}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
                   >
-                    <span>{slide.buttonText || 'COMPRAR AGORA'}</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </Link>
-                </motion.div>
+                    <Link
+                      to={slide.link}
+                      className="inline-flex items-center gap-2 px-8 py-3.5 rounded-full bg-white hover:bg-neutral-100 text-neutral-950 font-extrabold text-xs tracking-widest uppercase transition-all shadow-xl hover:scale-105 active:scale-95"
+                    >
+                      <span>{slide.buttonText || 'COMPRAR AGORA'}</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </Link>
+                  </motion.div>
 
-                {/* Indicador de Bolinhas do Slide */}
-                <div className="flex items-center gap-2 mt-7">
-                  {heroSlides.map((_, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => setCurrentSlide(idx)}
-                      aria-label={`Ir para banner ${idx + 1}`}
-                      className={`h-2 rounded-full transition-all ${
-                        idx === currentSlide ? 'w-6 bg-white shadow-md' : 'w-2 bg-white/40'
-                      }`}
-                    />
-                  ))}
+                  {/* Indicador de Bolinhas do Slide */}
+                  <div className="flex items-center gap-2 mt-7">
+                    {heroSlides.map((_, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setCurrentSlide(idx)}
+                        aria-label={`Ir para banner ${idx + 1}`}
+                        className={`h-2 rounded-full transition-all ${
+                          idx === currentSlide ? 'w-6 bg-white shadow-md' : 'w-2 bg-white/40'
+                        }`}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
           ) : (
             /* ESTILO 3: CARROSSEL CLÁSSICO 3 COLUNAS (Verde Floresta Nobre) */
-            <div className="w-full flex items-center justify-center gap-3 sm:gap-5 h-full">
+            <div
+              style={{ backgroundColor: slide.centerBgColor || '#123922' }}
+              className="w-full min-h-[500px] lg:h-[560px] relative overflow-hidden flex items-center justify-center text-white py-6 px-4 sm:px-8"
+            >
+              <div className="max-w-7xl mx-auto w-full flex items-center justify-center gap-3 sm:gap-5 h-full">
               {/* Foto Modelo Esquerda */}
               <div className="hidden md:block w-1/4 h-[450px] lg:h-[510px] rounded-3xl overflow-hidden shadow-2xl relative group border border-white/15 shrink-0">
                 <img
@@ -458,6 +466,7 @@ export const HomePage: React.FC = () => {
                   </span>
                 </div>
               </div>
+            </div>
             </div>
           )}
         </div>
