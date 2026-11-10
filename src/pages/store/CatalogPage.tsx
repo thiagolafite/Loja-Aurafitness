@@ -463,7 +463,8 @@ export const CatalogPage: React.FC = () => {
   const currentCategoryObj = useMemo(() => {
     if (!selectedCategory) return null;
     return (
-      categories.find((c) => areCategoriesEquivalent(c.name, selectedCategory)) || {
+      categories.find((c) => areCategoriesEquivalent(c.name, selectedCategory)) ||
+      STORE_CATEGORIES.find((c) => areCategoriesEquivalent(c.name, selectedCategory)) || {
         name: selectedCategory,
         slug: 'categoria',
         icon: '🏷️',

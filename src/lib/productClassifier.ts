@@ -175,31 +175,34 @@ export function areCategoriesEquivalent(catA?: string, catB?: string): boolean {
 
   // Grupos de equivalência canônica de moda fitness (Macacão e Macaquinho são categorias DISTINTAS!)
   const isMacacao = (s: string) =>
-    (s.includes('macac') && !s.includes('macaquinh')) || s === 'jumpsuit';
+    s === 'macacao' || s === 'macacoes' || s === 'jumpsuit';
   if (isMacacao(a) && isMacacao(b)) return true;
 
-  const isMacaquinho = (s: string) => s.includes('macaquinh');
+  const isMacaquinho = (s: string) => s === 'macaquinho' || s === 'macaquinhos';
   if (isMacaquinho(a) && isMacaquinho(b)) return true;
 
-  const isConjunto = (s: string) => s.includes('conjunt');
+  const isConjunto = (s: string) => s === 'conjunto' || s === 'conjuntos';
   if (isConjunto(a) && isConjunto(b)) return true;
 
-  const isLegging = (s: string) => s.includes('legging') || s.includes('leging') || s.includes('calca');
+  const isLegging = (s: string) => s === 'legging' || s === 'leggings' || s === 'calca' || s === 'calcas';
   if (isLegging(a) && isLegging(b)) return true;
 
-  const isTop = (s: string) => s === 'top' || s === 'tops' || s.includes('cropped');
+  const isTop = (s: string) => s === 'top' || s === 'tops' || s === 'cropped' || s === 'croppeds';
   if (isTop(a) && isTop(b)) return true;
 
-  const isShort = (s: string) => s.includes('short') || s.includes('bermuda');
+  const isShort = (s: string) =>
+    s === 'short' || s === 'shorts' || s === 'bermuda' || s === 'bermudas' || s === 'shorts & bermudas';
   if (isShort(a) && isShort(b)) return true;
 
-  const isRegata = (s: string) => s.includes('regata') || s.includes('camiseta') || s.includes('blusa');
+  const isRegata = (s: string) =>
+    s === 'regata' || s === 'regatas' || s === 'camiseta' || s === 'camisetas' || s === 'blusa' || s === 'blusas' || s === 'regatas & camisetas';
   if (isRegata(a) && isRegata(b)) return true;
 
-  const isJaqueta = (s: string) => s.includes('jaqueta') || s.includes('casaco') || s.includes('corta');
+  const isJaqueta = (s: string) =>
+    s === 'jaqueta' || s === 'jaquetas' || s === 'casaco' || s === 'casacos' || s === 'corta-vento' || s === 'corta vento';
   if (isJaqueta(a) && isJaqueta(b)) return true;
 
-  const isAcessorio = (s: string) => s.includes('acessorio') || s.includes('meia');
+  const isAcessorio = (s: string) => s === 'acessorio' || s === 'acessorios' || s === 'meia' || s === 'meias';
   if (isAcessorio(a) && isAcessorio(b)) return true;
 
   return false;
@@ -1082,12 +1085,37 @@ export function isProductMatchingCategory(
     category?: string;
     additionalCategories?: string[];
     description?: string;
+    isSet?: boolean;
   },
   targetCategoryName: string
 ): boolean {
   if (!targetCategoryName || !targetCategoryName.trim()) return true;
-  const resolvedTarget = resolveSingleCategoryName(targetCategoryName).trim().toLowerCase();
   const rawTarget = targetCategoryName.trim().toLowerCase();
+  const resolvedTarget = resolveSingleCategoryName(targetCategoryName).trim().toLowerCase();
+
+  // Macro-categoria "Conjuntos": engloba todos os conjuntos do catálogo da loja
+  // (incluindo coleções com nome de conjunto, produtos marcados como isSet, e peças de conjunto)
+  const isTargetConjuntosRoot = rawTarget === 'conjuntos' || rawTarget === 'conjunto';
+  if (isTargetConjuntosRoot) {
+    if (product.isSet) return true;
+    const primaryCat = (product.category || '').toLowerCase();
+    if (primaryCat.includes('conjunt')) return true;
+    if (Array.isArray(product.additionalCategories)) {
+      if (product.additionalCategories.some((c) => (c || '').toLowerCase().includes('conjunt'))) {
+        return true;
+      }
+    }
+    const prodName = (product.name || '').toLowerCase();
+    if (
+      prodName.includes('conjunt') &&
+      !prodName.includes('macaquinh') &&
+      !prodName.includes('macacao') &&
+      !prodName.includes('macacão')
+    ) {
+      return true;
+    }
+  }
+
   const prodCats = getProductCategories(product);
 
   // Correspondência exata com a(s) categoria(s) do produto
