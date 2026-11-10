@@ -1434,6 +1434,14 @@ export function cleanModelName(rawName: string): {
   // 1. Remove extensão se houver
   let name = rawName.replace(/\.[a-zA-Z0-9]{2,5}$/, '').trim();
 
+  // 1b. Remove carimbos de data/hora do WhatsApp e câmeras (ex: "WhatsApp Image 2026-11-09 at 21.15.42")
+  name = name.replace(
+    /whatsapp\s*(?:image|video|img|vid)?\s*\d{4}[\s\-_.]*\d{1,2}[\s\-_.]*\d{1,2}\s*(?:at|as|às)?\s*\d{1,2}[\s\-_.:]*\d{1,2}(?:[\s\-_.:]*\d{1,2})?/gi,
+    ' '
+  );
+  name = name.replace(/whatsapp\s*(?:image|video|img|vid)\b.*$/gi, ' ');
+  name = name.replace(/\b(?:img|dsc|vid|pxl|mov|foto)[-_]?\d{4,8}[-_]?\d{0,6}\b/gi, ' ');
+
   // 2. Extrai e remove ângulo de foto se presente
   let detectedAngle: string | undefined = undefined;
   const angleMatch = name.match(/[\s\-_]+(frente|costas|costa|lateral|detalhe|zoom|look|crop|back|front|side|detail)\b/i);
@@ -1538,14 +1546,20 @@ export function parseProductFromFolderOrFile(
     }
   }
 
-  // 1. Extração de Preço (ex: "183,00", "183.00", "R$ 183", "183")
+  // 1. Extração de Preço (ignora datas/timestamps do WhatsApp antes de extrair preço)
   let price = 189.9;
-  const priceMatch = rawTextForExtraction.match(/(?:r\$\s*)?(\d{2,4})(?:[,\.](\d{2}))?\b/i);
+  const textWithoutTimestamps = rawTextForExtraction
+    .replace(
+      /whatsapp\s*(?:image|video|img|vid)?\s*\d{4}[\s\-_.]*\d{1,2}[\s\-_.]*\d{1,2}\s*(?:at|as|às)?\s*\d{1,2}[\s\-_.:]*\d{1,2}(?:[\s\-_.:]*\d{1,2})?/gi,
+      ' '
+    )
+    .replace(/\b202\d[\s\-_.]\d{1,2}[\s\-_.]\d{1,2}\b/g, ' ');
+  const priceMatch = textWithoutTimestamps.match(/(?:r\$\s*)?(\d{2,4})(?:[,\.](\d{2}))?\b/i);
   if (priceMatch) {
     const integerPart = priceMatch[1];
     const decimalPart = priceMatch[2] || '00';
     const parsedVal = parseFloat(`${integerPart}.${decimalPart}`);
-    if (!isNaN(parsedVal) && parsedVal > 10) {
+    if (!isNaN(parsedVal) && parsedVal > 10 && parsedVal < 1900) {
       price = parsedVal;
     }
   }
@@ -1560,15 +1574,15 @@ export function parseProductFromFolderOrFile(
   // 3. Limpeza Inteligente e Canônica do Nome do Produto
   let { cleanName, groupKey } = cleanModelName(candidateName);
 
-  // Se após a limpeza o nome ficou vazio ou genérico, preserva identificador único para não colapsar peças diferentes
+  // Se após a limpeza o nome ficou vazio ou genérico, agrupa pelo nome da pasta/categoria em vez do timestamp individual
   if (!cleanName || isGenericFileName(cleanName)) {
     if (hasValidFolder && !isCatFolder) {
       const folderClean = cleanModelName(folderCandidate);
-      cleanName = folderClean.cleanName || `${safeDefaultCategory} ${cleanFileName}`;
+      cleanName = folderClean.cleanName || `${safeDefaultCategory} Fitness Aura`;
       groupKey = folderClean.groupKey || normalizeText(cleanName);
     } else {
       const prefix = hasValidFolder ? folderCandidate : safeDefaultCategory;
-      cleanName = `${prefix} ${cleanFileName}`;
+      cleanName = `${prefix} Fitness Aura`;
       groupKey = normalizeText(cleanName);
     }
   }
@@ -2107,4 +2121,166 @@ export function consolidateDuplicateProducts(products: Product[]): {
   }));
   return { consolidated, mergedCount };
 }
+
+/**
+ * Sugere um nome limpo e elegante ao agrupar manualmente vários produtos em um só
+ */
+export function suggestCleanMergedProductName(productsToMerge: Product[]): string {
+  if (!productsToMerge || productsToMerge.length === 0) return 'Produto Aura Fitness';
+  const primary = productsToMerge[0];
+  const category = primary.category || 'Conjuntos';
+
+  for (const p of productsToMerge) {
+    const { cleanName } = cleanModelName(p.name || '');
+    if (
+      cleanName &&
+      !isGenericFileName(cleanName) &&
+      cleanName.toLowerCase() !== 'conjuntos' &&
+      !cleanName.toLowerCase().includes('whatsapp')
+    ) {
+      return cleanName;
+    }
+  }
+
+  const colorName = primary.colors?.[0]?.name;
+  if (colorName && colorName.toLowerCase() !== 'preto') {
+    return `${category} Fitness ${colorName}`;
+  }
+  return `${category} Fitness Aura`;
+}
+
+/**
+ * Unifica manualmente uma lista de produtos selecionados pelo administrador em 1 único produto,
+ * reunindo todas as fotos (poses diferentes) e vídeos no carrossel do anúncio principal.
+ */
+export function mergeProductsIntoOne(
+  productsToMerge: Product[],
+  overrides?: {
+    name?: string;
+    category?: string;
+    price?: number;
+    promotionalPrice?: number;
+    colors?: { name: string; hex: string }[];
+    images?: string[];
+  }
+): {
+  mergedProduct: Product;
+  removedIds: string[];
+} {
+  const base = productsToMerge[0];
+  const removedIds = productsToMerge.slice(1).map((p) => p.id);
+
+  // 1. Unifica todas as fotos e vídeos sem duplicatas
+  let combinedImages: string[] = [];
+  if (overrides?.images && overrides.images.length > 0) {
+    combinedImages = [...overrides.images];
+  } else {
+    const photos: string[] = [];
+    const videos: string[] = [];
+    for (const prod of productsToMerge) {
+      const slides = getProductMediaSlides(prod);
+      for (const media of slides) {
+        if (!media) continue;
+        if (isVideoMedia(media)) {
+          if (!videos.includes(media)) videos.push(media);
+        } else {
+          if (!photos.includes(media)) photos.push(media);
+        }
+      }
+    }
+    if (photos.length > 0 && videos.length > 0) {
+      // Coloca a 1ª foto como capa (#1) e o 1º vídeo logo no #2 (hover), seguido das demais poses
+      combinedImages = [photos[0], ...videos, ...photos.slice(1)];
+    } else {
+      combinedImages = [...photos, ...videos];
+    }
+  }
+
+  if (combinedImages.length === 0) {
+    combinedImages = ['/images/look-3103.png'];
+  }
+
+  // 2. Unifica cores
+  let combinedColors = overrides?.colors ? [...overrides.colors] : [];
+  if (combinedColors.length === 0) {
+    for (const prod of productsToMerge) {
+      for (const col of prod.colors || []) {
+        if (!combinedColors.some((c) => c.name.toLowerCase() === col.name.toLowerCase())) {
+          combinedColors.push(col);
+        }
+      }
+    }
+  }
+  if (combinedColors.length === 0) {
+    combinedColors = [{ name: 'Preto', hex: '#111111' }];
+  }
+
+  // 3. Unifica tamanhos
+  const combinedSizes: string[] = [];
+  for (const prod of productsToMerge) {
+    for (const sz of prod.sizes || []) {
+      if (!combinedSizes.includes(sz)) {
+        combinedSizes.push(sz);
+      }
+    }
+  }
+  if (combinedSizes.length === 0) {
+    combinedSizes.push('P', 'M', 'G');
+  }
+
+  // 4. Unifica estoque
+  const combinedStock: Record<string, number> = { ...(base.stock || {}) };
+  for (const prod of productsToMerge.slice(1)) {
+    for (const [k, qty] of Object.entries(prod.stock || {})) {
+      combinedStock[k] = Math.max(combinedStock[k] || 0, qty || 8);
+    }
+  }
+
+  // 5. Unifica categorias adicionais
+  const targetCategory = overrides?.category || base.category || 'Conjuntos';
+  const extraCats: string[] = [];
+  for (const prod of productsToMerge) {
+    for (const extra of prod.additionalCategories || []) {
+      if (
+        extra.toLowerCase() !== targetCategory.toLowerCase() &&
+        !extraCats.some((c) => c.toLowerCase() === extra.toLowerCase())
+      ) {
+        extraCats.push(extra);
+      }
+    }
+  }
+
+  const finalName =
+    overrides?.name && overrides.name.trim()
+      ? overrides.name.trim()
+      : suggestCleanMergedProductName(productsToMerge);
+
+  const firstVideo = combinedImages.find((m) => isVideoMedia(m)) || base.videoUrl;
+
+  const mergedProduct: Product = {
+    ...base,
+    name: finalName,
+    slug: finalName
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)+/g, ''),
+    category: targetCategory,
+    additionalCategories: extraCats,
+    price: overrides?.price !== undefined ? overrides.price : base.price,
+    promotionalPrice:
+      overrides?.promotionalPrice !== undefined
+        ? overrides.promotionalPrice
+        : base.promotionalPrice,
+    colors: combinedColors,
+    sizes: combinedSizes,
+    images: combinedImages,
+    videoUrl: firstVideo,
+    stock: combinedStock,
+  };
+
+  return { mergedProduct, removedIds };
+}
+
 

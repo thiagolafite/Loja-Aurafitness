@@ -45,6 +45,7 @@ import {
 import { formatCurrency } from '../../lib/utils';
 import { Product, ProductColor } from '../../types';
 import { ProductImporterModal } from '../../components/admin/ProductImporterModal';
+import { ManualMergeProductsModal } from '../../components/admin/ManualMergeProductsModal';
 import { ProductCard } from '../../components/store/ProductCard';
 import { ProductMediaView } from '../../components/store/ProductMediaView';
 import {
@@ -91,6 +92,7 @@ export const AdminProductsPage: React.FC = () => {
   // Modal States
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImporterOpen, setIsImporterOpen] = useState(false);
+  const [isManualMergeOpen, setIsManualMergeOpen] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
   const [pendingCategoryMove, setPendingCategoryMove] = useState<{
@@ -745,6 +747,20 @@ export const AdminProductsPage: React.FC = () => {
           >
             <Trash2 className="w-4 h-4" />
             <span>Limpar Catálogo</span>
+          </button>
+
+          <button
+            onClick={() => setIsManualMergeOpen(true)}
+            disabled={products.length < 2}
+            className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs py-3 px-4 rounded-xl shadow-md transition-all flex items-center gap-2 disabled:opacity-50"
+            title="Selecionar produtos/poses separadas e transformar em 1 único produto"
+          >
+            <Layers className="w-4 h-4" />
+            <span>
+              {selectedProductIds.size >= 2
+                ? `Agrupar Selecionados (${selectedProductIds.size})`
+                : 'Agrupar em 1 Só Produto'}
+            </span>
           </button>
 
           <button
@@ -2023,13 +2039,24 @@ export const AdminProductsPage: React.FC = () => {
               </span>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <button
                 type="button"
                 onClick={handleDeselectAll}
                 className="px-3.5 py-2 text-xs font-bold text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 rounded-xl transition-colors"
               >
                 Desmarcar Todos
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsManualMergeOpen(true)}
+                className="px-4 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl transition-all shadow-md flex items-center gap-2"
+                title="Unir os produtos selecionados em um único produto com todas as fotos no carrossel"
+              >
+                <Layers className="w-4 h-4" />
+                <span>
+                  Agrupar em 1 Só Produto ({selectedProductIds.size})
+                </span>
               </button>
               <button
                 type="button"
@@ -2139,6 +2166,22 @@ export const AdminProductsPage: React.FC = () => {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Manual Merge Products Modal */}
+      <ManualMergeProductsModal
+        isOpen={isManualMergeOpen}
+        onClose={() => setIsManualMergeOpen(false)}
+        initialSelectedIds={Array.from(selectedProductIds)}
+        defaultCategoryFilter={selectedCategoryFilter}
+        onSuccess={(mergedProd, mergedCount) => {
+          setSelectedProductIds(new Set());
+          setProducts([...getProducts()]);
+          refreshProducts();
+          showToast(
+            `✓ ${mergedCount} produtos foram agrupados em "${mergedProd.name}" (${mergedProd.images.length} fotos/vídeos no carrossel)!`
+          );
+        }}
+      />
 
       {/* Importer Modal */}
       <ProductImporterModal

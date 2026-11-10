@@ -126,6 +126,7 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
   }, [isOpen]);
 
   const [groupedProducts, setGroupedProducts] = useState<GroupedProductItem[]>([]);
+  const [selectedPreviewIndices, setSelectedPreviewIndices] = useState<number[]>([]);
   const [isProcessingImages, setIsProcessingImages] = useState<boolean>(false);
   const [processingProgress, setProcessingProgress] = useState<{ current: number; total: number }>({
     current: 0,
@@ -504,6 +505,74 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
 
   const handleRemoveGroupedProduct = (index: number) => {
     setGroupedProducts((prev) => prev.filter((_, i) => i !== index));
+    setSelectedPreviewIndices((prev) =>
+      prev.filter((i) => i !== index).map((i) => (i > index ? i - 1 : i))
+    );
+  };
+
+  // Permite agrupar manualmente os itens selecionados (ou todos) na pré-visualização em 1 único produto
+  const handleMergePreviewItems = (indicesToMerge?: number[]) => {
+    const targetIndices =
+      indicesToMerge && indicesToMerge.length >= 2
+        ? [...indicesToMerge].sort((a, b) => a - b)
+        : groupedProducts.map((_, i) => i);
+
+    if (targetIndices.length < 2) return;
+
+    setGroupedProducts((prev) => {
+      const itemsToMerge = targetIndices.map((idx) => prev[idx]).filter(Boolean);
+      if (itemsToMerge.length < 2) return prev;
+
+      const base = itemsToMerge[0];
+      const photos: string[] = [];
+      const videos: string[] = [];
+      const combinedColors = [...base.colors];
+
+      for (const item of itemsToMerge) {
+        for (const media of item.images) {
+          if (isVideoMedia(media)) {
+            if (!videos.includes(media)) videos.push(media);
+          } else {
+            if (!photos.includes(media)) photos.push(media);
+          }
+        }
+        for (const col of item.colors) {
+          if (!combinedColors.some((c) => c.name.toLowerCase() === col.name.toLowerCase())) {
+            combinedColors.push(col);
+          }
+        }
+      }
+
+      const combinedImages =
+        photos.length > 0 && videos.length > 0
+          ? [photos[0], ...videos, ...photos.slice(1)]
+          : [...photos, ...videos];
+
+      const unifiedItem: GroupedProductItem = {
+        ...base,
+        images: combinedImages,
+        videoUrl: videos[0] || base.videoUrl,
+        colors: combinedColors,
+        newImagesCount: combinedImages.length,
+      };
+
+      const nextList: GroupedProductItem[] = [];
+      const mergedSet = new Set(targetIndices);
+      let inserted = false;
+
+      for (let i = 0; i < prev.length; i++) {
+        if (mergedSet.has(i)) {
+          if (!inserted) {
+            nextList.push(unifiedItem);
+            inserted = true;
+          }
+        } else {
+          nextList.push(prev[i]);
+        }
+      }
+      return nextList;
+    });
+    setSelectedPreviewIndices([]);
   };
 
   const handleProcessGroupedProductsImport = async () => {
@@ -979,29 +1048,78 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
                 {/* Grouped Products Preview Cards */}
                 {groupedProducts.length > 0 && (
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <h4 className="text-xs font-bold text-foreground flex items-center gap-2">
                         <span>Modelos Reconhecidos ({groupedProducts.length} itens prontos)</span>
                         <span className="text-[11px] font-normal text-muted-foreground">
-                          (Total de {groupedProducts.reduce((acc, p) => acc + p.images.length, 0)} fotos agrupadas)
+                          (Total de {groupedProducts.reduce((acc, p) => acc + p.images.length, 0)} mídias)
                         </span>
                       </h4>
-                      <button
-                        onClick={() => setGroupedProducts([])}
-                        className="text-xs text-destructive hover:underline font-semibold"
-                      >
-                        Limpar Lista
-                      </button>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        {groupedProducts.length >= 2 && (
+                          <>
+                            {selectedPreviewIndices.length >= 2 ? (
+                              <button
+                                type="button"
+                                onClick={() => handleMergePreviewItems(selectedPreviewIndices)}
+                                className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-sm flex items-center gap-1.5 transition-colors"
+                              >
+                                <Layers className="w-3.5 h-3.5" />
+                                <span>
+                                  Agrupar Selecionados em 1 Só Produto ({selectedPreviewIndices.length})
+                                </span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleMergePreviewItems()}
+                                className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-sm flex items-center gap-1.5 transition-colors"
+                                title="Unir todas as fotos listadas abaixo em um único produto"
+                              >
+                                <Layers className="w-3.5 h-3.5" />
+                                <span>Agrupar Todos em 1 Só Produto ({groupedProducts.length})</span>
+                              </button>
+                            )}
+                          </>
+                        )}
+                        <button
+                          onClick={() => {
+                            setGroupedProducts([]);
+                            setSelectedPreviewIndices([]);
+                          }}
+                          className="text-xs text-destructive hover:underline font-semibold"
+                        >
+                          Limpar Lista
+                        </button>
+                      </div>
                     </div>
 
                     <div className="space-y-3 max-h-[360px] overflow-y-auto pr-1">
                       {groupedProducts.map((prod, idx) => (
                         <div
                           key={idx}
-                          className="p-3.5 rounded-xl border border-border bg-card shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
+                          className={`p-3.5 rounded-xl border bg-card shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-colors ${
+                            selectedPreviewIndices.includes(idx)
+                              ? 'border-primary ring-1 ring-primary/30 bg-primary/5'
+                              : 'border-border'
+                          }`}
                         >
-                          {/* Image Thumbnail & Counter */}
+                          {/* Checkbox + Image Thumbnail & Counter */}
                           <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedPreviewIndices.includes(idx)}
+                              onChange={() =>
+                                setSelectedPreviewIndices((prev) =>
+                                  prev.includes(idx)
+                                    ? prev.filter((i) => i !== idx)
+                                    : [...prev, idx]
+                                )
+                              }
+                              title="Selecionar para agrupar em 1 só produto"
+                              className="w-4 h-4 accent-primary rounded cursor-pointer shrink-0"
+                            />
                             <div className="relative w-16 h-16 rounded-lg overflow-hidden bg-muted border border-border shrink-0">
                               <ProductMediaView
                                 src={prod.images[0]}

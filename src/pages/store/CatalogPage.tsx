@@ -11,8 +11,10 @@ import {
   Sparkles,
   Tag,
   Check,
+  Layers,
 } from 'lucide-react';
 import { ProductCard } from '../../components/store/ProductCard';
+import { ManualMergeProductsModal } from '../../components/admin/ManualMergeProductsModal';
 import { getProducts, getStoreSections } from '../../lib/dataClient';
 import { formatCurrency } from '../../lib/utils';
 import {
@@ -93,6 +95,8 @@ export const CatalogPage: React.FC = () => {
   const [onlyPromotions, setOnlyPromotions] = useState<boolean>(initialPromo);
   const [sortBy, setSortBy] = useState<string>('relevancia');
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState<boolean>(false);
+  const [isManualMergeOpen, setIsManualMergeOpen] = useState<boolean>(false);
+  const [mergeCategoryTarget, setMergeCategoryTarget] = useState<string>('todos');
 
   // Sync all state when URL query params change (ex: cliques na Navbar ou HomePage)
   useEffect(() => {
@@ -882,9 +886,25 @@ export const CatalogPage: React.FC = () => {
                   </div>
                 </div>
 
-                <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-primary/10 text-primary border border-primary/20 shrink-0">
-                  {filteredProducts.length} {filteredProducts.length === 1 ? 'modelo' : 'modelos'}
-                </span>
+                <div className="flex items-center gap-2 shrink-0">
+                  {filteredProducts.length >= 2 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMergeCategoryTarget(selectedCategory);
+                        setIsManualMergeOpen(true);
+                      }}
+                      className="text-xs font-bold px-3.5 py-1.5 rounded-full bg-amber-600 hover:bg-amber-700 text-white shadow-sm flex items-center gap-1.5 transition-colors"
+                      title="Selecionar produtos/poses separadas e transformar em 1 único produto"
+                    >
+                      <Layers className="w-3.5 h-3.5" />
+                      <span>Agrupar Poses em 1 Só</span>
+                    </button>
+                  )}
+                  <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                    {filteredProducts.length} {filteredProducts.length === 1 ? 'modelo' : 'modelos'}
+                  </span>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -916,13 +936,28 @@ export const CatalogPage: React.FC = () => {
                       </p>
                     </div>
 
-                    <button
-                      onClick={() => handleSelectCategory(category.name)}
-                      className="text-xs font-bold text-primary hover:underline flex items-center gap-1 self-start sm:self-end"
-                    >
-                      <span>Ver todos os {items.length} de {category.name}</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-3 self-start sm:self-end">
+                      {items.length >= 2 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMergeCategoryTarget(category.name);
+                            setIsManualMergeOpen(true);
+                          }}
+                          className="text-xs font-bold px-3 py-1 rounded-full bg-amber-600 hover:bg-amber-700 text-white shadow-sm flex items-center gap-1.5 transition-colors"
+                        >
+                          <Layers className="w-3.5 h-3.5" />
+                          <span>Agrupar Poses em 1 Só</span>
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleSelectCategory(category.name)}
+                        className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
+                      >
+                        <span>Ver todos os {items.length} de {category.name}</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
 
                   {/* Category Products Grid */}
@@ -949,6 +984,24 @@ export const CatalogPage: React.FC = () => {
           )}
         </main>
       </div>
+
+      {/* Modal de Agrupamento Manual de Produtos / Poses */}
+      <ManualMergeProductsModal
+        isOpen={isManualMergeOpen}
+        onClose={() => setIsManualMergeOpen(false)}
+        initialSelectedIds={
+          mergeCategoryTarget && mergeCategoryTarget !== 'todos'
+            ? allProducts
+                .filter((p) => isProductMatchingCategory(p, mergeCategoryTarget))
+                .map((p) => p.id)
+            : []
+        }
+        defaultCategoryFilter={mergeCategoryTarget || selectedCategory || 'todos'}
+        onSuccess={() => {
+          setCategories(getStoredCategories());
+          setAllProducts([...getProducts()]);
+        }}
+      />
     </div>
   );
 };

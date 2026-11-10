@@ -58,6 +58,7 @@ import {
   getProductMediaSlides,
 } from '../../lib/productClassifier';
 import { ProductImporterModal } from '../../components/admin/ProductImporterModal';
+import { ManualMergeProductsModal } from '../../components/admin/ManualMergeProductsModal';
 import { ProductMediaView } from '../../components/store/ProductMediaView';
 import { useLightbox } from '../../contexts/LightboxContext';
 
@@ -83,6 +84,9 @@ export const AdminCategoriesPage: React.FC = () => {
   const [isAiLoading, setIsAiLoading] = useState(false);
 
   const [isImporterOpen, setIsImporterOpen] = useState(false);
+  const [isManualMergeOpen, setIsManualMergeOpen] = useState(false);
+  const [mergeDefaultCategory, setMergeDefaultCategory] = useState<string>('todos');
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [pendingCategoryMove, setPendingCategoryMove] = useState<{
     product: Product;
     sourceCategory: string;
@@ -534,6 +538,22 @@ export const AdminCategoriesPage: React.FC = () => {
           </Link>
 
           <button
+            onClick={() => {
+              setMergeDefaultCategory(selectedCategoryTab);
+              setIsManualMergeOpen(true);
+            }}
+            className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm"
+            title="Selecionar produtos/poses separadas e transformar em 1 único produto"
+          >
+            <Layers className="w-4 h-4" />
+            <span>
+              {selectedProductIds.length >= 2
+                ? `Agrupar Selecionados (${selectedProductIds.length})`
+                : 'Agrupar em 1 Só Produto'}
+            </span>
+          </button>
+
+          <button
             onClick={() => setIsImporterOpen(true)}
             className="px-4 py-2.5 rounded-xl border border-primary/30 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold flex items-center gap-1.5 transition-colors"
           >
@@ -729,6 +749,21 @@ export const AdminCategoriesPage: React.FC = () => {
 
                 {/* Category Actions */}
                 <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+                  {items.length >= 2 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMergeDefaultCategory(category.name);
+                        setIsManualMergeOpen(true);
+                      }}
+                      className="px-3 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors"
+                      title="Unificar produtos desta categoria que sejam poses da mesma roupa em 1 só produto"
+                    >
+                      <Layers className="w-3.5 h-3.5" />
+                      <span>Agrupar Poses em 1 Só</span>
+                    </button>
+                  )}
+
                   <Link
                     to="/admin/fotos-catalogos"
                     className="p-2 text-primary hover:text-white hover:bg-primary rounded-xl border border-primary/30 transition-colors text-xs flex items-center gap-1 font-semibold"
@@ -801,6 +836,35 @@ export const AdminCategoriesPage: React.FC = () => {
                     <table className="w-full text-left text-xs">
                       <thead className="border-b border-border text-muted-foreground font-semibold">
                         <tr>
+                          <th className="pb-3 pl-2 w-8">
+                            <input
+                              type="checkbox"
+                              checked={
+                                matchingItems.length > 0 &&
+                                matchingItems.every((p) => selectedProductIds.includes(p.id))
+                              }
+                              onChange={() => {
+                                const allChecked = matchingItems.every((p) =>
+                                  selectedProductIds.includes(p.id)
+                                );
+                                if (allChecked) {
+                                  setSelectedProductIds((prev) =>
+                                    prev.filter((id) => !matchingItems.some((p) => p.id === id))
+                                  );
+                                } else {
+                                  setSelectedProductIds((prev) => {
+                                    const next = [...prev];
+                                    matchingItems.forEach((p) => {
+                                      if (!next.includes(p.id)) next.push(p.id);
+                                    });
+                                    return next;
+                                  });
+                                }
+                              }}
+                              title="Selecionar todos os produtos desta categoria"
+                              className="w-4 h-4 accent-primary rounded cursor-pointer"
+                            />
+                          </th>
                           <th className="pb-3 pl-2">Produto & SKU</th>
                           <th className="pb-3">Preço</th>
                           <th className="pb-3">Cores</th>
@@ -815,9 +879,30 @@ export const AdminCategoriesPage: React.FC = () => {
                             (acc, c) => acc + (c || 0),
                             0
                           );
+                          const isChecked = selectedProductIds.includes(prod.id);
 
                           return (
-                            <tr key={prod.id} className="hover:bg-muted/30 transition-colors group">
+                            <tr
+                              key={prod.id}
+                              className={`hover:bg-muted/30 transition-colors group ${
+                                isChecked ? 'bg-primary/5' : ''
+                              }`}
+                            >
+                              <td className="py-3.5 pl-2">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() =>
+                                    setSelectedProductIds((prev) =>
+                                      prev.includes(prod.id)
+                                        ? prev.filter((id) => id !== prod.id)
+                                        : [...prev, prod.id]
+                                    )
+                                  }
+                                  className="w-4 h-4 accent-primary rounded cursor-pointer"
+                                  title="Selecionar produto para agrupar"
+                                />
+                              </td>
                               {/* Product Info & Thumb */}
                               <td className="py-3.5 pl-2">
                                 <div className="flex items-center gap-3">
@@ -1365,6 +1450,23 @@ export const AdminCategoriesPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Manual Merge Products Modal */}
+      <ManualMergeProductsModal
+        isOpen={isManualMergeOpen}
+        onClose={() => setIsManualMergeOpen(false)}
+        initialSelectedIds={selectedProductIds}
+        defaultCategoryFilter={mergeDefaultCategory}
+        onSuccess={(mergedProd, mergedCount) => {
+          setSelectedProductIds([]);
+          setCategories(getStoredCategories());
+          setProducts([...getProducts()]);
+          refreshProducts();
+          showToast(
+            `✓ ${mergedCount} produtos foram agrupados em "${mergedProd.name}" (${mergedProd.images.length} fotos/vídeos no carrossel)!`
+          );
+        }}
+      />
 
       {/* Product Importer Modal */}
       <ProductImporterModal
