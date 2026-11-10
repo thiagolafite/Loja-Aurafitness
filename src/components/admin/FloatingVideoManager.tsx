@@ -113,6 +113,9 @@ export const FloatingVideoManager: React.FC = () => {
 
   const handleOpenCreateModal = () => {
     const firstProd = products[0];
+    const firstImg = firstProd?.images?.[0];
+    const safeFallback =
+      firstImg && !firstImg.startsWith('data:') ? [firstImg] : ['/images/macaco-bless.png'];
     setEditingItem({
       title: firstProd ? firstProd.name : 'Look em Vídeo Aura',
       videoUrl: '',
@@ -120,7 +123,7 @@ export const FloatingVideoManager: React.FC = () => {
       customLink: firstProd ? `/produto/${firstProd.id}` : '/catalogo',
       buttonText: 'Ver Produto',
       badgeText: 'NOVIDADE',
-      fallbackImages: firstProd?.images || ['/images/macaco-bless.png'],
+      fallbackImages: safeFallback,
       active: true,
       order: config.items.length + 1,
     });
@@ -158,18 +161,26 @@ export const FloatingVideoManager: React.FC = () => {
   };
 
   const handleSelectLinkedProduct = (prod: Product) => {
+    const firstImg = prod.images?.[0];
+    const safeFallback =
+      firstImg && !firstImg.startsWith('data:') ? [firstImg] : ['/images/macaco-bless.png'];
     setEditingItem((prev) => ({
       ...prev,
       productId: prod.id,
       title: prod.name,
       customLink: `/produto/${prod.id}`,
-      fallbackImages: prod.images && prod.images.length > 0 ? prod.images : ['/images/macaco-bless.png'],
+      fallbackImages: safeFallback,
     }));
   };
 
   const handleSaveItem = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingItem) return;
+
+    if (!editingItem.videoUrl || !editingItem.videoUrl.trim()) {
+      showToast('Atenção: Por favor envie um vídeo (.mp4 / .mov) antes de salvar.');
+      return;
+    }
 
     const updated = saveFloatingVideoItem(editingItem);
     setConfig(updated);

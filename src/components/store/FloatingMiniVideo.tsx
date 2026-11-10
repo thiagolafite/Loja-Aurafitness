@@ -56,7 +56,17 @@ export const FloatingMiniVideo: React.FC = () => {
     };
   }, []);
 
-  const activeItems = (config.items || []).filter((item) => item.active);
+  const activeItems = useMemo(() => {
+    const raw = (config.items || []).filter((item) => item.active);
+    return [...raw].sort((a, b) => {
+      const aHasVid = Boolean(a.videoUrl && a.videoUrl.trim() && !a.videoUrl.includes('assets.mixkit.co'));
+      const bHasVid = Boolean(b.videoUrl && b.videoUrl.trim() && !b.videoUrl.includes('assets.mixkit.co'));
+      if (aHasVid && !bHasVid) return -1;
+      if (!aHasVid && bHasVid) return 1;
+      return (a.order || 0) - (b.order || 0);
+    });
+  }, [config.items]);
+
   const safeIndex = activeIndex < activeItems.length ? activeIndex : 0;
   const currentItem = activeItems[safeIndex];
 

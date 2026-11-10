@@ -6,6 +6,7 @@ const FLOATING_VIDEO_STORAGE_KEY = 'aura_floating_video_config_v1';
 const CLOUD_VIDEO_MAP_KEY = 'aura_cloud_video_map_v1';
 const IDB_NAME = 'aura_video_storage_db';
 const IDB_STORE = 'videos';
+const IDB_CONFIG_STORE = 'video_config';
 
 function openVideoDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -13,16 +14,51 @@ function openVideoDb(): Promise<IDBDatabase> {
       reject(new Error('IndexedDB não suportado'));
       return;
     }
-    const req = window.indexedDB.open(IDB_NAME, 1);
+    const req = window.indexedDB.open(IDB_NAME, 2);
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains(IDB_STORE)) {
         db.createObjectStore(IDB_STORE);
       }
+      if (!db.objectStoreNames.contains(IDB_CONFIG_STORE)) {
+        db.createObjectStore(IDB_CONFIG_STORE);
+      }
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
+}
+
+export async function saveVideoConfigToIdb(config: FloatingVideoConfig): Promise<void> {
+  try {
+    const db = await openVideoDb();
+    if (!db.objectStoreNames.contains(IDB_CONFIG_STORE)) return;
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(IDB_CONFIG_STORE, 'readwrite');
+      const store = tx.objectStore(IDB_CONFIG_STORE);
+      store.put(config, 'current_config');
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (err) {
+    console.warn('Erro ao salvar video config no IndexedDB:', err);
+  }
+}
+
+export async function loadVideoConfigFromIdb(): Promise<FloatingVideoConfig | null> {
+  try {
+    const db = await openVideoDb();
+    if (!db.objectStoreNames.contains(IDB_CONFIG_STORE)) return null;
+    return await new Promise<FloatingVideoConfig | null>((resolve) => {
+      const tx = db.transaction(IDB_CONFIG_STORE, 'readonly');
+      const store = tx.objectStore(IDB_CONFIG_STORE);
+      const req = store.get('current_config');
+      req.onsuccess = () => resolve((req.result as FloatingVideoConfig) || null);
+      req.onerror = () => resolve(null);
+    });
+  } catch {
+    return null;
+  }
 }
 
 // Cache global compartilhado de ObjectURLs em memória para evitar recriar blobs repetidamente
@@ -338,18 +374,35 @@ function migrateIdbReferencesToCloudUrl(idbRef: string, cloudUrl: string): void 
  */
 export async function preloadAllStoredVideos(): Promise<void> {
   try {
+    // 1. Restaura configuração persistida no IndexedDB caso localStorage esteja vazio ou com menos itens
+    const idbConfig = await loadVideoConfigFromIdb();
+    if (idbConfig && Array.isArray(idbConfig.items) && idbConfig.items.length > 0) {
+      const localRaw = typeof window !== 'undefined' ? localStorage.getItem(FLOATING_VIDEO_STORAGE_KEY) : null;
+      const local = localRaw ? JSON.parse(localRaw) : null;
+      if (!local || !Array.isArray(local.items) || local.items.length < idbConfig.items.length) {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(FLOATING_VIDEO_STORAGE_KEY, JSON.stringify(idbConfig));
+          window.dispatchEvent(
+            new CustomEvent('aura_floating_video_updated', { detail: idbConfig })
+          );
+        }
+      }
+    }
+
     const db = await openVideoDb();
-    const keys = await new Promise<IDBValidKey[]>((resolve, reject) => {
-      const tx = db.transaction(IDB_STORE, 'readonly');
-      const store = tx.objectStore(IDB_STORE);
-      const req = store.getAllKeys();
-      req.onsuccess = () => resolve(req.result || []);
-      req.onerror = () => reject(req.error);
-    });
-    for (const key of keys) {
-      const idbRef = `idb://${String(key)}`;
-      if (!objectUrlCache.has(idbRef)) {
-        await resolvePlayableVideoUrl(idbRef);
+    if (db.objectStoreNames.contains(IDB_STORE)) {
+      const keys = await new Promise<IDBValidKey[]>((resolve, reject) => {
+        const tx = db.transaction(IDB_STORE, 'readonly');
+        const store = tx.objectStore(IDB_STORE);
+        const req = store.getAllKeys();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+      for (const key of keys) {
+        const idbRef = `idb://${String(key)}`;
+        if (!objectUrlCache.has(idbRef)) {
+          await resolvePlayableVideoUrl(idbRef);
+        }
       }
     }
   } catch {
@@ -455,6 +508,22 @@ export function getFloatingVideoConfig(): FloatingVideoConfig {
   return getDefaultFloatingVideoConfig();
 }
 
+function cleanConfigForStorage(config: FloatingVideoConfig): FloatingVideoConfig {
+  return {
+    ...config,
+    items: (config.items || []).map((item) => {
+      // Garante que fallbackImages contenha apenas URLs leves e nunca fotos base64 gigantes que excedem os 5MB do localStorage
+      const cleanFallback = (item.fallbackImages || [])
+        .filter((img) => typeof img === 'string' && !img.startsWith('data:image/') && img.length < 2000)
+        .slice(0, 2);
+      return {
+        ...item,
+        fallbackImages: cleanFallback.length > 0 ? cleanFallback : ['/images/macaco-bless.png'],
+      };
+    }),
+  };
+}
+
 export function syncFloatingVideoConfigFromCloud(cloudConfig?: FloatingVideoConfig): void {
   if (!cloudConfig || typeof cloudConfig !== 'object' || !Array.isArray(cloudConfig.items)) return;
   try {
@@ -472,20 +541,37 @@ export function syncFloatingVideoConfigFromCloud(cloudConfig?: FloatingVideoConf
         });
       }
 
-      // 2. Mescla com itens da nuvem (atualizando URLs públicas HTTPS do Supabase)
-      cloudConfig.items.forEach((it: FloatingVideoItem) => {
-        if (it && it.id) {
-          const existing = mergedItemsMap.get(it.id);
-          const preferCloudUrl = it.videoUrl && it.videoUrl.startsWith('http') && !it.videoUrl.includes('assets.mixkit.co');
-          mergedItemsMap.set(it.id, {
-            ...existing,
-            ...it,
-            videoUrl: preferCloudUrl ? it.videoUrl : (existing?.videoUrl || it.videoUrl),
-          });
+      // 2. Mescla com itens da nuvem sem sobrescrever edições locais recentes
+      cloudConfig.items.forEach((cloudIt: FloatingVideoItem) => {
+        if (cloudIt && cloudIt.id) {
+          const localIt = mergedItemsMap.get(cloudIt.id);
+          if (localIt) {
+            const preferCloudUrl =
+              cloudIt.videoUrl &&
+              cloudIt.videoUrl.startsWith('http') &&
+              !cloudIt.videoUrl.includes('assets.mixkit.co');
+            mergedItemsMap.set(cloudIt.id, {
+              ...cloudIt,
+              ...localIt,
+              videoUrl: preferCloudUrl ? cloudIt.videoUrl : (localIt.videoUrl || cloudIt.videoUrl),
+            });
+          } else {
+            mergedItemsMap.set(cloudIt.id, cloudIt);
+          }
         }
       });
 
-      const mergedItems = Array.from(mergedItemsMap.values());
+      // Se houver qualquer vídeo real cadastrado, remove o placeholder inicial vazio (fvid-default-1)
+      let mergedItems = Array.from(mergedItemsMap.values());
+      const hasRealVideo = mergedItems.some(
+        (it) => it.id !== 'fvid-default-1' && Boolean(it.videoUrl && it.videoUrl.trim())
+      );
+      if (hasRealVideo) {
+        mergedItems = mergedItems.filter(
+          (it) => it.id !== 'fvid-default-1' || Boolean(it.videoUrl && it.videoUrl.trim())
+        );
+      }
+
       const updatedConfig: FloatingVideoConfig = {
         ...getDefaultFloatingVideoConfig(),
         ...cloudConfig,
@@ -493,9 +579,13 @@ export function syncFloatingVideoConfigFromCloud(cloudConfig?: FloatingVideoConf
         items: mergedItems.length > 0 ? mergedItems : cloudConfig.items,
       };
 
-      localStorage.setItem(FLOATING_VIDEO_STORAGE_KEY, JSON.stringify(updatedConfig));
+      const cleanConfig = cleanConfigForStorage(updatedConfig);
+      try {
+        localStorage.setItem(FLOATING_VIDEO_STORAGE_KEY, JSON.stringify(cleanConfig));
+      } catch {}
+      saveVideoConfigToIdb(cleanConfig);
       window.dispatchEvent(
-        new CustomEvent('aura_floating_video_updated', { detail: updatedConfig })
+        new CustomEvent('aura_floating_video_updated', { detail: cleanConfig })
       );
     }
   } catch (err) {
@@ -504,43 +594,102 @@ export function syncFloatingVideoConfigFromCloud(cloudConfig?: FloatingVideoConf
 }
 
 export function saveFloatingVideoConfig(config: FloatingVideoConfig): FloatingVideoConfig {
+  const cleanConfig = cleanConfigForStorage(config);
+
   try {
     if (typeof window !== 'undefined') {
-      localStorage.setItem(FLOATING_VIDEO_STORAGE_KEY, JSON.stringify(config));
+      try {
+        localStorage.setItem(FLOATING_VIDEO_STORAGE_KEY, JSON.stringify(cleanConfig));
+      } catch (storageErr) {
+        console.warn('LocalStorage cheio, liberando caches auxiliares para salvar mini-vídeo:', storageErr);
+        try {
+          localStorage.removeItem('aura_updated_products_v1');
+          localStorage.setItem(FLOATING_VIDEO_STORAGE_KEY, JSON.stringify(cleanConfig));
+        } catch {}
+      }
+
+      // Salva de forma garantida no IndexedDB (onde não há limite de 5MB)
+      saveVideoConfigToIdb(cleanConfig);
+
+      // Dispara evento imediato para atualizar a UI em tempo real
       window.dispatchEvent(
-        new CustomEvent('aura_floating_video_updated', { detail: config })
+        new CustomEvent('aura_floating_video_updated', { detail: cleanConfig })
       );
 
-      // Sincroniza com o Supabase (store_settings.seo.floatingVideoConfig) para funcionar no Smartphone
+      // Sincroniza diretamente com o Supabase (store_settings.seo.floatingVideoConfig)
+      if (isSupabaseConfigured()) {
+        (async () => {
+          try {
+            const { data } = await supabase
+              .from('store_settings')
+              .select('seo')
+              .eq('id', 'default')
+              .maybeSingle();
+            const currentSeo =
+              data?.seo && typeof data.seo === 'object' ? data.seo : {};
+            const updatedSeo = {
+              ...currentSeo,
+              floatingVideoConfig: cleanConfig,
+              updatedAt: new Date().toISOString(),
+            };
+            await supabase
+              .from('store_settings')
+              .update({ seo: updatedSeo, updated_at: new Date().toISOString() })
+              .eq('id', 'default');
+          } catch {}
+        })();
+      }
+
+      // E tenta também o endpoint serverless /api/sync-store
       fetch('/api/sync-store', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'update_store_extra',
-          payload: { seoPatch: { floatingVideoConfig: config } },
+          payload: { seoPatch: { floatingVideoConfig: cleanConfig } },
         }),
       }).catch(() => {});
     }
   } catch (err) {
     console.error('Erro ao salvar configuração do mini-vídeo flutuante:', err);
   }
-  return config;
+  return cleanConfig;
 }
 
 export function saveFloatingVideoItem(item: Partial<FloatingVideoItem>): FloatingVideoConfig {
   const current = getFloatingVideoConfig();
-  const items = [...current.items];
+  let items = [...current.items];
+
+  // Se a lista só possui o placeholder inicial sem vídeo, substitui diretamente pelo novo vídeo do usuário
+  if (
+    items.length === 1 &&
+    items[0].id === 'fvid-default-1' &&
+    (!items[0].videoUrl || !items[0].videoUrl.trim()) &&
+    !item.id
+  ) {
+    items = [];
+  }
+
+  // Limpa fallbackImages para conter apenas referências seguras
+  const cleanFallback = (item.fallbackImages || [])
+    .filter((img) => typeof img === 'string' && !img.startsWith('data:') && img.length < 2000)
+    .slice(0, 2);
+  const safeFallback = cleanFallback.length > 0 ? cleanFallback : ['/images/macaco-bless.png'];
 
   if (item.id) {
     const idx = items.findIndex((i) => i.id === item.id);
     if (idx !== -1) {
-      items[idx] = { ...items[idx], ...item } as FloatingVideoItem;
+      items[idx] = {
+        ...items[idx],
+        ...item,
+        fallbackImages: safeFallback,
+      } as FloatingVideoItem;
     } else {
       items.push({
         id: item.id,
         title: item.title || 'Vídeo Destaque Aura',
         videoUrl: item.videoUrl || '',
-        fallbackImages: item.fallbackImages || ['/images/macaco-bless.png'],
+        fallbackImages: safeFallback,
         productId: item.productId,
         customLink: item.customLink || '/catalogo',
         buttonText: item.buttonText || 'Ver Produto',
@@ -554,7 +703,7 @@ export function saveFloatingVideoItem(item: Partial<FloatingVideoItem>): Floatin
       id: `fvid-${Date.now()}`,
       title: item.title || 'Vídeo Destaque Aura',
       videoUrl: item.videoUrl || '',
-      fallbackImages: item.fallbackImages || ['/images/macaco-bless.png'],
+      fallbackImages: safeFallback,
       productId: item.productId,
       customLink: item.customLink || '/catalogo',
       buttonText: item.buttonText || 'Ver Produto',
