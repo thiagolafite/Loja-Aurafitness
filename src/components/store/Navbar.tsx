@@ -269,10 +269,10 @@ export const Navbar: React.FC = () => {
         </div>
 
         {/* Sub-Navigation Row (Lower Header Bar) with Categories Mega-Menu */}
-        <nav className="bg-gradient-to-r from-[#1b482a] via-[#225734] to-[#1b482a] text-white hidden lg:flex items-center justify-center gap-7 py-2.5 px-4 text-xs font-semibold uppercase tracking-wider border-t border-white/10 shadow-sm">
+        <nav className="bg-[#ECF2E9] text-[#164024] hidden lg:flex items-center justify-center gap-7 py-2.5 px-4 text-xs font-semibold uppercase tracking-wider border-t border-[#164024]/10 shadow-sm">
           <Link
             to="/"
-            className="hover:text-amber-200 transition-colors py-0.5 relative hover:after:w-full after:w-0 after:h-0.5 after:bg-amber-200 after:absolute after:bottom-0 after:left-0 after:transition-all"
+            className="hover:text-emerald-700 transition-colors py-0.5 relative hover:after:w-full after:w-0 after:h-0.5 after:bg-emerald-700 after:absolute after:bottom-0 after:left-0 after:transition-all"
           >
             HOME
           </Link>
@@ -287,12 +287,12 @@ export const Navbar: React.FC = () => {
               onClick={() => {
                 navigate('/catalogo');
               }}
-              className="flex items-center gap-1.5 hover:text-amber-200 transition-colors py-0.5 text-xs font-semibold uppercase tracking-wider relative group"
+              className="flex items-center gap-1.5 hover:text-emerald-700 transition-colors py-0.5 text-xs font-semibold uppercase tracking-wider relative group"
             >
-              <span className="text-amber-300 font-bold">CATEGORIAS</span>
+              <span className="text-[#164024] font-extrabold">CATEGORIAS</span>
               <ChevronDown
                 className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                  isCategoriesDropdownOpen ? 'rotate-180 text-amber-200' : 'text-amber-200/70'
+                  isCategoriesDropdownOpen ? 'rotate-180 text-emerald-700' : 'text-[#164024]/70'
                 }`}
               />
             </button>
@@ -394,7 +394,7 @@ export const Navbar: React.FC = () => {
               <Link
                 key={sec.id}
                 to={`/catalogo?secao=${encodeURIComponent(sec.slug)}`}
-                className="hover:text-white text-amber-300 font-bold transition-all py-0.5 relative flex items-center gap-1.5 group"
+                className="hover:text-emerald-700 text-[#164024] font-bold transition-all py-0.5 relative flex items-center gap-1.5 group"
               >
                 <span>{sec.name}</span>
                 {sec.badge && (
@@ -409,7 +409,7 @@ export const Navbar: React.FC = () => {
             <Link
               key={link.name}
               to={link.path}
-              className="hover:text-amber-200 transition-colors py-0.5 relative hover:after:w-full after:w-0 after:h-0.5 after:bg-amber-200 after:absolute after:bottom-0 after:left-0 after:transition-all"
+              className="hover:text-emerald-700 transition-colors py-0.5 relative hover:after:w-full after:w-0 after:h-0.5 after:bg-emerald-700 after:absolute after:bottom-0 after:left-0 after:transition-all"
             >
               {link.name}
             </Link>
