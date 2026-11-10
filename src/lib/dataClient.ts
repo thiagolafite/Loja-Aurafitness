@@ -348,6 +348,50 @@ function ensureCategoryIsActive(categoryName?: string): void {
   }
 }
 
+// Produtos demo ou excluídos permanentemente que nunca devem retornar
+const PERMANENT_EXCLUDED_PRODUCT_NAMES = new Set([
+  'conjunto style black',
+  'legging high waist nude',
+]);
+
+const PERMANENT_EXCLUDED_PRODUCT_SKUS = new Set([
+  'aur-sty-blk',
+  'aur-leg-nud',
+]);
+
+export function isProductPermanentlyExcluded(prod: { id?: string; name?: string; sku?: string }): boolean {
+  if (!prod) return false;
+  if (prod.id && (prod.id === 'prod-1' || prod.id === 'prod-6')) return true;
+  if (prod.name && PERMANENT_EXCLUDED_PRODUCT_NAMES.has(prod.name.toLowerCase().trim())) return true;
+  if (prod.sku) {
+    const s = prod.sku.toLowerCase().trim();
+    if (
+      PERMANENT_EXCLUDED_PRODUCT_SKUS.has(s) ||
+      s.startsWith('aur-sty-blk') ||
+      s.startsWith('aur-leg-nud')
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function isProductDeleted(
+  prod: { id?: string; name?: string; sku?: string },
+  deletedIds: Set<string>,
+  deletedNames: Set<string>,
+  deletedSkus: Set<string>
+): boolean {
+  if (isProductPermanentlyExcluded(prod)) return true;
+  if (prod.id && deletedIds.has(prod.id)) return true;
+  if (prod.name && deletedNames.has(prod.name.toLowerCase().trim())) return true;
+  if (prod.sku) {
+    const s = prod.sku.toLowerCase().trim();
+    if (deletedSkus.has(s) || deletedSkus.has(s.replace(/-\d+$/, ''))) return true;
+  }
+  return false;
+}
+
 // In-memory cache for synchronous reads with background Supabase sync
 let cachedProducts: Product[] = (() => {
   // Limpa sempre fotos base64 duplicadas dentro de aura_updated_products_v1 para liberar espaço no localStorage
@@ -370,12 +414,26 @@ let cachedProducts: Product[] = (() => {
     }
   }
 
+  const deletedSet = new Set(getStorageItem<string[]>('aura_deleted_product_ids_v1', []));
+  const deletedNamesSet = new Set(getStorageItem<string[]>('aura_deleted_product_names_v1', []));
+  const deletedSkusSet = new Set(getStorageItem<string[]>('aura_deleted_product_skus_v1', []));
+
+  // Adiciona permanentemente aos tombstones para sincronizar entre abas
+  deletedSet.add('prod-1');
+  deletedSet.add('prod-6');
+  deletedNamesSet.add('conjunto style black');
+  deletedNamesSet.add('legging high waist nude');
+  deletedSkusSet.add('aur-sty-blk');
+  deletedSkusSet.add('aur-leg-nud');
+
   const rawList = getStorageItem<Product[]>(STORAGE_KEYS.PRODUCTS, initialProducts);
-  const normalized = rawList.map((p) => normalizeProductData(p));
+  const cleanList = rawList.filter(
+    (p) => !isProductDeleted(p, deletedSet, deletedNamesSet, deletedSkusSet)
+  );
+  const normalized = cleanList.map((p) => normalizeProductData(p));
   const { consolidated, absorbedIds } = consolidateDuplicateProducts(normalized);
 
   if (absorbedIds.length > 0 && typeof window !== 'undefined') {
-    const deletedSet = new Set(getStorageItem<string[]>('aura_deleted_product_ids_v1', []));
     absorbedIds.forEach((id) => deletedSet.add(id));
     setStorageItem('aura_deleted_product_ids_v1', Array.from(deletedSet));
     setStorageItem(STORAGE_KEYS.PRODUCTS, consolidated);
@@ -417,6 +475,15 @@ export async function syncWithSupabase(): Promise<void> {
 
     if (!prodsError && prods) {
       const deletedSet = new Set(getStorageItem<string[]>('aura_deleted_product_ids_v1', []));
+      const deletedNamesSet = new Set(getStorageItem<string[]>('aura_deleted_product_names_v1', []));
+      const deletedSkusSet = new Set(getStorageItem<string[]>('aura_deleted_product_skus_v1', []));
+      deletedSet.add('prod-1');
+      deletedSet.add('prod-6');
+      deletedNamesSet.add('conjunto style black');
+      deletedNamesSet.add('legging high waist nude');
+      deletedSkusSet.add('aur-sty-blk');
+      deletedSkusSet.add('aur-leg-nud');
+
       const localOverrides = getStorageItem<Record<string, Partial<Product>>>(
         'aura_updated_products_v1',
         {}
@@ -481,12 +548,14 @@ export async function syncWithSupabase(): Promise<void> {
       });
 
       // Apenas produtos que não foram excluídos pelo usuário
-      const cleanDbProducts = dbProducts.filter((p) => !deletedSet.has(p.id));
+      const cleanDbProducts = dbProducts.filter(
+        (p) => !isProductDeleted(p, deletedSet, deletedNamesSet, deletedSkusSet)
+      );
 
       // Preserva itens locais criados/importados que ainda não constam no banco remoto
       const pendingLocalProducts = cachedProducts.filter(
         (p) =>
-          !deletedSet.has(p.id) &&
+          !isProductDeleted(p, deletedSet, deletedNamesSet, deletedSkusSet) &&
           !cleanDbProducts.some(
             (db) =>
               db.id === p.id ||
@@ -703,7 +772,11 @@ loadProductsFromIDB()
   .then((idbProducts) => {
     if (idbProducts && idbProducts.length > 0) {
       const deletedSet = new Set(getStorageItem<string[]>('aura_deleted_product_ids_v1', []));
-      const validIdb = idbProducts.filter((p) => !deletedSet.has(p.id));
+      const deletedNamesSet = new Set(getStorageItem<string[]>('aura_deleted_product_names_v1', []));
+      const deletedSkusSet = new Set(getStorageItem<string[]>('aura_deleted_product_skus_v1', []));
+      const validIdb = idbProducts.filter(
+        (p) => !isProductDeleted(p, deletedSet, deletedNamesSet, deletedSkusSet)
+      );
       if (validIdb.length >= cachedProducts.length) {
         const activeCats = getStoredCategories();
         cachedProducts = validIdb.map((p) => normalizeProductData(p, activeCats));
@@ -1085,16 +1158,24 @@ export async function saveAllProductsAsync(products: Product[], removedIds: stri
 export async function bulkDeleteProductsAsync(ids: string[]): Promise<void> {
   if (!ids || ids.length === 0) return;
 
-  const deletedNames = new Set(
-    cachedProducts
-      .filter((p) => ids.includes(p.id))
-      .map((p) => p.name.toLowerCase().trim())
-  );
+  const toDelete = cachedProducts.filter((p) => ids.includes(p.id));
+  const deletedNamesList = toDelete.map((p) => p.name.trim()).filter(Boolean);
+  const deletedNamesLower = new Set(deletedNamesList.map((n) => n.toLowerCase()));
+  const deletedSkusList = toDelete.map((p) => p.sku?.trim()).filter(Boolean) as string[];
+  const deletedSkusLower = new Set(deletedSkusList.map((s) => s.toLowerCase()));
 
-  // 1. Marca no histórico de exclusões para nunca reviver
+  // 1. Marca no histórico de exclusões para nunca reviver (por ID, Nome e SKU)
   const deletedSet = new Set(getStorageItem<string[]>('aura_deleted_product_ids_v1', []));
+  const deletedNamesSet = new Set(getStorageItem<string[]>('aura_deleted_product_names_v1', []));
+  const deletedSkusSet = new Set(getStorageItem<string[]>('aura_deleted_product_skus_v1', []));
+
   ids.forEach((id) => deletedSet.add(id));
+  deletedNamesLower.forEach((n) => deletedNamesSet.add(n));
+  deletedSkusLower.forEach((s) => deletedSkusSet.add(s));
+
   setStorageItem('aura_deleted_product_ids_v1', Array.from(deletedSet));
+  setStorageItem('aura_deleted_product_names_v1', Array.from(deletedNamesSet));
+  setStorageItem('aura_deleted_product_skus_v1', Array.from(deletedSkusSet));
 
   // Limpa overrides de produtos excluídos
   const localOverrides = getStorageItem<Record<string, Partial<Product>>>(
@@ -1120,7 +1201,7 @@ export async function bulkDeleteProductsAsync(ids: string[]): Promise<void> {
       const r = reg[k];
       if (
         (r.targetProductId && ids.includes(r.targetProductId)) ||
-        (r.targetProductName && deletedNames.has(r.targetProductName.toLowerCase().trim()))
+        (r.targetProductName && deletedNamesLower.has(r.targetProductName.toLowerCase().trim()))
       ) {
         delete reg[k];
         regChanged = true;
@@ -1134,7 +1215,9 @@ export async function bulkDeleteProductsAsync(ids: string[]): Promise<void> {
   }
 
   // 2. Remove do cache local e localStorage imediatamente
-  cachedProducts = cachedProducts.filter((p) => !ids.includes(p.id));
+  cachedProducts = cachedProducts.filter(
+    (p) => !isProductDeleted(p, deletedSet, deletedNamesSet, deletedSkusSet)
+  );
   saveProductsToStorage(cachedProducts);
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('aura_products_updated', { detail: cachedProducts }));
@@ -1144,6 +1227,12 @@ export async function bulkDeleteProductsAsync(ids: string[]): Promise<void> {
   if (isSupabaseConfigured()) {
     try {
       await supabase.from('products').delete().in('id', ids);
+      if (deletedNamesList.length > 0) {
+        await supabase.from('products').delete().in('name', deletedNamesList);
+      }
+      if (deletedSkusList.length > 0) {
+        await supabase.from('products').delete().in('sku', deletedSkusList);
+      }
     } catch (e) {
       console.error('Exceção ao excluir produtos do Supabase:', e);
     }
@@ -1154,7 +1243,11 @@ export async function bulkDeleteProductsAsync(ids: string[]): Promise<void> {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             action: 'delete_products',
-            payload: { ids },
+            payload: {
+              ids,
+              names: deletedNamesList,
+              skus: deletedSkusList,
+            },
           }),
         });
       } catch (e) {

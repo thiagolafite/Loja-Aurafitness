@@ -2,46 +2,6 @@ import { Product, BlogPost, Review, Coupon, Promotion, LookSet, StoreSettings, O
 
 export const initialProducts: Product[] = [
   {
-    id: 'prod-1',
-    name: 'Conjunto Style Black',
-    slug: 'conjunto-style-black',
-    description: 'Conjunto Top + Legging de alta sustentação na cor preta.',
-    fullDescription: 'O Conjunto Style Black é o favorito das nossas clientes. Confeccionado em malha premium com alta compressão, toque aveludado e zero transparência.',
-    category: 'CONJUNTOS',
-    price: 349.90,
-    promotionalPrice: 289.90,
-    sku: 'AUR-STY-BLK',
-    barcode: '7891234560101',
-    weight: 420,
-    brand: 'Aura Fitness',
-    images: [
-      '/images/look-3103.png',
-      '/images/look-3214.png'
-    ],
-    sizes: ['PP', 'P', 'M', 'G', 'GG'],
-    colors: [
-      { name: 'Preto', hex: '#111111' },
-      { name: 'Verde Oliva', hex: '#2b5022' }
-    ],
-    materials: ['86% Poliamida', '14% Elastano'],
-    stock: {
-      'P-Preto': 15, 'M-Preto': 20, 'G-Preto': 12,
-      'P-Verde Oliva': 10, 'M-Verde Oliva': 14
-    },
-    isFeatured: true,
-    isNewArrival: true,
-    isBestSeller: true,
-    isActive: true,
-    rating: 5.0,
-    reviewCount: 48,
-    seo: {
-      title: 'Conjunto Style Black | Aura Fitness',
-      description: 'Conjunto top e legging preto com compressão firme.',
-      keywords: ['conjunto fitness', 'moda fitness']
-    },
-    createdAt: '2026-07-01T10:00:00Z'
-  },
-  {
     id: 'prod-2',
     name: 'Macaquinho Bless Black',
     slug: 'macaquinho-bless-black',
@@ -192,53 +152,15 @@ export const initialProducts: Product[] = [
       keywords: ['top fitness', 'top verde oliva']
     },
     createdAt: '2026-07-05T15:00:00Z'
-  },
-  {
-    id: 'prod-6',
-    name: 'Legging High Waist Nude',
-    slug: 'legging-high-waist-nude',
-    description: 'Legging cós alto modeladora em tom nude aveludado.',
-    fullDescription: 'Legging de compressão nobre com toque macio e zero transparência.',
-    category: 'LEGGINGS',
-    price: 229.00,
-    promotionalPrice: 189.90,
-    sku: 'AUR-LEG-NUD',
-    barcode: '7891234560106',
-    weight: 290,
-    brand: 'Aura Fitness',
-    images: [
-      '/images/look-3656.png',
-      '/images/look-3214.png'
-    ],
-    sizes: ['PP', 'P', 'M', 'G', 'GG'],
-    colors: [
-      { name: 'Nude', hex: '#D2B48C' }
-    ],
-    materials: ['86% Poliamida', '14% Elastano'],
-    stock: {
-      'P-Nude': 11, 'M-Nude': 16, 'G-Nude': 7
-    },
-    isFeatured: true,
-    isNewArrival: true,
-    isBestSeller: true,
-    isActive: true,
-    rating: 4.8,
-    reviewCount: 37,
-    seo: {
-      title: 'Legging High Waist Nude | Aura Fitness',
-      description: 'Legging nude de alta sustentação.',
-      keywords: ['legging nude', 'legging fitness']
-    },
-    createdAt: '2026-07-06T16:00:00Z'
   }
 ];
 
 export const initialReviews: Review[] = [
   {
     id: 'rev-1',
-    productId: 'prod-1',
-    productName: 'Conjunto Style Black',
-    productImage: '/images/look-3103.png',
+    productId: 'prod-2',
+    productName: 'Macaquinho Bless Black',
+    productImage: '/images/macaco-bless.png',
     customerName: 'Camila Rodrigues',
     customerEmail: 'camila.r@gmail.com',
     rating: 5,
