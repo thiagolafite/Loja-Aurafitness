@@ -96,21 +96,30 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
   // Categories
   const [categories, setCategories] = useState<AvailableCategory[]>(() => getStoredCategories());
 
-  useEffect(() => {
-    setCategories(getStoredCategories());
-    const handleCats = () => setCategories(getStoredCategories());
-    window.addEventListener('aura_categories_updated', handleCats);
-    window.addEventListener('storage', handleCats);
-    return () => {
-      window.removeEventListener('aura_categories_updated', handleCats);
-      window.removeEventListener('storage', handleCats);
-    };
-  }, []);
-
   // Image Import State
   const [selectedDefaultCategory, setSelectedDefaultCategory] = useState<string>(
-    () => getStoredCategories()[0]?.name || 'Leggings'
+    () => getStoredCategories()[0]?.name || 'Conjuntos'
   );
+
+  useEffect(() => {
+    const syncCats = () => {
+      const latest = getStoredCategories();
+      setCategories(latest);
+      setSelectedDefaultCategory((prev) =>
+        latest.some((c) => c.name.toLowerCase() === prev.toLowerCase())
+          ? prev
+          : latest[0]?.name || 'Conjuntos'
+      );
+    };
+    syncCats();
+    window.addEventListener('aura_categories_updated', syncCats);
+    window.addEventListener('storage', syncCats);
+    return () => {
+      window.removeEventListener('aura_categories_updated', syncCats);
+      window.removeEventListener('storage', syncCats);
+    };
+  }, [isOpen]);
+
   const [groupedProducts, setGroupedProducts] = useState<GroupedProductItem[]>([]);
   const [isProcessingImages, setIsProcessingImages] = useState<boolean>(false);
   const [processingProgress, setProcessingProgress] = useState<{ current: number; total: number }>({
@@ -121,6 +130,7 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
 
   // Deduplication & Smart Batch State
   const [ignoreAlreadyImported, setIgnoreAlreadyImported] = useState<boolean>(true);
+  const [mergeIntoExistingCatalog, setMergeIntoExistingCatalog] = useState<boolean>(false);
   const [importStats, setImportStats] = useState<{
     totalScanned: number;
     alreadyImported: number;
@@ -290,7 +300,11 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
   };
 
   // Image Processing & Compression Handler (Folder or Multiple Files)
-  const processImageFiles = async (files: FileList | File[] | null, forceReimport = false) => {
+  const processImageFiles = async (
+    files: FileList | File[] | null,
+    forceReimport = false,
+    forceNewProduct = false
+  ) => {
     if (!files || files.length === 0) return;
 
     const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
@@ -299,12 +313,19 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
     setLastSelectedFiles(imageFiles);
     setIsProcessingImages(true);
     setAllAlreadyImported(false);
+    setIsSuccess(false);
     setProcessingProgress({ current: 0, total: imageFiles.length });
 
     const registry = getImportedFilesRegistry();
     const existingStoreProducts = getProducts();
+    const activeCats = getStoredCategories();
+    const validDefaultCat =
+      activeCats.find((c) => c.name.toLowerCase() === selectedDefaultCategory.toLowerCase())
+        ?.name ||
+      activeCats[0]?.name ||
+      'Conjuntos';
 
-    // 1. Identificação precisa de imagens novas vs imagens já importadas
+    // 1. Identificação precisa de imagens novas vs imagens já importadas (validando se o produto ainda existe na loja)
     const existingFiles: File[] = [];
     const newFiles: File[] = [];
 
@@ -322,8 +343,8 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
 
     setImportStats({
       totalScanned: imageFiles.length,
-      alreadyImported: existingFiles.length,
-      newFiles: newFiles.length,
+      alreadyImported: shouldIgnore ? existingFiles.length : 0,
+      newFiles: filesToProcess.length,
       existingProductsUpdated: 0,
       newProductsCreated: 0,
     });
@@ -334,26 +355,32 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
       return;
     }
 
-    // Mapa para agrupar produtos pelo padrão do modelo
+    // Mapa para agrupar produtos pelo padrão do modelo dentro do lote atual
     const productMap = new Map<string, GroupedProductItem>();
     const recordsToRegister: ImportedFileRecord[] = [];
+    const shouldMergeExisting = mergeIntoExistingCatalog && !forceNewProduct;
 
     for (let i = 0; i < filesToProcess.length; i++) {
       const file = filesToProcess[i];
       setProcessingProgress({ current: i + 1, total: filesToProcess.length });
 
       try {
-        const compressedDataUrl = await resizeImageFile(file, 1200, 1200, 0.82);
+        const compressedDataUrl = await resizeImageFile(file, 900, 900, 0.78);
         if (!compressedDataUrl) continue;
 
         const relPath = file.webkitRelativePath || file.name;
-        const parsed = parseProductFromFolderOrFile(relPath, file.name, selectedDefaultCategory);
+        const parsed = parseProductFromFolderOrFile(relPath, file.name, validDefaultCat);
+        const validCategory =
+          activeCats.find((c) => c.name.toLowerCase() === parsed.category.toLowerCase())?.name ||
+          validDefaultCat;
 
-        // Verifica se o modelo já existe no catálogo da loja
-        const storeMatch = existingStoreProducts.find((p) => {
-          const matchKey = cleanModelName(p.name).groupKey;
-          return matchKey === parsed.groupKey || normalizeText(p.name) === parsed.groupKey;
-        });
+        // Só mescla em produto existente se a opção de mesclagem estiver ativa
+        const storeMatch = shouldMergeExisting
+          ? existingStoreProducts.find((p) => {
+              const matchKey = cleanModelName(p.name).groupKey;
+              return matchKey === parsed.groupKey || normalizeText(p.name) === parsed.groupKey;
+            })
+          : undefined;
 
         const sig = generateFileSignature(file);
         recordsToRegister.push({
@@ -380,7 +407,6 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
             }
           });
         } else {
-          // Se o produto já existe no catálogo, adiciona a foto ao carrossel dele
           const initialImages = storeMatch ? [...(storeMatch.images || [])] : [];
           let isNewImg = true;
           if (initialImages.includes(compressedDataUrl)) {
@@ -393,11 +419,14 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
             id: storeMatch?.id,
             groupKey: parsed.groupKey,
             name: storeMatch ? storeMatch.name : parsed.productName,
-            category: storeMatch ? storeMatch.category : parsed.category,
+            category: storeMatch ? storeMatch.category : validCategory,
             price: storeMatch ? storeMatch.price : parsed.price,
             promotionalPrice: storeMatch?.promotionalPrice,
             size: parsed.size || storeMatch?.sizes?.[0],
-            colors: storeMatch && storeMatch.colors && storeMatch.colors.length > 0 ? storeMatch.colors : parsed.colors,
+            colors:
+              storeMatch && storeMatch.colors && storeMatch.colors.length > 0
+                ? storeMatch.colors
+                : parsed.colors,
             isSet: parsed.isSet,
             images: initialImages,
             isExisting: !!storeMatch,
@@ -431,13 +460,21 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
 
   const handleForceReimportAll = () => {
     if (lastSelectedFiles.length === 0) return;
-    processImageFiles(lastSelectedFiles, true);
+    processImageFiles(lastSelectedFiles, true, true);
   };
 
   const handleUpdateGroupedProduct = (index: number, updates: Partial<GroupedProductItem>) => {
     setGroupedProducts((prev) => {
       const copy = [...prev];
-      copy[index] = { ...copy[index], ...updates };
+      const current = copy[index];
+      const nextItem = { ...current, ...updates };
+      // Se o administrador alterou o nome manualmente, garante que seja salvo como o produto desejado
+      if (updates.name !== undefined && updates.name.trim() !== current.name.trim() && current.isExisting) {
+        nextItem.id = undefined;
+        nextItem.isExisting = false;
+        nextItem.existingSku = undefined;
+      }
+      copy[index] = nextItem;
       return copy;
     });
   };
@@ -748,19 +785,34 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
                       </h4>
                     </div>
 
-                    {/* Toggle Anti-Duplicação */}
-                    <label className="flex items-center gap-2 cursor-pointer bg-card px-3 py-1.5 rounded-xl border border-border text-xs text-foreground font-semibold shadow-sm self-start sm:self-auto">
-                      <input
-                        type="checkbox"
-                        checked={ignoreAlreadyImported}
-                        onChange={(e) => setIgnoreAlreadyImported(e.target.checked)}
-                        className="rounded text-primary focus:ring-0"
-                      />
-                      <span className="flex items-center gap-1 text-[11px]">
-                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>Evitar duplicatas ao selecionar as mesmas pastas</span>
-                      </span>
-                    </label>
+                    {/* Toggles Anti-Duplicação & Modo de Inclusão */}
+                    <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                      <label className="flex items-center gap-2 cursor-pointer bg-card px-3 py-1.5 rounded-xl border border-border text-xs text-foreground font-semibold shadow-sm">
+                        <input
+                          type="checkbox"
+                          checked={ignoreAlreadyImported}
+                          onChange={(e) => setIgnoreAlreadyImported(e.target.checked)}
+                          className="rounded text-primary focus:ring-0"
+                        />
+                        <span className="flex items-center gap-1 text-[11px]">
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Evitar duplicatas já importadas</span>
+                        </span>
+                      </label>
+
+                      <label className="flex items-center gap-2 cursor-pointer bg-card px-3 py-1.5 rounded-xl border border-border text-xs text-foreground font-semibold shadow-sm">
+                        <input
+                          type="checkbox"
+                          checked={mergeIntoExistingCatalog}
+                          onChange={(e) => setMergeIntoExistingCatalog(e.target.checked)}
+                          className="rounded text-primary focus:ring-0"
+                        />
+                        <span className="flex items-center gap-1 text-[11px]">
+                          <RefreshCw className="w-3.5 h-3.5 text-blue-600" />
+                          <span>Mesclar em produtos existentes de mesmo nome</span>
+                        </span>
+                      </label>
+                    </div>
                   </div>
 
                   <p className="text-xs text-muted-foreground leading-relaxed">
@@ -941,16 +993,31 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
 
                             <div className="space-y-1">
                               {/* Status Badge */}
-                              <div>
+                              <div className="flex items-center gap-2 flex-wrap">
                                 {prod.isExisting ? (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-500/15 border border-blue-500/30 text-blue-700 dark:text-blue-300 text-[10px] font-bold">
-                                    <RefreshCw className="w-3 h-3" />
-                                    <span>Atualizar no Catálogo (+{prod.newImagesCount || 0} novas fotos)</span>
-                                  </span>
+                                  <>
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-500/15 border border-blue-500/30 text-blue-700 dark:text-blue-300 text-[10px] font-bold">
+                                      <RefreshCw className="w-3 h-3" />
+                                      <span>Atualizar no Catálogo (+{prod.newImagesCount || 0} novas fotos)</span>
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleUpdateGroupedProduct(idx, {
+                                          id: undefined,
+                                          isExisting: false,
+                                          existingSku: undefined,
+                                        })
+                                      }
+                                      className="text-[10px] font-bold text-emerald-600 hover:underline"
+                                    >
+                                      Criar como Novo Produto
+                                    </button>
+                                  </>
                                 ) : (
                                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
                                     <Sparkles className="w-3 h-3 text-amber-500" />
-                                    <span>Novo Modelo ({prod.images.length} fotos agrupadas)</span>
+                                    <span>Novo Produto ({prod.images.length} foto{prod.images.length > 1 ? 's' : ''})</span>
                                   </span>
                                 )}
                               </div>

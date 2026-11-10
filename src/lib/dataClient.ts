@@ -33,6 +33,10 @@ import {
   getEffectiveProductColors,
   getProductSizes,
   getStoredCategories,
+  saveNewCategory,
+  getImportedFilesRegistry,
+  saveImportedFilesRegistry,
+  IMPORTED_FILES_REGISTRY_KEY,
 } from './productClassifier';
 
 function normalizeProductData(p: Product, _activeCategories = getStoredCategories()): Product {
@@ -164,6 +168,68 @@ function setStorageItem<T>(key: string, value: T): void {
   }
 }
 
+function saveProductsToStorage(products: Product[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
+    return;
+  } catch {
+    // QuotaExceededError: libera cache auxiliar e reduz apenas fotos secundárias base64 no localStorage
+  }
+
+  try {
+    localStorage.removeItem('aura_updated_products_v1');
+    localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
+    return;
+  } catch {
+    // Continua para otimização gradual de fotos base64 no localStorage
+  }
+
+  for (const maxImages of [2, 1]) {
+    try {
+      const slimmed = products.map((p) => ({
+        ...p,
+        images:
+          Array.isArray(p.images) && p.images.length > maxImages
+            ? p.images.slice(0, maxImages)
+            : p.images,
+      }));
+      localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(slimmed));
+      return;
+    } catch {
+      // Tenta o próximo nível
+    }
+  }
+
+  try {
+    const ultraSlimmed = products.map((p, idx) => ({
+      ...p,
+      images:
+        idx >= products.length - 5
+          ? [p.images?.[0] || '/images/look-3103.png']
+          : [
+              p.images?.[0]?.startsWith('data:')
+                ? '/images/look-3103.png'
+                : p.images?.[0] || '/images/look-3103.png',
+            ],
+    }));
+    localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(ultraSlimmed));
+  } catch (error) {
+    console.error('Error writing products to LocalStorage even after slimming:', error);
+  }
+}
+
+function ensureCategoryIsActive(categoryName?: string): void {
+  if (!categoryName || !categoryName.trim()) return;
+  const resolved = resolveSingleCategoryName(categoryName).trim();
+  if (!resolved || resolved.toLowerCase() === 'sem categoria' || resolved.toLowerCase() === 'geral') {
+    return;
+  }
+  const active = getStoredCategories();
+  if (!active.some((c) => c.name.toLowerCase() === resolved.toLowerCase())) {
+    saveNewCategory(resolved);
+  }
+}
+
 // In-memory cache for synchronous reads with background Supabase sync
 let cachedProducts: Product[] = (() => {
   // Limpa sempre fotos base64 duplicadas dentro de aura_updated_products_v1 para liberar espaço no localStorage
@@ -241,6 +307,13 @@ export async function syncWithSupabase(): Promise<void> {
 
       const dbProducts: Product[] = prods.map((p) => {
         const override = localOverrides[p.id];
+        const memProd = cachedProducts.find((cp) => cp.id === p.id);
+        const dbImages = Array.isArray(p.images) ? p.images : [];
+        const memImages = Array.isArray(memProd?.images) ? memProd!.images : [];
+        const resolvedImages =
+          override?.images ??
+          (memImages.length > dbImages.length ? memImages : dbImages);
+
         return {
           id: p.id,
           name: override?.name ?? p.name,
@@ -265,7 +338,7 @@ export async function syncWithSupabase(): Promise<void> {
           barcode: override?.barcode ?? (p.barcode || '7890000000000'),
           weight: override?.weight !== undefined ? Number(override.weight) : Number(p.weight) || 200,
           brand: override?.brand ?? (p.brand || 'Aura Fitness'),
-          images: override?.images ?? (p.images || []),
+          images: resolvedImages,
           videoUrl: override?.videoUrl ?? p.video_url,
           sizes: override?.sizes ?? (p.sizes || ['P', 'M', 'G']),
           colors: override?.colors ?? (p.colors || []),
@@ -293,13 +366,14 @@ export async function syncWithSupabase(): Promise<void> {
       // Apenas produtos que não foram excluídos pelo usuário
       const cleanDbProducts = dbProducts.filter((p) => !deletedSet.has(p.id));
 
-      // Preserva itens locais temporários criados offline que ainda não subiram
+      // Preserva itens locais criados/importados que ainda não constam no banco remoto
       const pendingLocalProducts = cachedProducts.filter(
         (p) =>
-          p.id.startsWith('prod-') &&
           !deletedSet.has(p.id) &&
           !cleanDbProducts.some(
-            (db) => db.name.toLowerCase().trim() === p.name.toLowerCase().trim()
+            (db) =>
+              db.id === p.id ||
+              (db.sku && p.sku && db.sku.toLowerCase().trim() === p.sku.toLowerCase().trim())
           )
       );
 
@@ -307,7 +381,7 @@ export async function syncWithSupabase(): Promise<void> {
       cachedProducts = [...cleanDbProducts, ...pendingLocalProducts].map((p) =>
         normalizeProductData(p, activeCats)
       );
-      setStorageItem(STORAGE_KEYS.PRODUCTS, cachedProducts);
+      saveProductsToStorage(cachedProducts);
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('aura_products_updated', { detail: cachedProducts }));
       }
@@ -403,9 +477,7 @@ syncWithSupabase();
 // --- PRODUCTS SERVICE ---
 export function getProducts(): Product[] {
   const activeCats = getStoredCategories();
-  cachedProducts = getStorageItem<Product[]>(STORAGE_KEYS.PRODUCTS, cachedProducts).map((p) =>
-    normalizeProductData(p, activeCats)
-  );
+  cachedProducts = cachedProducts.map((p) => normalizeProductData(p, activeCats));
   return [...cachedProducts];
 }
 
@@ -432,21 +504,41 @@ export async function saveProductAsync(productData: Partial<Product>): Promise<P
     return localSaved;
   }
 
-  const slug =
+  let baseSlug =
     localSaved.slug ||
     (localSaved.name
-      ? localSaved.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '')
+      ? localSaved.name
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)+/g, '')
       : `produto-${Date.now()}`);
+
+  const slugCollision = cachedProducts.some(
+    (p) => p.id !== localSaved.id && p.slug === baseSlug
+  );
+  const slug = slugCollision
+    ? `${baseSlug}-${Date.now().toString().slice(-4)}`
+    : baseSlug;
+
+  let sku = localSaved.sku || `SKU-${Date.now()}`;
+  const skuCollision = cachedProducts.some(
+    (p) => p.id !== localSaved.id && p.sku.toLowerCase() === sku.toLowerCase()
+  );
+  if (skuCollision) {
+    sku = `${sku}-${Date.now().toString().slice(-3)}`;
+  }
 
   const payload: any = {
     name: localSaved.name || 'Novo Produto',
     slug,
     description: localSaved.description || '',
     full_description: localSaved.fullDescription || '',
-    category: localSaved.category || 'Leggings',
+    category: localSaved.category || getStoredCategories()[0]?.name || 'Conjuntos',
     price: localSaved.price || 0,
     promotional_price: localSaved.promotionalPrice || null,
-    sku: localSaved.sku || `SKU-${Date.now()}`,
+    sku,
     barcode: localSaved.barcode || '7890000000000',
     weight: localSaved.weight || 200,
     brand: localSaved.brand || 'Aura Fitness',
@@ -473,12 +565,23 @@ export async function saveProductAsync(productData: Partial<Product>): Promise<P
   }
 
   try {
-    const { data } = await supabase.from('products').upsert(payload).select().maybeSingle();
-    if (data?.id) {
+    const { data, error } = await supabase.from('products').upsert(payload).select().maybeSingle();
+    if (!error && data?.id) {
       const deletedSet = new Set(getStorageItem<string[]>('aura_deleted_product_ids_v1', []));
       if (deletedSet.has(data.id)) {
         deletedSet.delete(data.id);
         setStorageItem('aura_deleted_product_ids_v1', Array.from(deletedSet));
+      }
+      // Se o produto tinha ID temporário local (prod-...), atualiza para o UUID real do Supabase
+      if (localSaved.id !== data.id) {
+        const idx = cachedProducts.findIndex((p) => p.id === localSaved.id);
+        if (idx !== -1) {
+          cachedProducts[idx] = { ...cachedProducts[idx], id: data.id, slug, sku };
+          saveProductsToStorage(cachedProducts);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('aura_products_updated', { detail: cachedProducts }));
+          }
+        }
       }
     }
   } catch (e) {
@@ -491,6 +594,7 @@ export async function saveProductAsync(productData: Partial<Product>): Promise<P
 function saveProductLocalOnly(productData: Partial<Product>): Product {
   const products = getProducts();
   let updatedProduct: Product;
+  const defaultCategory = getStoredCategories()[0]?.name || 'Conjuntos';
 
   if (productData.id) {
     const index = products.findIndex((p) => p.id === productData.id);
@@ -499,13 +603,21 @@ function saveProductLocalOnly(productData: Partial<Product>): Product {
       products[index] = updatedProduct;
     } else {
       updatedProduct = productData as Product;
-      products.push(updatedProduct);
+      products.unshift(updatedProduct);
     }
   } else {
-    const newId = `prod-${Date.now()}`;
-    const slug = productData.name
-      ? productData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '')
+    const newId = `prod-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const baseSlug = productData.name
+      ? productData.name
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)+/g, '')
       : `produto-${Date.now()}`;
+    const slug = products.some((p) => p.slug === baseSlug)
+      ? `${baseSlug}-${Date.now().toString().slice(-4)}`
+      : baseSlug;
 
     updatedProduct = {
       id: newId,
@@ -513,7 +625,7 @@ function saveProductLocalOnly(productData: Partial<Product>): Product {
       slug,
       description: productData.description || '',
       fullDescription: productData.fullDescription || '',
-      category: productData.category || 'Leggings',
+      category: resolveSingleCategoryName(productData.category || defaultCategory),
       additionalCategories: Array.isArray(productData.additionalCategories)
         ? productData.additionalCategories
         : [],
@@ -529,7 +641,7 @@ function saveProductLocalOnly(productData: Partial<Product>): Product {
       materials: productData.materials || ['Poliamida'],
       stock: productData.stock || { 'P-Verde Oliva': 10 },
       isFeatured: productData.isFeatured || false,
-      isNewArrival: productData.isNewArrival || true,
+      isNewArrival: productData.isNewArrival ?? true,
       isBestSeller: productData.isBestSeller || false,
       isActive: productData.isActive ?? true,
       rating: 5.0,
@@ -537,11 +649,20 @@ function saveProductLocalOnly(productData: Partial<Product>): Product {
       seo: productData.seo || { title: productData.name || '', description: '', keywords: [] },
       createdAt: new Date().toISOString(),
     };
-    products.push(updatedProduct);
+    products.unshift(updatedProduct);
   }
 
-  // Salva apenas metadados leves no dicionário de edições locais (sem duplicar imagens base64 no localStorage)
+  ensureCategoryIsActive(updatedProduct.category);
+
+  // Remove de excluídos caso estivesse marcado
   if (updatedProduct.id) {
+    const deletedSet = new Set(getStorageItem<string[]>('aura_deleted_product_ids_v1', []));
+    if (deletedSet.has(updatedProduct.id)) {
+      deletedSet.delete(updatedProduct.id);
+      setStorageItem('aura_deleted_product_ids_v1', Array.from(deletedSet));
+    }
+
+    // Salva apenas metadados leves no dicionário de edições locais (sem duplicar imagens base64 no localStorage)
     const localOverrides = getStorageItem<Record<string, Partial<Product>>>(
       'aura_updated_products_v1',
       {}
@@ -552,7 +673,7 @@ function saveProductLocalOnly(productData: Partial<Product>): Product {
   }
 
   cachedProducts = products;
-  setStorageItem(STORAGE_KEYS.PRODUCTS, products);
+  saveProductsToStorage(products);
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('aura_products_updated', { detail: products }));
   }
@@ -579,7 +700,7 @@ export function saveAllProducts(products: Product[]): void {
   setStorageItem('aura_updated_products_v1', localOverrides);
 
   cachedProducts = products;
-  setStorageItem(STORAGE_KEYS.PRODUCTS, products);
+  saveProductsToStorage(products);
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('aura_products_updated', { detail: products }));
   }
@@ -588,14 +709,41 @@ export function saveAllProducts(products: Product[]): void {
 export async function bulkDeleteProductsAsync(ids: string[]): Promise<void> {
   if (!ids || ids.length === 0) return;
 
+  const deletedNames = new Set(
+    cachedProducts
+      .filter((p) => ids.includes(p.id))
+      .map((p) => p.name.toLowerCase().trim())
+  );
+
   // 1. Marca no histórico de exclusões para nunca reviver
   const deletedSet = new Set(getStorageItem<string[]>('aura_deleted_product_ids_v1', []));
   ids.forEach((id) => deletedSet.add(id));
   setStorageItem('aura_deleted_product_ids_v1', Array.from(deletedSet));
 
+  // Limpa arquivos vinculados aos produtos excluídos no registro de importação para permitir reimportá-los
+  try {
+    const reg = getImportedFilesRegistry();
+    let regChanged = false;
+    Object.keys(reg).forEach((k) => {
+      const r = reg[k];
+      if (
+        (r.targetProductId && ids.includes(r.targetProductId)) ||
+        (r.targetProductName && deletedNames.has(r.targetProductName.toLowerCase().trim()))
+      ) {
+        delete reg[k];
+        regChanged = true;
+      }
+    });
+    if (regChanged) {
+      saveImportedFilesRegistry(reg);
+    }
+  } catch {
+    // Ignora erro de limpeza de registro
+  }
+
   // 2. Remove do cache local e localStorage imediatamente
   cachedProducts = cachedProducts.filter((p) => !ids.includes(p.id));
-  setStorageItem(STORAGE_KEYS.PRODUCTS, cachedProducts);
+  saveProductsToStorage(cachedProducts);
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('aura_products_updated', { detail: cachedProducts }));
   }
@@ -618,9 +766,14 @@ export async function deleteAllProductsAsync(): Promise<void> {
   initialProducts.forEach((p) => deletedSet.add(p.id));
   setStorageItem('aura_deleted_product_ids_v1', Array.from(deletedSet));
 
+  // Limpa registro de arquivos importados pois o catálogo foi zerado
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(IMPORTED_FILES_REGISTRY_KEY);
+  }
+
   // 2. Esvazia cache local
   cachedProducts = [];
-  setStorageItem(STORAGE_KEYS.PRODUCTS, []);
+  saveProductsToStorage([]);
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('aura_products_updated', { detail: [] }));
   }
@@ -647,121 +800,182 @@ export async function bulkImportProductsAsync(items: Partial<Product>[]): Promis
   if (!items || items.length === 0) return getProducts();
 
   const now = new Date().toISOString();
-  const payloads: any[] = [];
   const processedProducts: Product[] = [];
+  const defaultCategory = getStoredCategories()[0]?.name || 'Conjuntos';
+  const usedSlugs = new Set(cachedProducts.map((p) => p.slug));
+  const usedSkus = new Set(cachedProducts.map((p) => p.sku.toLowerCase()));
 
-  for (const item of items) {
-    const slug =
-      item.slug ||
-      (item.name
-        ? item.name
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/(^-|-$)+/g, '')
-        : `produto-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`);
-
+  for (let idx = 0; idx < items.length; idx++) {
+    const item = items[idx];
     const existingIndex = item.id ? cachedProducts.findIndex((p) => p.id === item.id) : -1;
     const existing = existingIndex !== -1 ? cachedProducts[existingIndex] : null;
 
-    const id =
+    const localId =
       item.id ||
       existing?.id ||
-      (isSupabaseConfigured() ? undefined : `prod-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`);
+      `prod-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`;
+
+    let baseSlug =
+      item.slug ||
+      existing?.slug ||
+      (item.name
+        ? item.name
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/(^-|-$)+/g, '')
+        : `produto-${Date.now()}-${idx}`);
+
+    if (!existing && usedSlugs.has(baseSlug)) {
+      baseSlug = `${baseSlug}-${Date.now().toString().slice(-4)}-${idx + 1}`;
+    }
+    usedSlugs.add(baseSlug);
+
+    const resolvedCategory = resolveSingleCategoryName(
+      item.category || existing?.category || defaultCategory
+    );
+    ensureCategoryIsActive(resolvedCategory);
+
+    let sku =
+      item.sku ||
+      existing?.sku ||
+      `AUR-${resolvedCategory.slice(0, 3).toUpperCase() || 'FIT'}-${Date.now().toString().slice(-4)}-${idx + 1}`;
+
+    if (!existing && usedSkus.has(sku.toLowerCase())) {
+      sku = `${sku}-${idx + 1}`;
+    }
+    usedSkus.add(sku.toLowerCase());
 
     const finalProduct: Product = {
-      id: id || `prod-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      name: item.name || 'Novo Produto',
-      slug,
-      description: item.description || '',
-      fullDescription: item.fullDescription || '',
-      category: item.category || 'Leggings',
-      price: typeof item.price === 'number' ? item.price : 189.9,
-      promotionalPrice: item.promotionalPrice,
-      sku:
-        item.sku ||
-        `AUR-${item.category?.slice(0, 3).toUpperCase() || 'FIT'}-${Date.now().toString().slice(-4)}`,
-      barcode: item.barcode || '7890000000000',
-      weight: item.weight || 200,
-      brand: item.brand || 'Aura Fitness',
-      images: item.images && item.images.length > 0 ? item.images : ['/images/look-3103.png'],
-      videoUrl: item.videoUrl,
-      sizes: item.sizes || ['P', 'M', 'G'],
-      colors: item.colors || [{ name: 'Preto', hex: '#111111' }],
-      materials: item.materials || ['Poliamida'],
-      stock: item.stock || { 'P-Preto': 10, 'M-Preto': 15, 'G-Preto': 10 },
-      isFeatured: item.isFeatured ?? true,
-      isNewArrival: item.isNewArrival ?? true,
-      isBestSeller: item.isBestSeller ?? false,
-      isActive: item.isActive ?? true,
-      rating: item.rating || 5.0,
-      reviewCount: item.reviewCount || 0,
-      seo: item.seo || { title: item.name || '', description: '', keywords: [] },
-      createdAt: item.createdAt || now,
+      id: localId,
+      name: item.name || existing?.name || 'Novo Produto',
+      slug: baseSlug,
+      description: item.description ?? existing?.description ?? '',
+      fullDescription: item.fullDescription ?? existing?.fullDescription ?? '',
+      category: resolvedCategory,
+      additionalCategories: Array.isArray(item.additionalCategories)
+        ? item.additionalCategories
+        : existing?.additionalCategories || [],
+      price: typeof item.price === 'number' ? item.price : existing?.price ?? 189.9,
+      promotionalPrice: item.promotionalPrice ?? existing?.promotionalPrice,
+      sku,
+      barcode: item.barcode || existing?.barcode || '7890000000000',
+      weight: item.weight || existing?.weight || 200,
+      brand: item.brand || existing?.brand || 'Aura Fitness',
+      images:
+        item.images && item.images.length > 0
+          ? item.images
+          : existing?.images && existing.images.length > 0
+            ? existing.images
+            : ['/images/look-3103.png'],
+      videoUrl: item.videoUrl ?? existing?.videoUrl,
+      sizes: item.sizes || existing?.sizes || ['P', 'M', 'G'],
+      colors: item.colors || existing?.colors || [{ name: 'Preto', hex: '#111111' }],
+      materials: item.materials || existing?.materials || ['Poliamida'],
+      stock: item.stock || existing?.stock || { 'P-Preto': 10, 'M-Preto': 15, 'G-Preto': 10 },
+      isFeatured: item.isFeatured ?? existing?.isFeatured ?? true,
+      isNewArrival: item.isNewArrival ?? existing?.isNewArrival ?? true,
+      isBestSeller: item.isBestSeller ?? existing?.isBestSeller ?? false,
+      isActive: item.isActive ?? existing?.isActive ?? true,
+      rating: item.rating || existing?.rating || 5.0,
+      reviewCount: item.reviewCount || existing?.reviewCount || 0,
+      seo: item.seo || existing?.seo || { title: item.name || '', description: '', keywords: [] },
+      createdAt: item.createdAt || existing?.createdAt || now,
     };
 
     processedProducts.push(finalProduct);
-
-    if (isSupabaseConfigured()) {
-      const payload: any = {
-        name: finalProduct.name,
-        slug: finalProduct.slug,
-        description: finalProduct.description,
-        full_description: finalProduct.fullDescription,
-        category: finalProduct.category,
-        price: finalProduct.price,
-        promotional_price: finalProduct.promotionalPrice || null,
-        sku: finalProduct.sku,
-        barcode: finalProduct.barcode,
-        weight: finalProduct.weight,
-        brand: finalProduct.brand,
-        images: finalProduct.images,
-        video_url: finalProduct.videoUrl || null,
-        sizes: finalProduct.sizes,
-        colors: finalProduct.colors,
-        materials: finalProduct.materials,
-        stock: finalProduct.stock,
-        is_featured: finalProduct.isFeatured,
-        is_new_arrival: finalProduct.isNewArrival,
-        is_best_seller: finalProduct.isBestSeller,
-        is_active: finalProduct.isActive,
-        seo: finalProduct.seo,
-      };
-
-      if (item.id && !item.id.startsWith('prod-')) {
-        payload.id = item.id;
-      }
-
-      payloads.push(payload);
-    }
   }
 
   // Atualização atômica imediata na memória e no LocalStorage
   const prodMap = new Map<string, Product>();
-  cachedProducts.forEach((p) => prodMap.set(p.id, p));
+  // Coloca os novos produtos primeiro para aparecerem no topo da lista
   processedProducts.forEach((p) => {
-    const normName = p.name.toLowerCase().trim();
-    for (const [k, v] of prodMap.entries()) {
-      if (v.name.toLowerCase().trim() === normName && v.id !== p.id) {
-        prodMap.delete(k);
-      }
-    }
     prodMap.set(p.id, p);
   });
+  cachedProducts.forEach((p) => {
+    if (!prodMap.has(p.id)) {
+      prodMap.set(p.id, p);
+    }
+  });
+
+  const deletedSet = new Set(getStorageItem<string[]>('aura_deleted_product_ids_v1', []));
+  const localOverrides = getStorageItem<Record<string, Partial<Product>>>(
+    'aura_updated_products_v1',
+    {}
+  );
+  processedProducts.forEach((p) => {
+    deletedSet.delete(p.id);
+    const { images: _img, fullDescription: _fd, ...lightweightOverride } = p;
+    localOverrides[p.id] = lightweightOverride;
+  });
+  setStorageItem('aura_deleted_product_ids_v1', Array.from(deletedSet));
+  setStorageItem('aura_updated_products_v1', localOverrides);
 
   cachedProducts = Array.from(prodMap.values());
-  setStorageItem(STORAGE_KEYS.PRODUCTS, cachedProducts);
+  saveProductsToStorage(cachedProducts);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('aura_products_updated', { detail: cachedProducts }));
+  }
 
-  // Envio em Lote (Batch Upsert) para o Supabase
-  if (isSupabaseConfigured() && payloads.length > 0) {
-    try {
-      const { error } = await supabase.from('products').upsert(payloads);
-      if (error) {
-        console.error('Erro no Supabase bulk upsert:', error);
-      } else {
-        await syncWithSupabase();
+  // Envio seguro item a item para o Supabase (evita erro PGRST102 de chaves mistas e colisões)
+  if (isSupabaseConfigured()) {
+    for (const finalProduct of processedProducts) {
+      try {
+        const payload: any = {
+          name: finalProduct.name,
+          slug: finalProduct.slug,
+          description: finalProduct.description,
+          full_description: finalProduct.fullDescription,
+          category: finalProduct.category,
+          price: finalProduct.price,
+          promotional_price: finalProduct.promotionalPrice || null,
+          sku: finalProduct.sku,
+          barcode: finalProduct.barcode,
+          weight: finalProduct.weight,
+          brand: finalProduct.brand,
+          images: finalProduct.images,
+          video_url: finalProduct.videoUrl || null,
+          sizes: finalProduct.sizes,
+          colors: finalProduct.colors,
+          materials: finalProduct.materials,
+          stock: finalProduct.stock,
+          is_featured: finalProduct.isFeatured,
+          is_new_arrival: finalProduct.isNewArrival,
+          is_best_seller: finalProduct.isBestSeller,
+          is_active: finalProduct.isActive,
+          seo: {
+            ...(finalProduct.seo || { title: finalProduct.name, description: '', keywords: [] }),
+            additionalCategories: finalProduct.additionalCategories || [],
+          },
+        };
+
+        if (finalProduct.id && !finalProduct.id.startsWith('prod-')) {
+          payload.id = finalProduct.id;
+        }
+
+        const { data, error } = await supabase
+          .from('products')
+          .upsert(payload)
+          .select()
+          .maybeSingle();
+
+        if (!error && data?.id && finalProduct.id !== data.id) {
+          const oldId = finalProduct.id;
+          finalProduct.id = data.id;
+          const idx = cachedProducts.findIndex((cp) => cp.id === oldId);
+          if (idx !== -1) {
+            cachedProducts[idx] = { ...cachedProducts[idx], id: data.id };
+          }
+        }
+      } catch (err) {
+        console.warn('Aviso ao sincronizar item importado com Supabase (mantido localmente):', err);
       }
-    } catch (err) {
-      console.error('Falha na sincronização de importação em lote:', err);
+    }
+
+    saveProductsToStorage(cachedProducts);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('aura_products_updated', { detail: cachedProducts }));
     }
   }
 

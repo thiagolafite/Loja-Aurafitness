@@ -1271,6 +1271,7 @@ export interface ProductClassification {
   isSet: boolean;
   colors: { name: string; hex: string }[];
   detectedTags: string[];
+  hasExplicitCategoryMatch?: boolean;
 }
 
 /**
@@ -1286,7 +1287,11 @@ export function normalizeText(text: string): string {
 /**
  * Analisa o nome e descrição do produto para extrair categoria, se é conjunto e cores
  */
-export function classifyProduct(name: string, description?: string): ProductClassification {
+export function classifyProduct(
+  name: string,
+  description?: string,
+  fallbackCategory?: string
+): ProductClassification {
   const fullText = normalizeText(`${name} ${description || ''}`);
   const detectedTags: string[] = [];
 
@@ -1302,11 +1307,20 @@ export function classifyProduct(name: string, description?: string): ProductClas
     detectedTags.push('Conjunto');
   }
 
-  // 2. Detectar Categoria
-  let detectedCategory = isSet ? 'Conjuntos' : 'Leggings';
+  // 2. Detectar Categoria entre as categorias ativas da loja
+  const currentCategories = getStoredCategories();
+  const activeFallback =
+    (fallbackCategory &&
+      currentCategories.find((c) => c.name.toLowerCase() === fallbackCategory.toLowerCase())?.name) ||
+    fallbackCategory ||
+    currentCategories[0]?.name ||
+    'Conjuntos';
+
+  let detectedCategory = isSet
+    ? currentCategories.find((c) => c.name.toLowerCase() === 'conjuntos')?.name || activeFallback
+    : activeFallback;
   let highestScore = 0;
 
-  const currentCategories = getStoredCategories();
   for (const cat of currentCategories) {
     let score = 0;
     const kws = Array.isArray(cat.keywords) && cat.keywords.length > 0 ? cat.keywords : [cat.name.toLowerCase()];
@@ -1363,6 +1377,7 @@ export function classifyProduct(name: string, description?: string): ProductClas
     isSet,
     colors: detectedColors,
     detectedTags,
+    hasExplicitCategoryMatch: highestScore > 0 || isSet,
   };
 }
 
@@ -1490,8 +1505,15 @@ export function cleanModelName(rawName: string): {
 export function parseProductFromFolderOrFile(
   relPath: string,
   fileName: string,
-  defaultCategory = 'Leggings'
+  defaultCategory = 'Conjuntos'
 ): ParsedItemInfo {
+  const activeCategories = getStoredCategories();
+  const safeDefaultCategory =
+    activeCategories.find((c) => c.name.toLowerCase() === defaultCategory.toLowerCase())?.name ||
+    defaultCategory ||
+    activeCategories[0]?.name ||
+    'Conjuntos';
+
   // Normalizar barras do caminho (Windows ou POSIX)
   const parts = (relPath || fileName).split(/[\\/]/).filter(Boolean);
   const cleanFileName = fileName.replace(/\.[^/.]+$/, '').trim();
@@ -1504,7 +1526,7 @@ export function parseProductFromFolderOrFile(
   let candidateName = cleanFileName;
   let rawTextForExtraction = cleanFileName;
 
-  const isCatFolder = hasValidFolder && getStoredCategories().some(
+  const isCatFolder = hasValidFolder && activeCategories.some(
     (c) => normalizeText(c.name) === normalizeText(folderCandidate)
   );
 
@@ -1513,8 +1535,8 @@ export function parseProductFromFolderOrFile(
       candidateName = cleanFileName;
       rawTextForExtraction = `${folderCandidate} ${cleanFileName}`;
     } else {
-      candidateName = folderCandidate;
-      rawTextForExtraction = folderCandidate;
+      candidateName = `${folderCandidate} ${cleanFileName}`;
+      rawTextForExtraction = `${folderCandidate} ${cleanFileName}`;
     }
   }
 
@@ -1540,14 +1562,15 @@ export function parseProductFromFolderOrFile(
   // 3. Limpeza Inteligente e Canônica do Nome do Produto
   let { cleanName, groupKey } = cleanModelName(candidateName);
 
-  // Se após a limpeza o nome ficou vazio ou genérico, tenta recuperar da pasta
+  // Se após a limpeza o nome ficou vazio ou genérico, preserva identificador único para não colapsar peças diferentes
   if (!cleanName || isGenericFileName(cleanName)) {
     if (hasValidFolder && !isCatFolder) {
       const folderClean = cleanModelName(folderCandidate);
-      cleanName = folderClean.cleanName;
-      groupKey = folderClean.groupKey;
+      cleanName = folderClean.cleanName || `${safeDefaultCategory} ${cleanFileName}`;
+      groupKey = folderClean.groupKey || normalizeText(cleanName);
     } else {
-      cleanName = `Produto ${cleanFileName}`;
+      const prefix = hasValidFolder ? folderCandidate : safeDefaultCategory;
+      cleanName = `${prefix} ${cleanFileName}`;
       groupKey = normalizeText(cleanName);
     }
   }
@@ -1555,13 +1578,16 @@ export function parseProductFromFolderOrFile(
   // 4. Classificação de Categoria, Cores e Conjunto pela IA
   const classification = classifyProduct(
     `${cleanName} ${hasValidFolder ? folderCandidate : ''}`,
-    rawTextForExtraction
+    rawTextForExtraction,
+    safeDefaultCategory
   );
 
   // 5. Categoria final
-  let finalCategory = classification.category;
+  let finalCategory = classification.hasExplicitCategoryMatch
+    ? classification.category
+    : safeDefaultCategory;
   if (hasValidFolder) {
-    const matchingCat = getStoredCategories().find(
+    const matchingCat = activeCategories.find(
       (c) => normalizeText(c.name) === normalizeText(folderCandidate)
     );
     if (matchingCat) {
@@ -1569,7 +1595,7 @@ export function parseProductFromFolderOrFile(
     }
   }
   if (!finalCategory) {
-    finalCategory = defaultCategory;
+    finalCategory = safeDefaultCategory;
   }
 
   return {
@@ -1586,13 +1612,13 @@ export function parseProductFromFolderOrFile(
 
 /**
  * Redimensiona e comprime imagens client-side usando Canvas
- * Reduz fotos de 10MB para ~120KB sem perda perceptível de qualidade
+ * Reduz fotos de 10MB para ~75KB sem perda perceptível de qualidade
  */
 export async function resizeImageFile(
   file: File,
-  maxWidth = 1200,
-  maxHeight = 1200,
-  quality = 0.82
+  maxWidth = 900,
+  maxHeight = 900,
+  quality = 0.78
 ): Promise<string> {
   return new Promise((resolve) => {
     if (!file.type.startsWith('image/')) {
@@ -1695,20 +1721,47 @@ export function generateFileSignature(file: File): string {
 }
 
 /**
- * Verifica se um arquivo já foi importado anteriormente
+ * Verifica se um arquivo já foi importado anteriormente E se o produto correspondente ainda existe na lista de produtos da loja
  */
 export function isFileAlreadyImported(
   file: File,
   registry: Record<string, ImportedFileRecord>,
   existingProducts: { id: string; name: string; images?: string[] }[] = []
 ): boolean {
+  if (!existingProducts || existingProducts.length === 0) {
+    return false;
+  }
+
   const sig = generateFileSignature(file);
-  if (registry[sig]) return true;
-
   const simpleSig = `${file.name}|${file.size}`;
-  if (registry[simpleSig]) return true;
+  const rec = registry[sig] || registry[simpleSig];
 
-  return false;
+  if (!rec) return false;
+
+  // Confirma se o produto vinculado a este arquivo realmente existe no catálogo atual
+  const productStillExists = existingProducts.some((p) => {
+    if (rec.targetProductId && p.id === rec.targetProductId) return true;
+    if (
+      rec.targetProductName &&
+      normalizeText(p.name) === normalizeText(rec.targetProductName)
+    ) {
+      return true;
+    }
+    if (rec.groupKey && cleanModelName(p.name).groupKey === rec.groupKey) {
+      return true;
+    }
+    return false;
+  });
+
+  if (!productStillExists) {
+    // O produto foi excluído ou não está na lista: limpa registro órfão para permitir nova importação
+    delete registry[sig];
+    delete registry[simpleSig];
+    saveImportedFilesRegistry(registry);
+    return false;
+  }
+
+  return true;
 }
 
 /**

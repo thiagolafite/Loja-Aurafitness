@@ -435,7 +435,8 @@ export const AdminCategoriesPage: React.FC = () => {
     if (!editingProduct?.name) return;
 
     saveProduct(editingProduct);
-    setProducts(getProducts());
+    setCategories(getStoredCategories());
+    setProducts([...getProducts()]);
     setIsProductModalOpen(false);
     setEditingProduct(null);
     showToast(`✓ Produto "${editingProduct.name}" salvo com sucesso!`);
@@ -1364,6 +1365,11 @@ export const AdminCategoriesPage: React.FC = () => {
         isOpen={isImporterOpen}
         onClose={() => setIsImporterOpen(false)}
         onSuccess={() => {
+          setSelectedCategoryTab('todos');
+          setSearchQuery('');
+          setHideEmptyCategories(false);
+          setCategories(getStoredCategories());
+          setProducts([...getProducts()]);
           refreshProducts();
           showToast('✓ Importação concluída com sucesso!');
         }}

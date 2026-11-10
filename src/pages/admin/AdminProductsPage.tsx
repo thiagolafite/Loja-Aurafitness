@@ -2111,6 +2111,8 @@ export const AdminProductsPage: React.FC = () => {
         onSuccess={() => {
           setSelectedCategoryFilter('todos');
           setSearchQuery('');
+          setCategories(getStoredCategories());
+          setProducts([...getProducts()]);
           refreshProducts();
           showToast('✓ Importação de produtos processada com sucesso!');
         }}
