@@ -84,7 +84,8 @@ export const AdminLayout: React.FC = () => {
     { name: 'Produtos', path: '/admin/produtos', icon: Package },
     { name: 'Categorias', path: '/admin/categorias', icon: FolderTree },
     { name: 'Fotos dos Catálogos', path: '/admin/fotos-catalogos', icon: ImageIcon },
-    { name: 'Seções & Banners', path: '/admin/secoes-banners', icon: Sparkles },
+    { name: 'Banners do Carrossel', path: '/admin/secoes-banners?tab=banners', icon: Sparkles },
+    { name: 'Seções & Menus', path: '/admin/secoes-banners?tab=sections', icon: Layers },
     { name: 'Mini-Vídeo (Story)', path: '/admin/secoes-banners?tab=video', icon: Video },
     { name: 'Pedidos', path: '/admin/pedidos', icon: ShoppingBag },
     { name: 'Clientes', path: '/admin/clientes', icon: Users },
@@ -219,7 +220,10 @@ export const AdminLayout: React.FC = () => {
           <nav className="p-3 space-y-1 overflow-y-auto max-h-[calc(100vh-160px)]">
             {adminMenu.map((item) => {
               const Icon = item.icon;
-              const isActive = location.pathname === item.path;
+              const currentFullUrl = location.pathname + (location.search || '');
+              const isActive = item.path.includes('?')
+                ? currentFullUrl === item.path
+                : location.pathname === item.path && !location.search;
 
               return (
                 <Link

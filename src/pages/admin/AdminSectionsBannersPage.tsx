@@ -60,9 +60,9 @@ export const AdminSectionsBannersPage: React.FC = () => {
   const initialTab =
     searchParams.get('tab') === 'video'
       ? 'video'
-      : searchParams.get('tab') === 'banners'
-      ? 'banners'
-      : 'sections';
+      : searchParams.get('tab') === 'sections'
+      ? 'sections'
+      : 'banners';
   const [activeTab, setActiveTab] = useState<'sections' | 'banners' | 'video'>(initialTab);
 
   useEffect(() => {
@@ -1049,19 +1049,37 @@ export const AdminSectionsBannersPage: React.FC = () => {
                       #{idx + 1}
                     </span>
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="bg-amber-400 text-slate-950 font-bold text-[9px] uppercase px-2 py-0.5 rounded-md">
                           {banner.badge}
                         </span>
                         <h4 className="font-serif font-bold text-base text-foreground">
                           {banner.title}
                         </h4>
+                        {/* Formato Visual do Slide */}
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-muted/60 text-muted-foreground">
+                          {banner.bannerStyle === 'editorial-light'
+                            ? '🎟️ Editorial Clean'
+                            : banner.bannerStyle === 'bold-dark'
+                            ? '🖤 Dark Chic'
+                            : '🌿 Clássico 3 Colunas'}
+                        </span>
+                        {banner.couponCode && (
+                          <span className="bg-neutral-900 text-amber-300 font-mono text-[10px] font-bold px-2 py-0.5 rounded border border-neutral-700">
+                            CUPOM: {banner.couponCode}
+                          </span>
+                        )}
+                        {banner.discountHighlight && (
+                          <span className="bg-rose-500/10 text-rose-500 text-[10px] font-bold px-2 py-0.5 rounded border border-rose-500/20">
+                            {banner.discountHighlight}
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">{banner.subtitle}</p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 self-end lg:self-auto">
+                  <div className="flex items-center gap-2 self-end lg:self-auto flex-wrap">
                     <button
                       onClick={() => handleMoveBanner(idx, -1)}
                       disabled={idx === 0}
@@ -1080,10 +1098,10 @@ export const AdminSectionsBannersPage: React.FC = () => {
                     </button>
                     <button
                       onClick={() => handleOpenEditBannerModal(banner)}
-                      className="bg-primary/10 hover:bg-primary hover:text-white text-primary text-xs font-bold px-3 py-2 rounded-xl transition-colors flex items-center gap-1"
+                      className="bg-primary hover:bg-primary-hover text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow flex items-center gap-1.5"
                     >
                       <Edit className="w-3.5 h-3.5" />
-                      <span>Editar Fotos e Textos</span>
+                      <span>Editar Banner & Fotos</span>
                     </button>
                     {banners.length > 1 && (
                       <button
@@ -1097,51 +1115,142 @@ export const AdminSectionsBannersPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Banner 3-Box Live Preview Mock */}
-                <div className="rounded-2xl overflow-hidden p-3 bg-[#183521] border border-[#275336] flex items-center justify-between gap-3 text-white">
-                  {/* Left Photo Preview */}
-                  <div className="w-24 sm:w-36 h-28 sm:h-36 rounded-xl overflow-hidden bg-black/20 shrink-0 relative">
-                    <img
-                      src={banner.leftImage}
-                      alt="Modelo Esquerda"
-                      className="w-full h-full object-cover object-top"
-                    />
-                    <span className="absolute bottom-1 left-1 bg-black/70 text-white text-[8px] font-bold px-1.5 py-0.5 rounded">
-                      Foto 1
-                    </span>
-                  </div>
+                {/* Banner Live Preview Mock Adaptativo */}
+                {banner.bannerStyle === 'editorial-light' ? (
+                  <div
+                    style={{ backgroundColor: banner.centerBgColor || '#f5f5f3' }}
+                    className="rounded-2xl overflow-hidden p-4 flex flex-col md:flex-row items-center justify-between text-neutral-900 border border-neutral-300 min-h-[160px] gap-4"
+                  >
+                    <div className="w-24 sm:w-32 h-28 sm:h-36 rounded-xl overflow-hidden bg-neutral-200 shrink-0 relative">
+                      <img
+                        src={banner.leftImage}
+                        alt="Modelo 1"
+                        className="w-full h-full object-cover object-top"
+                      />
+                      <span className="absolute bottom-1 left-1 bg-black/60 text-white text-[8px] font-bold px-1 py-0.5 rounded">
+                        Foto 1
+                      </span>
+                    </div>
 
-                  {/* Center Content Preview */}
-                  <div className="flex-1 text-center py-2 px-3 space-y-1">
-                    <span className="text-[9px] font-bold tracking-widest uppercase text-amber-200">
-                      {banner.badge}
-                    </span>
-                    <h5 className="font-serif font-bold text-sm sm:text-lg uppercase text-white truncate">
-                      {banner.title}
-                    </h5>
-                    <p className="text-[10px] sm:text-xs text-white/80 line-clamp-1 max-w-sm mx-auto">
-                      {banner.subtitle}
-                    </p>
-                    <div className="pt-1">
-                      <span className="inline-flex items-center gap-1 bg-amber-400 text-slate-950 font-bold text-[10px] uppercase px-3 py-1 rounded-full shadow">
-                        <span>{banner.buttonText}</span>
-                        <ChevronRight className="w-3 h-3" />
+                    <div className="flex-1 text-center py-1 px-3 space-y-1">
+                      <span className="text-[10px] font-extrabold tracking-widest uppercase text-neutral-600 block">
+                        {banner.title}
+                      </span>
+                      {banner.discountHighlight && (
+                        <div className="text-xl sm:text-2xl font-black text-neutral-900 leading-none">
+                          {banner.discountHighlight}
+                        </div>
+                      )}
+                      {banner.couponCode && (
+                        <div className="inline-block bg-neutral-900 text-white font-mono text-[10px] px-2.5 py-0.5 rounded border border-neutral-700">
+                          <span className="text-neutral-400 text-[8px] mr-1">CUPOM:</span>
+                          <span className="text-amber-300 font-bold">{banner.couponCode}</span>
+                        </div>
+                      )}
+                      <p className="text-[10px] text-neutral-600 line-clamp-1 max-w-sm mx-auto">
+                        {banner.subtitle}
+                      </p>
+                      <div className="pt-1">
+                        <span className="inline-flex items-center gap-1 bg-white text-neutral-950 font-bold text-[10px] uppercase px-3 py-1 rounded-full shadow border border-neutral-300">
+                          <span>{banner.buttonText}</span>
+                          <ChevronRight className="w-3 h-3" />
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="w-24 sm:w-32 h-28 sm:h-36 rounded-xl overflow-hidden bg-neutral-200 shrink-0 relative hidden sm:block">
+                      <img
+                        src={banner.rightImage || banner.leftImage}
+                        alt="Modelo 2"
+                        className="w-full h-full object-cover object-top opacity-85"
+                      />
+                      <span className="absolute bottom-1 right-1 bg-black/60 text-white text-[8px] font-bold px-1 py-0.5 rounded">
+                        Foto 2
                       </span>
                     </div>
                   </div>
+                ) : banner.bannerStyle === 'bold-dark' ? (
+                  <div
+                    style={{ backgroundColor: banner.centerBgColor || '#0b1610' }}
+                    className="rounded-2xl overflow-hidden p-4 flex flex-col md:flex-row items-center justify-between text-white border border-white/10 min-h-[160px] gap-4"
+                  >
+                    <div className="w-24 sm:w-36 h-28 sm:h-36 rounded-xl overflow-hidden bg-black/40 shrink-0 relative">
+                      <img
+                        src={banner.leftImage}
+                        alt="Modelo 1"
+                        className="w-full h-full object-cover object-top"
+                      />
+                    </div>
 
-                  {/* Right Photo Preview */}
-                  <div className="w-24 sm:w-36 h-28 sm:h-36 rounded-xl overflow-hidden bg-black/20 shrink-0 relative">
-                    <img
-                      src={banner.rightImage || banner.leftImage}
-                      alt="Modelo Direita"
-                      className="w-full h-full object-cover object-top"
-                    />
-                    <span className="absolute bottom-1 right-1 bg-black/70 text-white text-[8px] font-bold px-1.5 py-0.5 rounded">
-                      Foto 2
-                    </span>
+                    <div className="flex-1 text-center md:text-left py-1 px-4 space-y-1">
+                      <span className="text-[9px] font-extrabold tracking-widest text-amber-300 bg-white/10 px-2.5 py-0.5 rounded-full inline-block">
+                        ★ {banner.badge}
+                      </span>
+                      <h4 className="text-2xl sm:text-3xl font-serif font-black uppercase text-white leading-tight">
+                        {banner.title}
+                      </h4>
+                      {banner.discountHighlight && (
+                        <p className="text-xs italic text-rose-200/90 font-serif">
+                          {banner.discountHighlight}
+                        </p>
+                      )}
+                      <p className="text-[10px] text-neutral-300 line-clamp-1 max-w-sm">
+                        {banner.subtitle}
+                      </p>
+                      <div className="pt-1">
+                        <span className="inline-flex items-center gap-1 bg-white text-neutral-950 font-bold text-[10px] uppercase px-3 py-1 rounded-full shadow">
+                          <span>{banner.buttonText}</span>
+                          <ChevronRight className="w-3 h-3" />
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div
+                    style={{ backgroundColor: banner.centerBgColor || '#183521' }}
+                    className="rounded-2xl overflow-hidden p-3 border border-white/15 flex items-center justify-between gap-3 text-white"
+                  >
+                    <div className="w-24 sm:w-36 h-28 sm:h-36 rounded-xl overflow-hidden bg-black/20 shrink-0 relative">
+                      <img
+                        src={banner.leftImage}
+                        alt="Modelo Esquerda"
+                        className="w-full h-full object-cover object-top"
+                      />
+                      <span className="absolute bottom-1 left-1 bg-black/70 text-white text-[8px] font-bold px-1.5 py-0.5 rounded">
+                        Foto 1
+                      </span>
+                    </div>
+
+                    <div className="flex-1 text-center py-2 px-3 space-y-1">
+                      <span className="text-[9px] font-bold tracking-widest uppercase text-amber-200">
+                        {banner.badge}
+                      </span>
+                      <h5 className="font-serif font-bold text-sm sm:text-lg uppercase text-white truncate">
+                        {banner.title}
+                      </h5>
+                      <p className="text-[10px] sm:text-xs text-white/80 line-clamp-1 max-w-sm mx-auto">
+                        {banner.subtitle}
+                      </p>
+                      <div className="pt-1">
+                        <span className="inline-flex items-center gap-1 bg-amber-400 text-slate-950 font-bold text-[10px] uppercase px-3 py-1 rounded-full shadow">
+                          <span>{banner.buttonText}</span>
+                          <ChevronRight className="w-3 h-3" />
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="w-24 sm:w-36 h-28 sm:h-36 rounded-xl overflow-hidden bg-black/20 shrink-0 relative">
+                      <img
+                        src={banner.rightImage || banner.leftImage}
+                        alt="Modelo Direita"
+                        className="w-full h-full object-cover object-top"
+                      />
+                      <span className="absolute bottom-1 right-1 bg-black/70 text-white text-[8px] font-bold px-1.5 py-0.5 rounded">
+                        Foto 2
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
