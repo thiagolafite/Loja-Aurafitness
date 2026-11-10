@@ -267,26 +267,30 @@ export const Navbar: React.FC = () => {
           </div>
         </div>
 
-        {/* Sub-Navigation Row (Lower Header Bar) with Categories Mega-Menu */}
-        <nav className="bg-[#ECF2E9] text-[#164024] hidden lg:flex items-center justify-center gap-7 py-2.5 px-4 text-xs font-semibold uppercase tracking-wider relative z-20 border border-[#39ff88]/70 shadow-[0_0_8px_1px_rgba(57,255,136,0.7),0_0_22px_4px_rgba(57,255,136,0.35),inset_0_0_12px_rgba(57,255,136,0.3)]">
+        {/* Sub-Navigation Row (Lower Header Bar) with #ECF2E9, Neon Green Glow and Horizontal Scroll on Mobile */}
+        <nav className="bg-[#ECF2E9] text-[#164024] flex items-center justify-start lg:justify-center overflow-x-auto no-scrollbar gap-5 sm:gap-7 py-2.5 px-4 text-[11px] sm:text-xs font-semibold uppercase tracking-wider relative z-20 border border-[#39ff88]/70 shadow-[0_0_8px_1px_rgba(57,255,136,0.7),0_0_22px_4px_rgba(57,255,136,0.35),inset_0_0_12px_rgba(57,255,136,0.3)] whitespace-nowrap">
           <Link
             to="/"
-            className="hover:text-emerald-700 transition-colors py-0.5 relative hover:after:w-full after:w-0 after:h-0.5 after:bg-emerald-700 after:absolute after:bottom-0 after:left-0 after:transition-all"
+            className="hover:text-emerald-700 transition-colors py-0.5 relative shrink-0 hover:after:w-full after:w-0 after:h-0.5 after:bg-emerald-700 after:absolute after:bottom-0 after:left-0 after:transition-all"
           >
             HOME
           </Link>
 
           {/* Interactive Categories Mega-Menu Trigger */}
           <div
-            className="relative py-1"
-            onMouseEnter={() => setIsCategoriesDropdownOpen(true)}
-            onMouseLeave={() => setIsCategoriesDropdownOpen(false)}
+            className="relative py-1 shrink-0"
+            onMouseEnter={() => {
+              if (window.innerWidth >= 1024) setIsCategoriesDropdownOpen(true);
+            }}
+            onMouseLeave={() => {
+              if (window.innerWidth >= 1024) setIsCategoriesDropdownOpen(false);
+            }}
           >
             <button
               onClick={() => {
                 navigate('/catalogo');
               }}
-              className="flex items-center gap-1.5 hover:text-emerald-700 transition-colors py-0.5 text-xs font-semibold uppercase tracking-wider relative group"
+              className="flex items-center gap-1.5 hover:text-emerald-700 transition-colors py-0.5 text-[11px] sm:text-xs font-semibold uppercase tracking-wider relative group"
             >
               <span className="text-[#164024] font-extrabold">CATEGORIAS</span>
               <ChevronDown
@@ -296,7 +300,7 @@ export const Navbar: React.FC = () => {
               />
             </button>
 
-            {/* Mega-Menu Dropdown */}
+            {/* Mega-Menu Dropdown (Desktop) */}
             <AnimatePresence>
               {isCategoriesDropdownOpen && (
                 <motion.div
@@ -304,7 +308,7 @@ export const Navbar: React.FC = () => {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 8, scale: 0.98 }}
                   transition={{ duration: 0.16 }}
-                  className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-[580px] bg-[#1a3816] border border-[#3b682d] rounded-2xl shadow-2xl overflow-hidden z-50 text-white p-5 backdrop-blur-md"
+                  className="hidden lg:block absolute left-1/2 -translate-x-1/2 top-full mt-2 w-[580px] bg-[#1a3816] border border-[#3b682d] rounded-2xl shadow-2xl overflow-hidden z-50 text-white p-5 backdrop-blur-md"
                 >
                   {/* Mega-Menu Header */}
                   <div className="flex items-center justify-between border-b border-[#2d5624] pb-3 mb-3.5">
@@ -393,7 +397,7 @@ export const Navbar: React.FC = () => {
               <Link
                 key={sec.id}
                 to={`/catalogo?secao=${encodeURIComponent(sec.slug)}`}
-                className="hover:text-emerald-700 text-[#164024] font-bold transition-all py-0.5 relative flex items-center gap-1.5 group"
+                className="hover:text-emerald-700 text-[#164024] font-bold transition-all py-0.5 relative flex items-center gap-1.5 shrink-0 group"
               >
                 <span>{sec.name}</span>
                 {sec.badge && (
@@ -408,7 +412,7 @@ export const Navbar: React.FC = () => {
             <Link
               key={link.name}
               to={link.path}
-              className="hover:text-emerald-700 transition-colors py-0.5 relative hover:after:w-full after:w-0 after:h-0.5 after:bg-emerald-700 after:absolute after:bottom-0 after:left-0 after:transition-all"
+              className="hover:text-emerald-700 transition-colors py-0.5 relative shrink-0 hover:after:w-full after:w-0 after:h-0.5 after:bg-emerald-700 after:absolute after:bottom-0 after:left-0 after:transition-all"
             >
               {link.name}
             </Link>

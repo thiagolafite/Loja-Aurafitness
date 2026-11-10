@@ -7,6 +7,7 @@
  */
 
 import { Product } from '../types';
+import { supabase, isSupabaseConfigured } from './supabaseClient';
 
 export interface AvailableColor {
   name: string;
@@ -781,6 +782,33 @@ export function saveStoredCategories(categories: AvailableCategory[]): void {
 
     window.dispatchEvent(new CustomEvent('aura_categories_updated', { detail: categories }));
 
+    // Sincroniza diretamente com o Supabase store_settings.seo.customCategories
+    if (isSupabaseConfigured()) {
+      (async () => {
+        try {
+          const { data } = await supabase
+            .from('store_settings')
+            .select('seo')
+            .eq('id', 'default')
+            .maybeSingle();
+          const currentSeo =
+            data?.seo && typeof data.seo === 'object' ? data.seo : {};
+          const updatedSeo = {
+            ...currentSeo,
+            customCategories: categories,
+            deletedCategories: getDeletedCategories(),
+            updatedAt: new Date().toISOString(),
+          };
+          await supabase
+            .from('store_settings')
+            .update({ seo: updatedSeo, updated_at: new Date().toISOString() })
+            .eq('id', 'default');
+        } catch (err) {
+          console.warn('Erro ao salvar categorias no Supabase:', err);
+        }
+      })();
+    }
+
     fetch('/api/sync-store', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1049,6 +1077,40 @@ export function updateCategoryPhoto(categoryName: string, imageUrl: string): Ava
     }
     return cat;
   });
+
+  // Também persiste no mapa dedicado aura_category_photos_v1 e sincroniza com Supabase
+  try {
+    if (typeof window !== 'undefined') {
+      const rawPhotos = localStorage.getItem('aura_category_photos_v1');
+      const photosMap = rawPhotos ? JSON.parse(rawPhotos) : {};
+      photosMap[categoryName.trim()] = imageUrl;
+      localStorage.setItem('aura_category_photos_v1', JSON.stringify(photosMap));
+
+      if (isSupabaseConfigured()) {
+        (async () => {
+          try {
+            const { data } = await supabase
+              .from('store_settings')
+              .select('seo')
+              .eq('id', 'default')
+              .maybeSingle();
+            const currentSeo =
+              data?.seo && typeof data.seo === 'object' ? data.seo : {};
+            const updatedSeo = {
+              ...currentSeo,
+              categoryPhotos: photosMap,
+              updatedAt: new Date().toISOString(),
+            };
+            await supabase
+              .from('store_settings')
+              .update({ seo: updatedSeo, updated_at: new Date().toISOString() })
+              .eq('id', 'default');
+          } catch {}
+        })();
+      }
+    }
+  } catch {}
+
   saveStoredCategories(updated);
   return updated;
 }
@@ -1070,6 +1132,41 @@ export function resetCategoryPhoto(categoryName: string): AvailableCategory[] {
     }
     return cat;
   });
+
+  try {
+    if (typeof window !== 'undefined') {
+      const rawPhotos = localStorage.getItem('aura_category_photos_v1');
+      if (rawPhotos) {
+        const photosMap = JSON.parse(rawPhotos);
+        delete photosMap[categoryName.trim()];
+        localStorage.setItem('aura_category_photos_v1', JSON.stringify(photosMap));
+
+        if (isSupabaseConfigured()) {
+          (async () => {
+            try {
+              const { data } = await supabase
+                .from('store_settings')
+                .select('seo')
+                .eq('id', 'default')
+                .maybeSingle();
+              const currentSeo =
+                data?.seo && typeof data.seo === 'object' ? data.seo : {};
+              const updatedSeo = {
+                ...currentSeo,
+                categoryPhotos: photosMap,
+                updatedAt: new Date().toISOString(),
+              };
+              await supabase
+                .from('store_settings')
+                .update({ seo: updatedSeo, updated_at: new Date().toISOString() })
+                .eq('id', 'default');
+            } catch {}
+          })();
+        }
+      }
+    }
+  } catch {}
+
   saveStoredCategories(updated);
   return updated;
 }

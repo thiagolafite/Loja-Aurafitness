@@ -549,7 +549,8 @@ export async function syncWithSupabase(): Promise<void> {
       }
     }
 
-    // 2. Settings & Extra Store Metadata (Mini-Video, Custom Categories, Category Photos)
+    // 2. Sincronização de Metadados Extras da Loja com Supabase
+    // (Hero Banners, Categorias, Fotos de Categoria, Seções, Mini-Vídeo)
     const { data: sett } = await supabase.from('store_settings').select('*').eq('id', 'default').maybeSingle();
     if (sett) {
       cachedSettings = {
@@ -574,34 +575,63 @@ export async function syncWithSupabase(): Promise<void> {
         any
       >;
 
-      // Restaura configuração do Mini-Vídeo Flutuante no Smartphone
-      if (seoObj.floatingVideoConfig) {
-        syncFloatingVideoConfigFromCloud(seoObj.floatingVideoConfig);
+      // 1. Sincroniza Banners do Carrossel Principal (Hero Slides) entre PC e Smartphone
+      if (Array.isArray(seoObj.heroBanners) && seoObj.heroBanners.length > 0) {
+        cachedHeroBanners = seoObj.heroBanners;
+        setStorageItem(STORAGE_KEYS.HERO_BANNERS, seoObj.heroBanners);
+        saveBannersToIDB(seoObj.heroBanners).catch(() => {});
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('aura_banners_updated', { detail: seoObj.heroBanners }));
+        }
+      } else if (cachedHeroBanners && cachedHeroBanners.length > 0) {
+        syncStoreExtraToSupabase({ heroBanners: cachedHeroBanners });
       }
 
-      // Sincroniza categorias personalizadas entre PC e Smartphone
-      if (Array.isArray(seoObj.customCategories) && typeof window !== 'undefined') {
+      // 2. Sincroniza Categorias da Loja entre PC e Smartphone
+      if (Array.isArray(seoObj.customCategories) && seoObj.customCategories.length > 0 && typeof window !== 'undefined') {
         const localCustomRaw = localStorage.getItem('aura_store_categories_v1');
         const localCustom = localCustomRaw ? JSON.parse(localCustomRaw) : [];
-        if (Array.isArray(localCustom)) {
-          const mergedMap = new Map<string, any>();
-          [...seoObj.customCategories, ...localCustom].forEach((c: any) => {
-            if (c && c.name) mergedMap.set(c.name.toLowerCase(), c);
-          });
-          localStorage.setItem(
-            'aura_store_categories_v1',
-            JSON.stringify(Array.from(mergedMap.values()))
-          );
-          window.dispatchEvent(new Event('aura_categories_updated'));
+        const mergedMap = new Map<string, any>();
+        [...seoObj.customCategories, ...(Array.isArray(localCustom) ? localCustom : [])].forEach((c: any) => {
+          if (c && c.name) mergedMap.set(c.name.toLowerCase(), c);
+        });
+        const mergedList = Array.from(mergedMap.values());
+        localStorage.setItem('aura_store_categories_v1', JSON.stringify(mergedList));
+        window.dispatchEvent(new CustomEvent('aura_categories_updated', { detail: mergedList }));
+      } else if (typeof window !== 'undefined') {
+        const localCustomRaw = localStorage.getItem('aura_store_categories_v1');
+        if (localCustomRaw) {
+          try {
+            const localCustom = JSON.parse(localCustomRaw);
+            if (Array.isArray(localCustom) && localCustom.length > 0) {
+              syncStoreExtraToSupabase({ customCategories: localCustom });
+            }
+          } catch {}
         }
       }
 
-      // Sincroniza fotos de capa de categorias entre PC e Smartphone
+      // 3. Sincroniza Seções da Loja (Moda Verão, Black Friday, etc.) entre PC e Smartphone
+      if (Array.isArray(seoObj.storeSections) && seoObj.storeSections.length > 0) {
+        cachedSections = seoObj.storeSections;
+        setStorageItem(STORAGE_KEYS.SECTIONS, seoObj.storeSections);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('aura_sections_updated', { detail: seoObj.storeSections }));
+        }
+      } else if (cachedSections && cachedSections.length > 0) {
+        syncStoreExtraToSupabase({ storeSections: cachedSections });
+      }
+
+      // 4. Sincroniza Fotos de Capa de Categorias entre PC e Smartphone
       if (seoObj.categoryPhotos && typeof seoObj.categoryPhotos === 'object' && typeof window !== 'undefined') {
         const localPhotosRaw = localStorage.getItem('aura_category_photos_v1');
         const localPhotos = localPhotosRaw ? JSON.parse(localPhotosRaw) : {};
-        const mergedPhotos = { ...seoObj.categoryPhotos, ...localPhotos };
+        const mergedPhotos = { ...localPhotos, ...seoObj.categoryPhotos };
         localStorage.setItem('aura_category_photos_v1', JSON.stringify(mergedPhotos));
+      }
+
+      // 5. Restaura configuração do Mini-Vídeo Flutuante no Smartphone
+      if (seoObj.floatingVideoConfig) {
+        syncFloatingVideoConfigFromCloud(seoObj.floatingVideoConfig);
       }
     }
 
@@ -2394,6 +2424,7 @@ export function saveStoreSection(sectionData: Partial<StoreSection>): StoreSecti
 
   cachedSections = sections;
   setStorageItem(STORAGE_KEYS.SECTIONS, sections);
+  syncStoreExtraToSupabase({ storeSections: sections });
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('aura_sections_updated', { detail: sections }));
   }
@@ -2404,6 +2435,7 @@ export function deleteStoreSection(id: string): void {
   const sections = getStoreSections().filter((s) => s.id !== id);
   cachedSections = sections;
   setStorageItem(STORAGE_KEYS.SECTIONS, sections);
+  syncStoreExtraToSupabase({ storeSections: sections });
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('aura_sections_updated', { detail: sections }));
   }
@@ -2422,6 +2454,7 @@ export function addProductToSection(sectionId: string, productId: string): Store
     };
     cachedSections = sections;
     setStorageItem(STORAGE_KEYS.SECTIONS, sections);
+    syncStoreExtraToSupabase({ storeSections: sections });
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('aura_sections_updated', { detail: sections }));
     }
@@ -2440,6 +2473,7 @@ export function removeProductFromSection(sectionId: string, productId: string): 
   };
   cachedSections = sections;
   setStorageItem(STORAGE_KEYS.SECTIONS, sections);
+  syncStoreExtraToSupabase({ storeSections: sections });
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('aura_sections_updated', { detail: sections }));
   }
@@ -2470,10 +2504,59 @@ export function addCategoryProductsToSection(sectionId: string, categoryName: st
   };
   cachedSections = sections;
   setStorageItem(STORAGE_KEYS.SECTIONS, sections);
+  syncStoreExtraToSupabase({ storeSections: sections });
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('aura_sections_updated', { detail: sections }));
   }
   return sections[idx];
+}
+
+export function reorderStoreSections(newSections: StoreSection[]): void {
+  const reordered = newSections.map((sec, idx) => ({ ...sec, order: idx + 1 }));
+  cachedSections = reordered;
+  setStorageItem(STORAGE_KEYS.SECTIONS, reordered);
+  syncStoreExtraToSupabase({ storeSections: reordered });
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('aura_sections_updated', { detail: reordered }));
+  }
+}
+
+/**
+ * Sincroniza metadados extras (banners, categorias, seções) com a tabela store_settings no Supabase
+ * garantindo que qualquer alteração feita no PC apareça imediatamente no Smartphone e vice-versa.
+ */
+export async function syncStoreExtraToSupabase(patch: Record<string, any>): Promise<void> {
+  if (!isSupabaseConfigured()) return;
+  try {
+    const { data } = await supabase
+      .from('store_settings')
+      .select('seo')
+      .eq('id', 'default')
+      .maybeSingle();
+    const currentSeo = data?.seo && typeof data.seo === 'object' ? data.seo : {};
+    const updatedSeo = {
+      ...currentSeo,
+      ...patch,
+      updatedAt: new Date().toISOString(),
+    };
+    await supabase
+      .from('store_settings')
+      .update({ seo: updatedSeo, updated_at: new Date().toISOString() })
+      .eq('id', 'default');
+  } catch (err) {
+    console.warn('Erro ao sincronizar extra store data com Supabase:', err);
+  }
+
+  try {
+    fetch('/api/sync-store', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'update_store_extra',
+        payload: { seoPatch: patch },
+      }),
+    }).catch(() => {});
+  } catch {}
 }
 
 // ==========================================
@@ -2525,6 +2608,7 @@ export function saveHeroBanner(bannerData: Partial<HeroBannerSlide>): HeroBanner
   } catch (err) {
     console.warn('LocalStorage cheio para banners, salvo no IndexedDB:', err);
   }
+  syncStoreExtraToSupabase({ heroBanners: banners });
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('aura_banners_updated', { detail: banners }));
   }
@@ -2538,6 +2622,7 @@ export function deleteHeroBanner(id: string): void {
   try {
     setStorageItem(STORAGE_KEYS.HERO_BANNERS, banners);
   } catch {}
+  syncStoreExtraToSupabase({ heroBanners: banners });
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('aura_banners_updated', { detail: banners }));
   }
@@ -2550,6 +2635,7 @@ export function reorderHeroBanners(newBanners: HeroBannerSlide[]): void {
   try {
     setStorageItem(STORAGE_KEYS.HERO_BANNERS, reordered);
   } catch {}
+  syncStoreExtraToSupabase({ heroBanners: reordered });
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('aura_banners_updated', { detail: reordered }));
   }
