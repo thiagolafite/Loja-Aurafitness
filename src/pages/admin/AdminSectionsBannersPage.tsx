@@ -42,6 +42,7 @@ import {
   MousePointer,
   RotateCcw,
   ZoomIn,
+  Maximize2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -50,6 +51,7 @@ import {
   getBannerHeightClass,
   getBannerButtonStyle,
   getBannerButtonRadiusClass,
+  getImageCardContainerStyle,
 } from '../../lib/bannerStyles';
 import {
   getStoreSections,
@@ -121,6 +123,61 @@ export const AdminSectionsBannersPage: React.FC = () => {
   const [isUploadingBannerRight, setIsUploadingBannerRight] = useState(false);
   const leftFileRef = useRef<HTMLInputElement>(null);
   const rightFileRef = useRef<HTMLInputElement>(null);
+
+  // Redimensionamento de Imagem Arrastável pelo Mouse
+  const [activeResizingSide, setActiveResizingSide] = useState<'left' | 'right' | null>(null);
+
+  const handleStartCardResize = (
+    e: React.MouseEvent | React.TouchEvent,
+    side: 'left' | 'right'
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+
+    const currentW = (side === 'left' ? editingBanner?.leftImageCardWidth : editingBanner?.rightImageCardWidth) ?? 26;
+    const currentH = (side === 'left' ? editingBanner?.leftImageCardHeight : editingBanner?.rightImageCardHeight) ?? 85;
+
+    const startX = clientX;
+    const startY = clientY;
+
+    setActiveResizingSide(side);
+
+    const onMove = (moveEvent: MouseEvent | TouchEvent) => {
+      const curX = 'touches' in moveEvent ? moveEvent.touches[0].clientX : moveEvent.clientX;
+      const curY = 'touches' in moveEvent ? moveEvent.touches[0].clientY : moveEvent.clientY;
+
+      const deltaX = curX - startX;
+      const deltaY = curY - startY;
+
+      // Sensibilidade suave (~0.08% por pixel)
+      const factorX = side === 'left' ? 0.08 : -0.08;
+      const newWidth = Math.min(42, Math.max(16, Math.round(currentW + deltaX * factorX)));
+      const newHeight = Math.min(95, Math.max(65, Math.round(currentH + deltaY * 0.08)));
+
+      setEditingBanner((prev) => {
+        if (!prev) return prev;
+        return side === 'left'
+          ? { ...prev, leftImageCardWidth: newWidth, leftImageCardHeight: newHeight }
+          : { ...prev, rightImageCardWidth: newWidth, rightImageCardHeight: newHeight };
+      });
+    };
+
+    const onEnd = () => {
+      setActiveResizingSide(null);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onEnd);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onEnd);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onEnd);
+    window.addEventListener('touchmove', onMove);
+    window.addEventListener('touchend', onEnd);
+  };
 
   // AI Banner Generator State
   const [isAiGeneratorOpen, setIsAiGeneratorOpen] = useState(false);
@@ -304,6 +361,9 @@ export const AdminSectionsBannersPage: React.FC = () => {
     leftImageSepia: 0,
     leftImageOpacity: 100,
     leftImageFlipX: false,
+    leftImageCardWidth: 26,
+    leftImageCardHeight: 85,
+    leftImageCardRadius: 24,
     rightImageScale: 100,
     rightImagePositionX: 50,
     rightImagePositionY: 20,
@@ -316,6 +376,9 @@ export const AdminSectionsBannersPage: React.FC = () => {
     rightImageSepia: 0,
     rightImageOpacity: 100,
     rightImageFlipX: false,
+    rightImageCardWidth: 26,
+    rightImageCardHeight: 85,
+    rightImageCardRadius: 24,
     titleColor: '#171717',
     subtitleColor: '#525252',
     titleFontSize: 36,
@@ -1564,13 +1627,24 @@ export const AdminSectionsBannersPage: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Dica de Redimensionamento Interativo */}
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1">
+                  <span className="flex items-center gap-1.5 font-medium text-foreground">
+                    <Move className="w-3.5 h-3.5 text-primary animate-pulse" />
+                    <strong>Dica:</strong> Arraste com o mouse na foto ou nas alças laterais para redimensionar no tamanho que quiser!
+                  </span>
+                  <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-semibold hidden sm:inline-block">
+                    ✓ Proporcional & Responsivo
+                  </span>
+                </div>
+
                 {/* Container do Banner Preview */}
                 <div className="flex items-center justify-center p-2 bg-neutral-950/20 rounded-xl overflow-hidden">
                   {bannerPreviewDevice === 'desktop' ? (
                     /* PREVIEW DESKTOP */
                     <div
                       style={getBannerBackgroundStyle(editingBanner)}
-                      className="w-full h-56 sm:h-64 rounded-2xl overflow-hidden relative border border-white/10 shadow-lg flex items-center justify-between px-6 transition-all"
+                      className="w-full h-56 sm:h-64 rounded-2xl overflow-hidden relative border border-white/10 shadow-lg flex items-center justify-between px-6 transition-all select-none"
                     >
                       {editingBanner.ambientGlow && (
                         <div
@@ -1587,18 +1661,47 @@ export const AdminSectionsBannersPage: React.FC = () => {
                         />
                       ) : null}
 
-                      {/* Foto Esquerda */}
-                      <div className="relative w-3/12 h-full flex items-end justify-center overflow-hidden shrink-0 z-10">
+                      {/* Sutil textura e reflexo nobre */}
+                      <div className="absolute inset-0 bg-gradient-to-r from-black/5 via-transparent to-black/5 pointer-events-none" />
+
+                      {/* Foto Esquerda (Card Proporcional e Arrastável pelo Mouse) */}
+                      <div
+                        style={getImageCardContainerStyle('left', editingBanner, false)}
+                        className={`relative overflow-hidden shadow-2xl border-2 transition-all group shrink-0 select-none bg-neutral-900/40 ${
+                          activeResizingSide === 'left' ? 'border-primary ring-2 ring-primary/40' : 'border-white/20 hover:border-primary/60'
+                        }`}
+                      >
                         <img
                           src={editingBanner.leftImage || '/images/look-3214.png'}
                           alt="Foto 1"
                           style={getImageInlineStyle('left', editingBanner)}
-                          className="h-full w-full object-top"
+                          className="h-full w-full object-top pointer-events-none"
                         />
+
+                        {/* Alça visual no canto inferior direito para arrasto com o mouse */}
+                        <div
+                          onMouseDown={(e) => handleStartCardResize(e, 'left')}
+                          onTouchStart={(e) => handleStartCardResize(e, 'left')}
+                          title="Clique e arraste com o mouse para alterar a dimensão da foto"
+                          className="absolute bottom-1.5 right-1.5 z-30 flex items-center gap-1 bg-neutral-900/90 text-white border border-primary/50 text-[9px] font-bold px-1.5 py-0.5 rounded cursor-nwse-resize hover:bg-primary transition-all shadow-md active:scale-95"
+                        >
+                          <Move className="w-2.5 h-2.5 text-amber-300" />
+                          <span>{editingBanner.leftImageCardWidth ?? 26}%</span>
+                        </div>
+
+                        {/* Borda direita com alça de arraste horizontal */}
+                        <div
+                          onMouseDown={(e) => handleStartCardResize(e, 'left')}
+                          onTouchStart={(e) => handleStartCardResize(e, 'left')}
+                          title="Arraste horizontalmente para redimensionar"
+                          className="absolute inset-y-0 right-0 w-3 cursor-ew-resize hover:bg-primary/30 flex items-center justify-center transition-colors z-20 group-hover:bg-primary/20"
+                        >
+                          <div className="w-1 h-6 bg-primary rounded-full shadow" />
+                        </div>
                       </div>
 
                       {/* Textos Centrais */}
-                      <div className="relative z-20 w-6/12 flex flex-col items-center text-center px-4 py-2 my-auto">
+                      <div className="relative z-20 flex-1 max-w-sm mx-auto flex flex-col items-center justify-center text-center px-3 py-2 my-auto">
                         {editingBanner.badge && (
                           <span
                             style={{
@@ -1611,25 +1714,40 @@ export const AdminSectionsBannersPage: React.FC = () => {
                           </span>
                         )}
 
-                        <h2
-                          style={{
-                            color: editingBanner.titleColor || '#ffffff',
-                            fontFamily: editingBanner.titleFontFamily === 'sans' ? 'sans-serif' : 'serif',
-                            fontSize: typeof editingBanner.titleFontSize === 'number' ? `${Math.min(editingBanner.titleFontSize, 38)}px` : '28px',
-                          }}
-                          className="font-black uppercase leading-tight tracking-tight drop-shadow-md mb-1"
-                        >
-                          {editingBanner.title || 'TÍTULO DO BANNER'}
-                        </h2>
-
-                        {editingBanner.discountHighlight && (
-                          <div className="text-sm font-black text-amber-300 uppercase tracking-wide leading-none mb-1">
-                            {editingBanner.discountHighlight}
+                        {editingBanner.discountHighlight ? (
+                          <div className="space-y-0.5 mb-1">
+                            <span
+                              style={{ color: editingBanner.titleColor || undefined }}
+                              className="text-[10px] font-extrabold tracking-widest uppercase opacity-80 block"
+                            >
+                              {editingBanner.title}
+                            </span>
+                            <h2
+                              style={{
+                                color: editingBanner.titleColor || '#ffffff',
+                                fontFamily: editingBanner.titleFontFamily === 'sans' ? 'sans-serif' : 'serif',
+                                fontSize: typeof editingBanner.titleFontSize === 'number' ? `${Math.min(editingBanner.titleFontSize, 30)}px` : '26px',
+                              }}
+                              className="font-black uppercase leading-tight tracking-tight drop-shadow-md"
+                            >
+                              {editingBanner.discountHighlight}
+                            </h2>
                           </div>
+                        ) : (
+                          <h2
+                            style={{
+                              color: editingBanner.titleColor || '#ffffff',
+                              fontFamily: editingBanner.titleFontFamily === 'sans' ? 'sans-serif' : 'serif',
+                              fontSize: typeof editingBanner.titleFontSize === 'number' ? `${Math.min(editingBanner.titleFontSize, 30)}px` : '26px',
+                            }}
+                            className="font-black uppercase leading-tight tracking-tight drop-shadow-md mb-1"
+                          >
+                            {editingBanner.title || 'TÍTULO DO BANNER'}
+                          </h2>
                         )}
 
                         {editingBanner.couponCode && (
-                          <div className="inline-flex items-center gap-1 bg-black/60 text-white font-mono text-[10px] px-2.5 py-0.5 rounded-md border border-white/20 mb-1.5">
+                          <div className="inline-flex items-center gap-1 bg-black/60 text-white font-mono text-[9px] px-2 py-0.5 rounded-md border border-white/20 mb-1">
                             <span className="text-neutral-400 font-sans text-[8px]">CUPOM:</span>
                             <span className="text-amber-300 font-bold">{editingBanner.couponCode}</span>
                           </div>
@@ -1637,28 +1755,54 @@ export const AdminSectionsBannersPage: React.FC = () => {
 
                         <p
                           style={{ color: editingBanner.subtitleColor || 'rgba(255,255,255,0.8)' }}
-                          className="text-[10px] line-clamp-2 max-w-sm mb-2.5 leading-tight"
+                          className="text-[9px] line-clamp-2 max-w-xs mb-2 leading-tight"
                         >
                           {editingBanner.subtitle || 'Subtítulo descritivo com toque nobre e aveludado.'}
                         </p>
 
                         <div
                           style={getBannerButtonStyle(editingBanner)}
-                          className={`inline-flex items-center gap-1 px-4 py-1.5 ${getBannerButtonRadiusClass(editingBanner.buttonRadius)} text-[11px] font-extrabold uppercase shadow-md select-none`}
+                          className={`inline-flex items-center gap-1 px-4 py-1.5 ${getBannerButtonRadiusClass(editingBanner.buttonRadius)} text-[10px] font-extrabold uppercase shadow-md select-none`}
                         >
                           <span>{editingBanner.buttonText || 'COMPRAR AGORA'}</span>
                           <ArrowRight className="w-3 h-3" />
                         </div>
                       </div>
 
-                      {/* Foto Direita */}
-                      <div className="relative w-3/12 h-full flex items-end justify-center overflow-hidden shrink-0 z-10">
+                      {/* Foto Direita (Card Proporcional e Arrastável pelo Mouse) */}
+                      <div
+                        style={getImageCardContainerStyle('right', editingBanner, false)}
+                        className={`relative overflow-hidden shadow-2xl border-2 transition-all group shrink-0 select-none bg-neutral-900/40 ${
+                          activeResizingSide === 'right' ? 'border-primary ring-2 ring-primary/40' : 'border-white/20 hover:border-primary/60'
+                        }`}
+                      >
                         <img
                           src={editingBanner.rightImage || editingBanner.leftImage || '/images/macaco-bless.png'}
                           alt="Foto 2"
                           style={getImageInlineStyle('right', editingBanner)}
-                          className="h-full w-full object-top"
+                          className="h-full w-full object-top pointer-events-none"
                         />
+
+                        {/* Alça visual no canto inferior esquerdo para arrasto com o mouse */}
+                        <div
+                          onMouseDown={(e) => handleStartCardResize(e, 'right')}
+                          onTouchStart={(e) => handleStartCardResize(e, 'right')}
+                          title="Clique e arraste com o mouse para alterar a dimensão da foto"
+                          className="absolute bottom-1.5 left-1.5 z-30 flex items-center gap-1 bg-neutral-900/90 text-white border border-primary/50 text-[9px] font-bold px-1.5 py-0.5 rounded cursor-nesw-resize hover:bg-primary transition-all shadow-md active:scale-95"
+                        >
+                          <Move className="w-2.5 h-2.5 text-amber-300" />
+                          <span>{editingBanner.rightImageCardWidth ?? 26}%</span>
+                        </div>
+
+                        {/* Borda esquerda com alça de arraste horizontal */}
+                        <div
+                          onMouseDown={(e) => handleStartCardResize(e, 'right')}
+                          onTouchStart={(e) => handleStartCardResize(e, 'right')}
+                          title="Arraste horizontalmente para redimensionar"
+                          className="absolute inset-y-0 left-0 w-3 cursor-ew-resize hover:bg-primary/30 flex items-center justify-center transition-colors z-20 group-hover:bg-primary/20"
+                        >
+                          <div className="w-1 h-6 bg-primary rounded-full shadow" />
+                        </div>
                       </div>
                     </div>
                   ) : (
@@ -1682,8 +1826,11 @@ export const AdminSectionsBannersPage: React.FC = () => {
                         />
                       ) : null}
 
-                      {/* Lado Esquerdo Mobile: Foto */}
-                      <div className="relative w-[45%] h-full flex items-end justify-center overflow-hidden shrink-0 z-10 rounded-xl">
+                      {/* Lado Esquerdo Mobile: Foto Proporcional */}
+                      <div
+                        style={getImageCardContainerStyle('left', editingBanner, true)}
+                        className="relative overflow-hidden shadow-md border border-white/20 shrink-0 select-none"
+                      >
                         <img
                           src={editingBanner.leftImage || '/images/look-3214.png'}
                           alt="Foto Modelo"
@@ -1806,6 +1953,19 @@ export const AdminSectionsBannersPage: React.FC = () => {
               {/* ========================================================= */}
               {bannerStudioTab === 'fotos' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Banner Explicativo de Redimensionamento Interativo */}
+                  <div className="md:col-span-2 p-3 bg-primary/10 border border-primary/30 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-2 text-foreground font-semibold">
+                      <Move className="w-4 h-4 text-primary shrink-0 animate-pulse" />
+                      <span>
+                        <strong>Redimensionamento com o Mouse:</strong> Arraste diretamente as alças nas fotos do preview acima para mudar a dimensão, ou use os controles de precisão abaixo.
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-primary font-bold bg-background px-2.5 py-1 rounded-full border border-primary/20 shrink-0">
+                      ✓ Proporcional & Responsivo
+                    </span>
+                  </div>
+
                   {/* FOTO 1 (ESQUERDA / PRINCIPAL) */}
                   <div className="bg-muted/30 border border-border rounded-2xl p-4 space-y-3.5">
                     <div className="flex items-center justify-between">
@@ -1814,7 +1974,7 @@ export const AdminSectionsBannersPage: React.FC = () => {
                         Foto 1 (Esquerda / Principal)
                       </span>
                       <span className="text-[10px] text-muted-foreground font-mono">
-                        Zoom: {editingBanner.leftImageScale || 100}%
+                        Dimensão: {editingBanner.leftImageCardWidth ?? 26}%
                       </span>
                     </div>
 
@@ -1886,6 +2046,103 @@ export const AdminSectionsBannersPage: React.FC = () => {
                       }
                       className="w-full bg-background border border-border rounded-xl px-2.5 py-1.5 text-[11px] outline-none"
                     />
+
+                    {/* DIMENSÃO / LARGURA DO CARD (ARRASTÁVEL COM O MOUSE) */}
+                    <div className="p-3 bg-primary/5 border border-primary/20 rounded-xl space-y-2">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-bold text-foreground flex items-center gap-1.5">
+                          <Maximize2 className="w-3.5 h-3.5 text-primary" />
+                          Dimensão / Largura do Card:
+                        </span>
+                        <span className="font-mono font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">
+                          {editingBanner.leftImageCardWidth ?? 26}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="16"
+                        max="40"
+                        step="1"
+                        value={editingBanner.leftImageCardWidth ?? 26}
+                        onChange={(e) =>
+                          setEditingBanner({
+                            ...editingBanner,
+                            leftImageCardWidth: Number(e.target.value),
+                          })
+                        }
+                        className="w-full accent-primary cursor-pointer"
+                      />
+                      <div className="grid grid-cols-4 gap-1">
+                        {[
+                          { label: 'Compacto', val: 20 },
+                          { label: 'Editorial', val: 26 },
+                          { label: 'Destaque', val: 32 },
+                          { label: 'Amplo', val: 38 },
+                        ].map((preset) => (
+                          <button
+                            key={preset.val}
+                            type="button"
+                            onClick={() =>
+                              setEditingBanner({
+                                ...editingBanner,
+                                leftImageCardWidth: preset.val,
+                              })
+                            }
+                            className={`py-1 text-[10px] font-semibold rounded-lg border transition-all ${
+                              (editingBanner.leftImageCardWidth ?? 26) === preset.val
+                                ? 'bg-primary text-white border-primary shadow-xs'
+                                : 'bg-background hover:bg-muted text-muted-foreground border-border'
+                            }`}
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Altura Proporcional */}
+                      <div className="flex items-center justify-between text-[11px] pt-1">
+                        <span className="font-semibold text-muted-foreground">Altura do Card:</span>
+                        <span className="font-mono font-bold text-foreground">
+                          {editingBanner.leftImageCardHeight ?? 85}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="65"
+                        max="95"
+                        step="1"
+                        value={editingBanner.leftImageCardHeight ?? 85}
+                        onChange={(e) =>
+                          setEditingBanner({
+                            ...editingBanner,
+                            leftImageCardHeight: Number(e.target.value),
+                          })
+                        }
+                        className="w-full accent-primary cursor-pointer"
+                      />
+
+                      {/* Arredondamento dos Cantos */}
+                      <div className="flex items-center justify-between text-[11px] pt-1">
+                        <span className="font-semibold text-muted-foreground">Arredondamento dos Cantos:</span>
+                        <span className="font-mono font-bold text-foreground">
+                          {editingBanner.leftImageCardRadius ?? 24}px
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="40"
+                        step="2"
+                        value={editingBanner.leftImageCardRadius ?? 24}
+                        onChange={(e) =>
+                          setEditingBanner({
+                            ...editingBanner,
+                            leftImageCardRadius: Number(e.target.value),
+                          })
+                        }
+                        className="w-full accent-primary cursor-pointer"
+                      />
+                    </div>
 
                     {/* Controles de Escala / Zoom */}
                     <div className="space-y-1 pt-1">
@@ -2023,7 +2280,7 @@ export const AdminSectionsBannersPage: React.FC = () => {
                         Foto 2 (Direita / Detalhes)
                       </span>
                       <span className="text-[10px] text-muted-foreground font-mono">
-                        Zoom: {editingBanner.rightImageScale || 100}%
+                        Dimensão: {editingBanner.rightImageCardWidth ?? 26}%
                       </span>
                     </div>
 
@@ -2095,6 +2352,103 @@ export const AdminSectionsBannersPage: React.FC = () => {
                       }
                       className="w-full bg-background border border-border rounded-xl px-2.5 py-1.5 text-[11px] outline-none"
                     />
+
+                    {/* DIMENSÃO / LARGURA DO CARD (ARRASTÁVEL COM O MOUSE) */}
+                    <div className="p-3 bg-primary/5 border border-primary/20 rounded-xl space-y-2">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-bold text-foreground flex items-center gap-1.5">
+                          <Maximize2 className="w-3.5 h-3.5 text-primary" />
+                          Dimensão / Largura do Card:
+                        </span>
+                        <span className="font-mono font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">
+                          {editingBanner.rightImageCardWidth ?? 26}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="16"
+                        max="40"
+                        step="1"
+                        value={editingBanner.rightImageCardWidth ?? 26}
+                        onChange={(e) =>
+                          setEditingBanner({
+                            ...editingBanner,
+                            rightImageCardWidth: Number(e.target.value),
+                          })
+                        }
+                        className="w-full accent-primary cursor-pointer"
+                      />
+                      <div className="grid grid-cols-4 gap-1">
+                        {[
+                          { label: 'Compacto', val: 20 },
+                          { label: 'Editorial', val: 26 },
+                          { label: 'Destaque', val: 32 },
+                          { label: 'Amplo', val: 38 },
+                        ].map((preset) => (
+                          <button
+                            key={preset.val}
+                            type="button"
+                            onClick={() =>
+                              setEditingBanner({
+                                ...editingBanner,
+                                rightImageCardWidth: preset.val,
+                              })
+                            }
+                            className={`py-1 text-[10px] font-semibold rounded-lg border transition-all ${
+                              (editingBanner.rightImageCardWidth ?? 26) === preset.val
+                                ? 'bg-primary text-white border-primary shadow-xs'
+                                : 'bg-background hover:bg-muted text-muted-foreground border-border'
+                            }`}
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Altura Proporcional */}
+                      <div className="flex items-center justify-between text-[11px] pt-1">
+                        <span className="font-semibold text-muted-foreground">Altura do Card:</span>
+                        <span className="font-mono font-bold text-foreground">
+                          {editingBanner.rightImageCardHeight ?? 85}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="65"
+                        max="95"
+                        step="1"
+                        value={editingBanner.rightImageCardHeight ?? 85}
+                        onChange={(e) =>
+                          setEditingBanner({
+                            ...editingBanner,
+                            rightImageCardHeight: Number(e.target.value),
+                          })
+                        }
+                        className="w-full accent-primary cursor-pointer"
+                      />
+
+                      {/* Arredondamento dos Cantos */}
+                      <div className="flex items-center justify-between text-[11px] pt-1">
+                        <span className="font-semibold text-muted-foreground">Arredondamento dos Cantos:</span>
+                        <span className="font-mono font-bold text-foreground">
+                          {editingBanner.rightImageCardRadius ?? 24}px
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="40"
+                        step="2"
+                        value={editingBanner.rightImageCardRadius ?? 24}
+                        onChange={(e) =>
+                          setEditingBanner({
+                            ...editingBanner,
+                            rightImageCardRadius: Number(e.target.value),
+                          })
+                        }
+                        className="w-full accent-primary cursor-pointer"
+                      />
+                    </div>
 
                     {/* Controles de Escala / Zoom */}
                     <div className="space-y-1 pt-1">

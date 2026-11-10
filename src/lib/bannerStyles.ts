@@ -124,3 +124,31 @@ export function resolveMobileTitleFontSize(size?: number | 'sm' | 'md' | 'lg' | 
   };
   return map[size] || '17px';
 }
+
+export function getImageCardContainerStyle(
+  side: 'left' | 'right',
+  slide: Partial<HeroBannerSlide>,
+  isMobile: boolean = false
+): React.CSSProperties {
+  const isLeft = side === 'left';
+  const widthPercent = (isLeft ? slide.leftImageCardWidth : slide.rightImageCardWidth) ?? 26;
+  const heightPercent = (isLeft ? slide.leftImageCardHeight : slide.rightImageCardHeight) ?? 85;
+  const radius = (isLeft ? slide.leftImageCardRadius : slide.rightImageCardRadius) ?? 24;
+
+  if (isMobile) {
+    const mobileWidth = Math.min(Math.max(widthPercent * 1.5, 36), 48);
+    return {
+      width: `${mobileWidth}%`,
+      height: `${Math.min(Math.max(heightPercent, 75), 96)}%`,
+      borderRadius: `${Math.min(radius, 16)}px`,
+    };
+  }
+
+  return {
+    width: `${Math.min(Math.max(widthPercent, 15), 42)}%`,
+    maxWidth: '380px',
+    minWidth: '160px',
+    height: `${Math.min(Math.max(heightPercent, 60), 96)}%`,
+    borderRadius: `${radius}px`,
+  };
+}

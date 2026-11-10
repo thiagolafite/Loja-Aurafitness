@@ -19,6 +19,7 @@ import {
   getBannerButtonRadiusClass,
   resolveTitleFontSize,
   resolveMobileTitleFontSize,
+  getImageCardContainerStyle,
 } from '../../lib/bannerStyles';
 import {
   STORE_CATEGORIES,
@@ -179,7 +180,10 @@ export const HomePage: React.FC = () => {
             {/* ======================================================== */}
             <div className="flex md:hidden w-full h-full relative z-10 items-center justify-between px-3 py-2">
               {/* Lado Esquerdo Mobile: Foto 1 com Enquadramento Limpo */}
-              <div className="relative w-[44%] h-[92%] rounded-2xl overflow-hidden shadow-md border border-white/20 shrink-0">
+              <div
+                style={getImageCardContainerStyle('left', slide, true)}
+                className="relative overflow-hidden shadow-md border border-white/20 shrink-0 select-none"
+              >
                 <img
                   src={slide.leftImage}
                   alt={slide.title}
@@ -290,7 +294,10 @@ export const HomePage: React.FC = () => {
             {/* ======================================================== */}
             <div className="hidden md:flex max-w-7xl mx-auto w-full h-full items-center justify-between px-6 lg:px-12 relative z-10 gap-6">
               {/* Foto 1 (Esquerda) com Enquadramento Nobre */}
-              <div className="w-[26%] max-w-[300px] h-[85%] rounded-3xl overflow-hidden shadow-2xl relative border border-white/20 shrink-0 select-none">
+              <div
+                style={getImageCardContainerStyle('left', slide, false)}
+                className="overflow-hidden shadow-2xl relative border border-white/20 shrink-0 select-none"
+              >
                 <img
                   src={slide.leftImage}
                   alt={slide.title}
@@ -412,7 +419,10 @@ export const HomePage: React.FC = () => {
               </div>
 
               {/* Foto 2 (Direita) com Enquadramento Nobre */}
-              <div className="w-[26%] max-w-[300px] h-[85%] rounded-3xl overflow-hidden shadow-2xl relative border border-white/20 shrink-0 select-none">
+              <div
+                style={getImageCardContainerStyle('right', slide, false)}
+                className="overflow-hidden shadow-2xl relative border border-white/20 shrink-0 select-none"
+              >
                 <img
                   src={slide.rightImage || slide.leftImage}
                   alt="Modelo 2"

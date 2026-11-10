@@ -353,6 +353,9 @@ export interface HeroBannerSlide {
   leftImageSepia?: number; // 0 a 100 (padrão 0)
   leftImageOpacity?: number; // 20 a 100 (padrão 100)
   leftImageFlipX?: boolean;
+  leftImageCardWidth?: number; // 15 a 42 (padrão 26%)
+  leftImageCardHeight?: number; // 60 a 95 (padrão 85%)
+  leftImageCardRadius?: number; // 0 a 40 (padrão 24px)
 
   // Foto 2 (Direita)
   rightImageScale?: number;
@@ -367,6 +370,9 @@ export interface HeroBannerSlide {
   rightImageSepia?: number;
   rightImageOpacity?: number;
   rightImageFlipX?: boolean;
+  rightImageCardWidth?: number; // 15 a 42 (padrão 26%)
+  rightImageCardHeight?: number; // 60 a 95 (padrão 85%)
+  rightImageCardRadius?: number; // 0 a 40 (padrão 24px)
 
   // Tipografia e Cores
   titleColor?: string;
