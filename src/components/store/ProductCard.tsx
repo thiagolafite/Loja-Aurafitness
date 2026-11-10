@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, ShoppingBag, ZoomIn, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Heart, ShoppingBag, ZoomIn, ChevronLeft, ChevronRight, Play } from 'lucide-react';
 import { Product } from '../../types';
 import { formatCurrency, calculateDiscount } from '../../lib/utils';
 import { useWishlist } from '../../contexts/WishlistContext';
 import { useCart } from '../../contexts/CartContext';
 import { useLightbox } from '../../contexts/LightboxContext';
+import { getProductMediaSlides, isVideoMedia } from '../../lib/productClassifier';
+import { ProductMediaView } from './ProductMediaView';
 
 interface ProductCardProps {
   product: Product;
@@ -13,17 +15,31 @@ interface ProductCardProps {
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   const [currentImgIndex, setCurrentImgIndex] = useState(0);
+  const [isHovered, setIsHovered] = useState(false);
   const { isInWishlist, toggleWishlist } = useWishlist();
   const { addToCart } = useCart();
   const { openLightbox } = useLightbox();
   const isFav = isInWishlist(product.id);
 
-  const images =
-    Array.isArray(product.images) && product.images.length > 0
-      ? product.images
-      : ['/images/look-3103.png'];
+  const images = getProductMediaSlides(product);
+  const coverPoster = images.find((m) => !isVideoMedia(m));
+  const hasVideo = images.some((m) => isVideoMedia(m));
 
   const safeIndex = currentImgIndex < images.length ? currentImgIndex : 0;
+  const activeSlide = images[safeIndex];
+  const isCurrentSlideVideo = isVideoMedia(activeSlide);
+
+  const handleMouseEnter = () => {
+    setIsHovered(true);
+    if (images.length > 1) {
+      setCurrentImgIndex(1);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    setIsHovered(false);
+    setCurrentImgIndex(0);
+  };
 
   const handlePrev = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -42,16 +58,34 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     : 0;
 
   return (
-    <div className="group relative flex flex-col bg-transparent overflow-hidden transition-all duration-300">
-      {/* Image Container with Badges & Carrossel */}
+    <div
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      className="group relative flex flex-col bg-transparent overflow-hidden transition-all duration-300"
+    >
+      {/* Image / Video Container with Badges & Carrossel */}
       <div className="relative aspect-[3/4] w-full rounded-2xl overflow-hidden bg-[#dbe0dc] dark:bg-muted/40">
         <Link to={`/produto/${product.id}`} className="block w-full h-full relative">
-          <img
-            src={images[safeIndex]}
+          <ProductMediaView
+            src={activeSlide}
             alt={product.name}
+            poster={coverPoster}
+            autoPlay={isCurrentSlideVideo ? true : isHovered}
+            muted={true}
+            loop={true}
             className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
           />
         </Link>
+
+        {/* Video Indicator Badge */}
+        {hasVideo && (
+          <div className="absolute top-3 right-12 z-10 pointer-events-none">
+            <span className="bg-black/70 backdrop-blur-sm text-white text-[9px] font-bold px-2 py-1 rounded-full shadow flex items-center gap-1">
+              <Play className="w-2.5 h-2.5 fill-white" />
+              <span>{isCurrentSlideVideo ? 'REPRODUZINDO' : 'VÍDEO'}</span>
+            </span>
+          </div>
+        )}
 
         {/* Carousel Navigation Arrows */}
         {images.length > 1 && (

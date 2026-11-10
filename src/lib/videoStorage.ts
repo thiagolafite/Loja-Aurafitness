@@ -23,51 +23,141 @@ function openVideoDb(): Promise<IDBDatabase> {
   });
 }
 
+// Cache global compartilhado de ObjectURLs em memória para evitar recriar blobs repetidamente
+function getVideoUrlCache(): Map<string, string> {
+  const g = globalThis as unknown as { __auraVideoObjectUrlCache?: Map<string, string> };
+  if (!g.__auraVideoObjectUrlCache) {
+    g.__auraVideoObjectUrlCache = new Map<string, string>();
+  }
+  return g.__auraVideoObjectUrlCache;
+}
+const objectUrlCache = getVideoUrlCache();
+
+export function normalizeVideoMimeType(fileNameOrMime?: string): string {
+  const lower = (fileNameOrMime || '').toLowerCase();
+  if (lower.includes('webm')) return 'video/webm';
+  if (lower.includes('ogg') || lower.includes('ogv')) return 'video/ogg';
+  return 'video/mp4';
+}
+
+export function dataUrlToVideoBlobUrl(dataUrl: string): string {
+  const trimmed = dataUrl.trim();
+  if (objectUrlCache.has(trimmed)) {
+    return objectUrlCache.get(trimmed)!;
+  }
+  try {
+    const commaIdx = trimmed.indexOf(',');
+    if (commaIdx === -1) return trimmed;
+    const header = trimmed.slice(0, commaIdx);
+    const base64 = trimmed.slice(commaIdx + 1);
+    const mimeMatch = header.match(/data:([^;]+)/i);
+    const rawMime = mimeMatch ? mimeMatch[1].toLowerCase() : 'video/mp4';
+    const mimeType = normalizeVideoMimeType(rawMime);
+
+    const binary = atob(base64);
+    const len = binary.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    const blob = new Blob([bytes], { type: mimeType });
+    const blobUrl = URL.createObjectURL(blob);
+    objectUrlCache.set(trimmed, blobUrl);
+    return blobUrl;
+  } catch (err) {
+    console.warn('Fallback para dataURL direto:', err);
+    return trimmed;
+  }
+}
+
 /**
- * Salva um arquivo de vídeo (.mp4, .webm, .mov) no IndexedDB do navegador,
- * permitindo vídeos grandes sem limite de 5MB do localStorage.
+ * Retorna sincronamente a URL reproduzível caso já esteja em cache (idb:// ou data:video/)
+ */
+export function getSyncPlayableVideoUrl(videoUrl?: string): string {
+  if (!videoUrl || typeof videoUrl !== 'string') return '';
+  const trimmed = videoUrl.trim();
+  if (!trimmed) return '';
+  if (objectUrlCache.has(trimmed)) {
+    return objectUrlCache.get(trimmed)!;
+  }
+  if (trimmed.startsWith('data:video/')) {
+    return dataUrlToVideoBlobUrl(trimmed);
+  }
+  if (trimmed.startsWith('idb://')) {
+    // Dispara resolução assíncrona em background
+    resolvePlayableVideoUrl(trimmed).catch(() => {});
+    return '';
+  }
+  return trimmed;
+}
+
+/**
+ * Salva um arquivo de vídeo (.mp4, .webm, .mov, .m4v) no IndexedDB do navegador,
+ * normalizando o MIME type para reprodução 100% compatível e sem limite de 5MB do localStorage.
  */
 export async function saveVideoFileToStorage(file: File): Promise<string> {
   const videoId = `vid_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const idbRef = `idb://${videoId}`;
+  const mimeType = normalizeVideoMimeType(file.name || file.type);
+
   try {
+    const buffer = await file.arrayBuffer();
+    const normalizedBlob = new Blob([buffer], { type: mimeType });
+    const immediateObjUrl = URL.createObjectURL(normalizedBlob);
+    objectUrlCache.set(idbRef, immediateObjUrl);
+
     const db = await openVideoDb();
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(IDB_STORE, 'readwrite');
       const store = tx.objectStore(IDB_STORE);
-      store.put(file, videoId);
+      store.put(normalizedBlob, videoId);
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
-    return `idb://${videoId}`;
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('aura_video_blob_ready', { detail: { idbRef, url: immediateObjUrl } }));
+    }
+    return idbRef;
   } catch (err) {
     console.error('Erro ao salvar vídeo no IndexedDB, usando DataURL fallback:', err);
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
+      reader.onload = () => {
+        let res = (reader.result as string) || '';
+        const commaIdx = res.indexOf(',');
+        if (commaIdx !== -1 && !res.startsWith('data:video/mp4') && !res.startsWith('data:video/webm')) {
+          res = `data:${mimeType};base64,${res.slice(commaIdx + 1)}`;
+        }
+        resolve(res);
+      };
       reader.onerror = () => reject(reader.error);
       reader.readAsDataURL(file);
     });
   }
 }
 
-// Cache de ObjectURLs em memória para evitar recriar blobs repetidamente
-const objectUrlCache = new Map<string, string>();
-
 /**
- * Resolve uma referência 'idb://...' para uma ObjectURL reproduzível na tag <video>
+ * Resolve uma referência 'idb://...', 'data:video/...' ou URL direta para uma ObjectURL reproduzível na tag <video>
  */
 export async function resolvePlayableVideoUrl(videoUrl: string): Promise<string> {
-  if (!videoUrl) return '';
-  if (!videoUrl.startsWith('idb://')) return videoUrl;
+  if (!videoUrl || typeof videoUrl !== 'string') return '';
+  const trimmed = videoUrl.trim();
+  if (!trimmed) return '';
 
-  if (objectUrlCache.has(videoUrl)) {
-    return objectUrlCache.get(videoUrl)!;
+  if (objectUrlCache.has(trimmed)) {
+    return objectUrlCache.get(trimmed)!;
   }
 
-  const videoId = videoUrl.replace('idb://', '');
+  if (trimmed.startsWith('data:video/')) {
+    return dataUrlToVideoBlobUrl(trimmed);
+  }
+
+  if (!trimmed.startsWith('idb://')) return trimmed;
+
+  const videoId = trimmed.replace('idb://', '');
   try {
     const db = await openVideoDb();
-    const blob = await new Promise<Blob | null>((resolve, reject) => {
+    const rawBlob = await new Promise<Blob | null>((resolve, reject) => {
       const tx = db.transaction(IDB_STORE, 'readonly');
       const store = tx.objectStore(IDB_STORE);
       const req = store.get(videoId);
@@ -75,15 +165,55 @@ export async function resolvePlayableVideoUrl(videoUrl: string): Promise<string>
       req.onerror = () => reject(req.error);
     });
 
-    if (blob instanceof Blob) {
-      const objUrl = URL.createObjectURL(blob);
-      objectUrlCache.set(videoUrl, objUrl);
+    if (rawBlob instanceof Blob) {
+      let playableBlob = rawBlob;
+      if (
+        !rawBlob.type ||
+        rawBlob.type === 'video/quicktime' ||
+        rawBlob.type === 'application/octet-stream'
+      ) {
+        const buf = await rawBlob.arrayBuffer();
+        playableBlob = new Blob([buf], { type: 'video/mp4' });
+      }
+      const objUrl = URL.createObjectURL(playableBlob);
+      objectUrlCache.set(trimmed, objUrl);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('aura_video_blob_ready', { detail: { idbRef: trimmed, url: objUrl } }));
+      }
       return objUrl;
     }
   } catch (err) {
     console.error('Erro ao carregar vídeo do IndexedDB:', err);
   }
   return '';
+}
+
+/**
+ * Pré-carrega na memória todos os vídeos salvos no IndexedDB ao iniciar a aplicação
+ */
+export async function preloadAllStoredVideos(): Promise<void> {
+  try {
+    const db = await openVideoDb();
+    const keys = await new Promise<IDBValidKey[]>((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const store = tx.objectStore(IDB_STORE);
+      const req = store.getAllKeys();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+    for (const key of keys) {
+      const idbRef = `idb://${String(key)}`;
+      if (!objectUrlCache.has(idbRef)) {
+        await resolvePlayableVideoUrl(idbRef);
+      }
+    }
+  } catch {
+    // Ignore if IDB not available
+  }
+}
+
+if (typeof window !== 'undefined') {
+  preloadAllStoredVideos();
 }
 
 export async function deleteVideoFromStorage(videoUrl?: string): Promise<void> {

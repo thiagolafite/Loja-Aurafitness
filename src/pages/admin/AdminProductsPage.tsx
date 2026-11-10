@@ -46,6 +46,7 @@ import { formatCurrency } from '../../lib/utils';
 import { Product, ProductColor } from '../../types';
 import { ProductImporterModal } from '../../components/admin/ProductImporterModal';
 import { ProductCard } from '../../components/store/ProductCard';
+import { ProductMediaView } from '../../components/store/ProductMediaView';
 import {
   classifyProduct,
   cleanModelName,
@@ -62,6 +63,8 @@ import {
   getStoredCategories,
   saveNewCategory,
   resizeImageFile,
+  isVideoMedia,
+  getProductMediaSlides,
 } from '../../lib/productClassifier';
 import { useLightbox } from '../../contexts/LightboxContext';
 
@@ -146,40 +149,64 @@ export const AdminProductsPage: React.FC = () => {
     });
   };
 
-  // Helper to add an image by URL
+  // Helper to add an image or video by URL
   const handleAddImageUrl = () => {
-    if (!newImageUrl.trim() || !editingProduct) return;
-    const updated = [...(editingProduct.images || []), newImageUrl.trim()];
+    const trimmed = newImageUrl.trim();
+    if (!trimmed || !editingProduct) return;
+    const current = [...(editingProduct.images || [])];
+    const isVid = isVideoMedia(trimmed);
+    if (isVid && current.length >= 1 && !isVideoMedia(current[0])) {
+      current.splice(1, 0, trimmed);
+    } else {
+      current.push(trimmed);
+    }
     setEditingProduct({
       ...editingProduct,
-      images: updated,
+      images: current,
+      videoUrl: isVid ? trimmed : editingProduct.videoUrl,
     });
     setNewImageUrl('');
-    showToast('✓ Foto adicionada ao carrossel!');
+    showToast(isVid ? '✓ Vídeo adicionado ao carrossel (#2 Hover)!' : '✓ Foto adicionada ao carrossel!');
   };
 
-  // Helper to upload images from local computer / device
+  // Helper to upload images or videos from local computer / device
   const handleUploadPhotoFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0 || !editingProduct) return;
 
     setIsUploadingPhoto(true);
     try {
-      const processedDataUrls: string[] = [];
+      const updated = [...(editingProduct.images || [])];
+      let latestVideoUrl = editingProduct.videoUrl;
+      let addedCount = 0;
+
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         const dataUrl = await resizeImageFile(file, 1200, 1200, 0.85);
-        processedDataUrls.push(dataUrl);
+        if (!dataUrl) continue;
+        addedCount++;
+        if (isVideoMedia(dataUrl)) {
+          latestVideoUrl = dataUrl;
+          // Posiciona o vídeo logo após a foto de capa (índice 1) para reproduzir ao passar o mouse
+          if (updated.length >= 1 && !isVideoMedia(updated[0])) {
+            updated.splice(1, 0, dataUrl);
+          } else {
+            updated.push(dataUrl);
+          }
+        } else {
+          updated.push(dataUrl);
+        }
       }
 
       setEditingProduct({
         ...editingProduct,
-        images: [...(editingProduct.images || []), ...processedDataUrls],
+        images: updated,
+        videoUrl: latestVideoUrl,
       });
-      showToast(`✓ ${processedDataUrls.length} foto(s) adicionada(s) ao carrossel!`);
+      showToast(`✓ ${addedCount} arquivo(s) de mídia adicionado(s) ao carrossel!`);
     } catch (err) {
-      console.error('Erro ao processar fotos:', err);
-      showToast('Erro ao carregar fotos.');
+      console.error('Erro ao processar mídias:', err);
+      showToast('Erro ao carregar mídias.');
     } finally {
       setIsUploadingPhoto(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -971,18 +998,21 @@ export const AdminProductsPage: React.FC = () => {
                   } rounded-3xl p-3.5 shadow-sm hover:shadow-md transition-all cursor-grab active:cursor-grabbing flex flex-col justify-between gap-3 relative group`}
                 >
                   <div className="space-y-2.5">
-                    {/* Imagem, Checkbox e Lightbox */}
+                    {/* Imagem / Vídeo, Checkbox e Lightbox */}
                     <div
                       onClick={(e) => {
                         e.stopPropagation();
-                        openLightbox(prod.images, 0, prod.name);
+                        openLightbox(getProductMediaSlides(prod), 0, prod.name);
                       }}
                       className="relative aspect-[4/5] rounded-2xl overflow-hidden bg-muted cursor-pointer group/zoom"
-                      title="Clique para ampliar a foto do produto"
+                      title="Clique para ampliar a foto/vídeo do produto"
                     >
-                      <img
+                      <ProductMediaView
                         src={prod.images?.[0] || '/images/look-3103.png'}
                         alt={prod.name}
+                        autoPlay={false}
+                        muted={true}
+                        showVideoBadge={getProductMediaSlides(prod).some((m) => isVideoMedia(m))}
                         className="w-full h-full object-cover pointer-events-none transition-transform duration-300 group-hover/zoom:scale-105"
                       />
                       <span className="absolute top-2 left-2 bg-black/75 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-0.5 rounded-lg shadow">
@@ -1152,13 +1182,16 @@ export const AdminProductsPage: React.FC = () => {
                       </td>
                       <td className="p-3.5">
                         <div
-                          onClick={() => openLightbox(prod.images, 0, prod.name)}
+                          onClick={() => openLightbox(getProductMediaSlides(prod), 0, prod.name)}
                           className="relative group w-10 h-12 rounded-lg overflow-hidden border border-border cursor-pointer shrink-0"
-                          title="Clique para ampliar a imagem"
+                          title="Clique para ampliar a mídia"
                         >
-                          <img
+                          <ProductMediaView
                             src={prod.images?.[0] || '/images/look-3103.png'}
                             alt={prod.name}
+                            autoPlay={false}
+                            muted={true}
+                            showVideoBadge={getProductMediaSlides(prod).some((m) => isVideoMedia(m))}
                             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                           />
                           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -1615,7 +1648,7 @@ export const AdminProductsPage: React.FC = () => {
                           ref={fileInputRef}
                           type="file"
                           multiple
-                          accept="image/*"
+                          accept="image/*,video/*,.mp4,.webm,.mov,.m4v,.ogg"
                           onChange={handleUploadPhotoFiles}
                           className="hidden"
                         />
@@ -1627,7 +1660,7 @@ export const AdminProductsPage: React.FC = () => {
                         >
                           <Upload className="w-3.5 h-3.5" />
                           <span>
-                            {isUploadingPhoto ? 'Processando...' : '+ Upload do Computador'}
+                            {isUploadingPhoto ? 'Processando...' : '+ Upload Fotos / Vídeos'}
                           </span>
                         </button>
                       </div>
@@ -1644,11 +1677,14 @@ export const AdminProductsPage: React.FC = () => {
                               : 'border-border hover:border-primary/50 shadow-sm'
                           }`}
                         >
-                          {/* Miniatura da Imagem */}
+                          {/* Miniatura da Imagem ou Vídeo */}
                           <div className="relative aspect-[3/4] bg-muted overflow-hidden">
-                            <img
+                            <ProductMediaView
                               src={img}
-                              alt={`Foto ${idx + 1}`}
+                              alt={`Mídia ${idx + 1}`}
+                              autoPlay={true}
+                              muted={true}
+                              showVideoBadge={isVideoMedia(img)}
                               className="w-full h-full object-cover object-top"
                             />
 

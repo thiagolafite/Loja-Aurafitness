@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { X, ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ProductMediaView } from '../components/store/ProductMediaView';
+import { isVideoMedia } from '../lib/productClassifier';
 
 interface LightboxContextType {
   openLightbox: (images: string[] | string, initialIndex?: number, title?: string) => void;
@@ -111,20 +113,34 @@ export const LightboxProvider: React.FC<{ children: ReactNode }> = ({ children }
                 </div>
               </div>
 
-              {/* Main Image Frame */}
+              {/* Main Image / Video Frame */}
               <div className="relative w-full flex items-center justify-center overflow-hidden rounded-2xl bg-black/50 border border-white/10 shadow-2xl">
-                <img
-                  src={imageList[currentIndex]}
-                  alt={imageTitle || 'Imagem do produto ampliada'}
-                  className="max-h-[76vh] w-auto max-w-full object-contain rounded-xl transition-all select-none"
-                />
+                {isVideoMedia(imageList[currentIndex]) ? (
+                  <div className="max-h-[76vh] w-full max-w-2xl aspect-[3/4] flex items-center justify-center">
+                    <ProductMediaView
+                      src={imageList[currentIndex]}
+                      alt={imageTitle || 'Vídeo do produto'}
+                      autoPlay={true}
+                      muted={false}
+                      loop={true}
+                      controls={true}
+                      className="max-h-[76vh] w-full h-full object-contain rounded-xl"
+                    />
+                  </div>
+                ) : (
+                  <img
+                    src={imageList[currentIndex]}
+                    alt={imageTitle || 'Imagem do produto ampliada'}
+                    className="max-h-[76vh] w-auto max-w-full object-contain rounded-xl transition-all select-none"
+                  />
+                )}
 
                 {/* Left Arrow */}
                 {imageList.length > 1 && (
                   <button
                     onClick={handlePrev}
-                    className="absolute left-3 p-2.5 rounded-full bg-black/60 hover:bg-black/90 text-white transition-all hover:scale-110 shadow-xl border border-white/20"
-                    title="Foto anterior (←)"
+                    className="absolute left-3 z-20 p-2.5 rounded-full bg-black/60 hover:bg-black/90 text-white transition-all hover:scale-110 shadow-xl border border-white/20"
+                    title="Anterior (←)"
                   >
                     <ChevronLeft className="w-6 h-6" />
                   </button>
@@ -134,8 +150,8 @@ export const LightboxProvider: React.FC<{ children: ReactNode }> = ({ children }
                 {imageList.length > 1 && (
                   <button
                     onClick={handleNext}
-                    className="absolute right-3 p-2.5 rounded-full bg-black/60 hover:bg-black/90 text-white transition-all hover:scale-110 shadow-xl border border-white/20"
-                    title="Próxima foto (→)"
+                    className="absolute right-3 z-20 p-2.5 rounded-full bg-black/60 hover:bg-black/90 text-white transition-all hover:scale-110 shadow-xl border border-white/20"
+                    title="Próximo (→)"
                   >
                     <ChevronRight className="w-6 h-6" />
                   </button>
@@ -155,7 +171,14 @@ export const LightboxProvider: React.FC<{ children: ReactNode }> = ({ children }
                           : 'border-white/30 opacity-60 hover:opacity-100'
                       }`}
                     >
-                      <img src={img} alt={`thumb-${idx}`} className="w-full h-full object-cover" />
+                      <ProductMediaView
+                        src={img}
+                        alt={`thumb-${idx}`}
+                        autoPlay={false}
+                        muted={true}
+                        showVideoBadge={isVideoMedia(img)}
+                        className="w-full h-full object-cover"
+                      />
                     </button>
                   ))}
                 </div>

@@ -20,7 +20,9 @@ import { useWishlist } from '../../contexts/WishlistContext';
 import { SizeGuideModal } from '../../components/store/SizeGuideModal';
 import { ReviewSection } from '../../components/store/ReviewSection';
 import { ProductCard } from '../../components/store/ProductCard';
+import { ProductMediaView } from '../../components/store/ProductMediaView';
 import { useLightbox } from '../../contexts/LightboxContext';
+import { getProductMediaSlides, isVideoMedia } from '../../lib/productClassifier';
 
 export const ProductDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -43,12 +45,19 @@ export const ProductDetailPage: React.FC = () => {
     );
   }
 
-  const [activeImage, setActiveImage] = useState(product.images[0] || '');
+  const mediaSlides = getProductMediaSlides(product);
+  const coverPoster = mediaSlides.find((m) => !isVideoMedia(m));
+
+  const [activeImage, setActiveImage] = useState(mediaSlides[0] || '');
   const [selectedColor, setSelectedColor] = useState(product.colors[0] || { name: 'Verde Oliva', hex: '#5F6F3A' });
   const [selectedSize, setSelectedSize] = useState(product.sizes[0] || 'M');
   const [quantity, setQuantity] = useState(1);
   const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+
+  React.useEffect(() => {
+    setActiveImage(mediaSlides[0] || '');
+  }, [product.id]);
 
   const isLiked = isInWishlist(product.id);
   const discountPercent = calculateDiscount(product.price, product.promotionalPrice);
@@ -91,43 +100,60 @@ export const ProductDetailPage: React.FC = () => {
 
       {/* Product Main Section */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
-        {/* Left: Image Gallery */}
+        {/* Left: Image & Video Gallery */}
         <div className="lg:col-span-7 space-y-4">
           <div
-            onClick={() =>
-              openLightbox(
-                product.images,
-                Math.max(0, product.images.indexOf(activeImage)),
-                product.name
-              )
-            }
-            className="relative aspect-[4/5] rounded-3xl overflow-hidden bg-muted border border-border group shadow-lg cursor-zoom-in"
-            title="Clique para expandir a imagem"
+            onClick={() => {
+              if (!isVideoMedia(activeImage)) {
+                openLightbox(
+                  mediaSlides,
+                  Math.max(0, mediaSlides.indexOf(activeImage)),
+                  product.name
+                );
+              }
+            }}
+            className={`relative aspect-[4/5] rounded-3xl overflow-hidden bg-muted border border-border group shadow-lg ${
+              isVideoMedia(activeImage) ? '' : 'cursor-zoom-in'
+            }`}
+            title={isVideoMedia(activeImage) ? 'Reproduzindo vídeo do produto' : 'Clique para expandir a imagem'}
           >
-            <img
+            <ProductMediaView
               src={activeImage}
               alt={product.name}
+              poster={coverPoster}
+              autoPlay={true}
+              muted={true}
+              loop={true}
+              controls={isVideoMedia(activeImage)}
               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             />
             {discountPercent > 0 && (
-              <span className="absolute top-4 left-4 bg-destructive text-white text-xs font-bold px-3 py-1 rounded-full shadow-md">
+              <span className="absolute top-4 left-4 z-10 bg-destructive text-white text-xs font-bold px-3 py-1 rounded-full shadow-md">
                 -{discountPercent}% OFF
               </span>
             )}
           </div>
 
           {/* Thumbnail Strip */}
-          {product.images.length > 1 && (
+          {mediaSlides.length > 1 && (
             <div className="flex items-center gap-3 overflow-x-auto pb-2">
-              {product.images.map((img, idx) => (
+              {mediaSlides.map((img, idx) => (
                 <button
                   key={idx}
                   onClick={() => setActiveImage(img)}
-                  className={`w-20 h-24 rounded-xl overflow-hidden border-2 transition-all shrink-0 ${
+                  className={`relative w-20 h-24 rounded-xl overflow-hidden border-2 transition-all shrink-0 ${
                     activeImage === img ? 'border-primary scale-105 shadow-md' : 'border-border opacity-70 hover:opacity-100'
                   }`}
                 >
-                  <img src={img} alt="" className="w-full h-full object-cover" />
+                  <ProductMediaView
+                    src={img}
+                    alt=""
+                    poster={coverPoster}
+                    autoPlay={false}
+                    muted={true}
+                    showVideoBadge={isVideoMedia(img)}
+                    className="w-full h-full object-cover"
+                  />
                 </button>
               ))}
             </div>

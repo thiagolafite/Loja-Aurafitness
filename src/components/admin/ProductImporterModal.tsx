@@ -40,7 +40,11 @@ import {
   registerImportedFiles,
   generateFileSignature,
   ImportedFileRecord,
+  isImageFile,
+  isVideoFile,
+  isVideoMedia,
 } from '../../lib/productClassifier';
+import { ProductMediaView } from '../store/ProductMediaView';
 
 interface ProductImporterModalProps {
   isOpen: boolean;
@@ -76,6 +80,7 @@ interface GroupedProductItem {
   colors: { name: string; hex: string }[];
   isSet: boolean;
   images: string[];
+  videoUrl?: string;
   isExisting?: boolean;
   existingSku?: string;
   newImagesCount?: number;
@@ -299,7 +304,7 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
     }
   };
 
-  // Image Processing & Compression Handler (Folder or Multiple Files)
+  // Image & Video Processing Handler (Folder or Multiple Files)
   const processImageFiles = async (
     files: FileList | File[] | null,
     forceReimport = false,
@@ -307,7 +312,7 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
   ) => {
     if (!files || files.length === 0) return;
 
-    const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
+    const imageFiles = Array.from(files).filter((f) => isImageFile(f) || isVideoFile(f));
     if (imageFiles.length === 0) return;
 
     setLastSelectedFiles(imageFiles);
@@ -394,10 +399,25 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
           importedAt: new Date().toISOString(),
         });
 
+        const isVideo = isVideoMedia(compressedDataUrl);
+
         if (productMap.has(parsed.groupKey)) {
           const existing = productMap.get(parsed.groupKey)!;
           if (!existing.images.includes(compressedDataUrl)) {
-            existing.images.push(compressedDataUrl);
+            if (isVideo) {
+              // Posiciona o vídeo logo no 2º slide (índice 1) após a foto de capa para reproduzir ao passar o mouse
+              if (existing.images.length >= 1 && !isVideoMedia(existing.images[0])) {
+                existing.images.splice(1, 0, compressedDataUrl);
+              } else {
+                existing.images.push(compressedDataUrl);
+              }
+              existing.videoUrl = compressedDataUrl;
+            } else if (existing.images.length > 0 && isVideoMedia(existing.images[0])) {
+              // Garante que a 1ª mídia (índice 0) seja uma foto de capa estática e o vídeo fique no índice 1 (hover)
+              existing.images.unshift(compressedDataUrl);
+            } else {
+              existing.images.push(compressedDataUrl);
+            }
             existing.newImagesCount = (existing.newImagesCount || 0) + 1;
           }
           if (!existing.size && parsed.size) existing.size = parsed.size;
@@ -411,6 +431,8 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
           let isNewImg = true;
           if (initialImages.includes(compressedDataUrl)) {
             isNewImg = false;
+          } else if (isVideo && initialImages.length >= 1 && !isVideoMedia(initialImages[0])) {
+            initialImages.splice(1, 0, compressedDataUrl);
           } else {
             initialImages.push(compressedDataUrl);
           }
@@ -429,6 +451,7 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
                 : parsed.colors,
             isSet: parsed.isSet,
             images: initialImages,
+            videoUrl: isVideo ? compressedDataUrl : storeMatch?.videoUrl,
             isExisting: !!storeMatch,
             existingSku: storeMatch?.sku,
             newImagesCount: isNewImg ? 1 : 0,
@@ -505,6 +528,7 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
           category: g.category,
           colors: g.colors,
           images: g.images,
+          videoUrl: g.videoUrl || g.images.find((m) => isVideoMedia(m)),
           price: g.price,
           promotionalPrice: g.promotionalPrice,
           sizes: defaultSizes,
@@ -842,7 +866,7 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
                       ref={folderInputRef}
                       type="file"
                       multiple
-                      accept="image/*"
+                      accept="image/*,video/*,.mp4,.webm,.mov,.m4v,.ogg"
                       // @ts-ignore
                       webkitdirectory=""
                       directory=""
@@ -857,7 +881,7 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
                       ref={filesInputRef}
                       type="file"
                       multiple
-                      accept="image/*"
+                      accept="image/*,video/*,.mp4,.webm,.mov,.m4v,.ogg"
                       onChange={(e) => {
                         processImageFiles(e.target.files);
                         e.target.value = '';
@@ -881,7 +905,7 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
                         className="px-4 py-2.5 bg-secondary hover:bg-secondary/80 text-foreground font-bold text-xs rounded-xl disabled:opacity-50 transition-colors flex items-center gap-2 border border-border shadow-sm"
                       >
                         <ImageIcon className="w-4 h-4 text-primary" />
-                        <span>Selecionar Fotos</span>
+                        <span>Selecionar Fotos / Vídeos</span>
                       </button>
                     </div>
                   </div>
@@ -979,13 +1003,16 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
                           {/* Image Thumbnail & Counter */}
                           <div className="flex items-center gap-3">
                             <div className="relative w-16 h-16 rounded-lg overflow-hidden bg-muted border border-border shrink-0">
-                              <img
+                              <ProductMediaView
                                 src={prod.images[0]}
                                 alt={prod.name}
+                                autoPlay={true}
+                                muted={true}
+                                showVideoBadge={prod.images.some((m) => isVideoMedia(m))}
                                 className="w-full h-full object-cover"
                               />
                               {prod.images.length > 1 && (
-                                <span className="absolute bottom-0 right-0 bg-black/75 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-tl-md">
+                                <span className="absolute bottom-0 right-0 z-10 bg-black/75 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-tl-md">
                                   +{prod.images.length - 1}
                                 </span>
                               )}

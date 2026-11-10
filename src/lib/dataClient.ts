@@ -168,17 +168,82 @@ function setStorageItem<T>(key: string, value: T): void {
   }
 }
 
+const IDB_NAME = 'aura_fitness_media_db';
+const IDB_STORE = 'products_store';
+const IDB_KEY = 'aura_products_full_v1';
+
+function openProductsIDB(): Promise<IDBDatabase | null> {
+  if (typeof window === 'undefined' || !('indexedDB' in window)) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    try {
+      const req = window.indexedDB.open(IDB_NAME, 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(IDB_STORE)) {
+          db.createObjectStore(IDB_STORE);
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+async function saveProductsToIDB(products: Product[]): Promise<void> {
+  const db = await openProductsIDB();
+  if (!db) return;
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).put(products, IDB_KEY);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => resolve();
+    } catch {
+      resolve();
+    }
+  });
+}
+
+async function loadProductsFromIDB(): Promise<Product[] | null> {
+  const db = await openProductsIDB();
+  if (!db) return null;
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const req = tx.objectStore(IDB_STORE).get(IDB_KEY);
+      req.onsuccess = () => {
+        resolve(Array.isArray(req.result) ? req.result : null);
+      };
+      req.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
 function saveProductsToStorage(products: Product[]): void {
+  // Sempre salva 100% das fotos e vídeos completos no IndexedDB (suporta centenas de MBs sem erro de cota)
+  saveProductsToIDB(products).catch(() => {});
+
   try {
     localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
     return;
   } catch {
-    // QuotaExceededError: libera cache auxiliar e reduz apenas fotos secundárias base64 no localStorage
+    // QuotaExceededError: libera cache auxiliar e remove vídeos pesados apenas da cópia do localStorage
   }
 
   try {
     localStorage.removeItem('aura_updated_products_v1');
-    localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
+    const withoutHeavyInlineVideos = products.map((p) => ({
+      ...p,
+      videoUrl: p.videoUrl?.startsWith('data:video/') ? undefined : p.videoUrl,
+      images: Array.isArray(p.images)
+        ? p.images.filter((m) => !m?.startsWith('data:video/'))
+        : p.images,
+    }));
+    localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(withoutHeavyInlineVideos));
     return;
   } catch {
     // Continua para otimização gradual de fotos base64 no localStorage
@@ -186,13 +251,16 @@ function saveProductsToStorage(products: Product[]): void {
 
   for (const maxImages of [2, 1]) {
     try {
-      const slimmed = products.map((p) => ({
-        ...p,
-        images:
-          Array.isArray(p.images) && p.images.length > maxImages
-            ? p.images.slice(0, maxImages)
-            : p.images,
-      }));
+      const slimmed = products.map((p) => {
+        const nonVideoImgs = Array.isArray(p.images)
+          ? p.images.filter((m) => !m?.startsWith('data:video/'))
+          : [];
+        return {
+          ...p,
+          videoUrl: p.videoUrl?.startsWith('data:video/') ? undefined : p.videoUrl,
+          images: nonVideoImgs.length > maxImages ? nonVideoImgs.slice(0, maxImages) : nonVideoImgs,
+        };
+      });
       localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(slimmed));
       return;
     } catch {
@@ -201,17 +269,23 @@ function saveProductsToStorage(products: Product[]): void {
   }
 
   try {
-    const ultraSlimmed = products.map((p, idx) => ({
-      ...p,
-      images:
-        idx >= products.length - 5
-          ? [p.images?.[0] || '/images/look-3103.png']
-          : [
-              p.images?.[0]?.startsWith('data:')
-                ? '/images/look-3103.png'
-                : p.images?.[0] || '/images/look-3103.png',
-            ],
-    }));
+    const ultraSlimmed = products.map((p, idx) => {
+      const firstPhoto = Array.isArray(p.images)
+        ? p.images.find((m) => !m?.startsWith('data:video/'))
+        : undefined;
+      return {
+        ...p,
+        videoUrl: p.videoUrl?.startsWith('data:video/') ? undefined : p.videoUrl,
+        images:
+          idx >= products.length - 5
+            ? [firstPhoto || '/images/look-3103.png']
+            : [
+                firstPhoto?.startsWith('data:')
+                  ? '/images/look-3103.png'
+                  : firstPhoto || '/images/look-3103.png',
+              ],
+      };
+    });
     localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(ultraSlimmed));
   } catch (error) {
     console.error('Error writing products to LocalStorage even after slimming:', error);
@@ -472,7 +546,23 @@ export async function syncWithSupabase(): Promise<void> {
 }
 
 // Initial sync call
-syncWithSupabase();
+loadProductsFromIDB()
+  .then((idbProducts) => {
+    if (idbProducts && idbProducts.length > 0) {
+      const deletedSet = new Set(getStorageItem<string[]>('aura_deleted_product_ids_v1', []));
+      const validIdb = idbProducts.filter((p) => !deletedSet.has(p.id));
+      if (validIdb.length >= cachedProducts.length) {
+        const activeCats = getStoredCategories();
+        cachedProducts = validIdb.map((p) => normalizeProductData(p, activeCats));
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('aura_products_updated', { detail: cachedProducts }));
+        }
+      }
+    }
+  })
+  .finally(() => {
+    syncWithSupabase();
+  });
 
 // --- PRODUCTS SERVICE ---
 export function getProducts(): Product[] {
@@ -636,6 +726,7 @@ function saveProductLocalOnly(productData: Partial<Product>): Product {
       weight: productData.weight || 200,
       brand: 'Aura Fitness',
       images: productData.images || ['/images/look-3103.png'],
+      videoUrl: productData.videoUrl,
       sizes: productData.sizes || ['P', 'M', 'G'],
       colors: productData.colors || [{ name: 'Verde Oliva', hex: '#5F6F3A' }],
       materials: productData.materials || ['Poliamida'],
@@ -662,12 +753,15 @@ function saveProductLocalOnly(productData: Partial<Product>): Product {
       setStorageItem('aura_deleted_product_ids_v1', Array.from(deletedSet));
     }
 
-    // Salva apenas metadados leves no dicionário de edições locais (sem duplicar imagens base64 no localStorage)
+    // Salva apenas metadados leves no dicionário de edições locais (sem duplicar imagens ou vídeos base64 no localStorage)
     const localOverrides = getStorageItem<Record<string, Partial<Product>>>(
       'aura_updated_products_v1',
       {}
     );
-    const { images: _images, fullDescription: _fullDesc, ...lightweightOverride } = updatedProduct;
+    const { images: _images, fullDescription: _fullDesc, videoUrl, ...lightweightOverride } = updatedProduct;
+    if (videoUrl && !videoUrl.startsWith('data:video/')) {
+      (lightweightOverride as Partial<Product>).videoUrl = videoUrl;
+    }
     localOverrides[updatedProduct.id] = lightweightOverride;
     setStorageItem('aura_updated_products_v1', localOverrides);
   }

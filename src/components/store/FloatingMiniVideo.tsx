@@ -18,6 +18,7 @@ import {
   resolvePlayableVideoUrl,
 } from '../../lib/videoStorage';
 import { getProducts } from '../../lib/dataClient';
+import { getProductMediaSlides, isVideoMedia } from '../../lib/productClassifier';
 import { FloatingVideoConfig, Product } from '../../types';
 import { formatCurrency } from '../../lib/utils';
 
@@ -58,18 +59,33 @@ export const FloatingMiniVideo: React.FC = () => {
   const safeIndex = activeIndex < activeItems.length ? activeIndex : 0;
   const currentItem = activeItems[safeIndex];
 
+  // Linked product resolution
+  const linkedProduct = currentItem?.productId
+    ? products.find((p) => p.id === currentItem.productId)
+    : undefined;
+
+  const productEmbeddedVideo =
+    (linkedProduct && getProductMediaSlides(linkedProduct).find((m) => isVideoMedia(m))) ||
+    products.flatMap((p) => getProductMediaSlides(p)).find((m) => isVideoMedia(m));
+
+  const effectiveVideoSource =
+    currentItem?.videoUrl &&
+    !currentItem.videoUrl.includes('assets.mixkit.co')
+      ? currentItem.videoUrl
+      : productEmbeddedVideo || currentItem?.videoUrl || '';
+
   // Resolve IndexedDB or direct video URL
   useEffect(() => {
     let isMounted = true;
     setVideoFailed(false);
 
-    if (!currentItem?.videoUrl) {
+    if (!effectiveVideoSource) {
       setPlayableUrl('');
       setVideoFailed(true);
       return;
     }
 
-    resolvePlayableVideoUrl(currentItem.videoUrl).then((resolved) => {
+    resolvePlayableVideoUrl(effectiveVideoSource).then((resolved) => {
       if (isMounted) {
         if (resolved) {
           setPlayableUrl(resolved);
@@ -81,15 +97,20 @@ export const FloatingMiniVideo: React.FC = () => {
       }
     });
 
+    const handleBlobReady = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail;
+      if (detail && detail.idbRef === effectiveVideoSource && detail.url && isMounted) {
+        setPlayableUrl(detail.url);
+        setVideoFailed(false);
+      }
+    };
+
+    window.addEventListener('aura_video_blob_ready', handleBlobReady);
     return () => {
       isMounted = false;
+      window.removeEventListener('aura_video_blob_ready', handleBlobReady);
     };
-  }, [currentItem?.videoUrl, currentItem?.id]);
-
-  // Linked product resolution
-  const linkedProduct = currentItem?.productId
-    ? products.find((p) => p.id === currentItem.productId)
-    : undefined;
+  }, [effectiveVideoSource, currentItem?.id]);
 
   const targetLink =
     currentItem?.customLink?.trim() ||
@@ -247,6 +268,13 @@ export const FloatingMiniVideo: React.FC = () => {
                         loop
                         muted
                         playsInline
+                        preload="auto"
+                        onLoadedData={(e) => {
+                          const el = e.currentTarget;
+                          el.defaultMuted = true;
+                          el.muted = true;
+                          if (el.paused) el.play().catch(() => {});
+                        }}
                         onError={() => setVideoFailed(true)}
                         onEnded={() => {
                           if (activeItems.length > 1) {
@@ -292,6 +320,13 @@ export const FloatingMiniVideo: React.FC = () => {
                         loop
                         muted
                         playsInline
+                        preload="auto"
+                        onLoadedData={(e) => {
+                          const el = e.currentTarget;
+                          el.defaultMuted = true;
+                          el.muted = true;
+                          if (el.paused) el.play().catch(() => {});
+                        }}
                         onError={() => setVideoFailed(true)}
                         className="w-full h-full object-cover object-top"
                       />
@@ -348,6 +383,18 @@ export const FloatingMiniVideo: React.FC = () => {
                     loop
                     muted={isMuted}
                     playsInline
+                    preload="auto"
+                    onLoadedData={(e) => {
+                      const el = e.currentTarget;
+                      el.defaultMuted = isMuted;
+                      el.muted = isMuted;
+                      if (el.paused) {
+                        el.play().catch(() => {
+                          el.muted = true;
+                          el.play().catch(() => {});
+                        });
+                      }
+                    }}
                     onError={() => setVideoFailed(true)}
                     className="absolute inset-0 w-full h-full object-cover object-top"
                   />

@@ -54,8 +54,11 @@ import {
   getProductCategories,
   removeProductFromCategory,
   assignProductToCategory,
+  isVideoMedia,
+  getProductMediaSlides,
 } from '../../lib/productClassifier';
 import { ProductImporterModal } from '../../components/admin/ProductImporterModal';
+import { ProductMediaView } from '../../components/store/ProductMediaView';
 import { useLightbox } from '../../contexts/LightboxContext';
 
 export const AdminCategoriesPage: React.FC = () => {
@@ -819,13 +822,16 @@ export const AdminCategoriesPage: React.FC = () => {
                               <td className="py-3.5 pl-2">
                                 <div className="flex items-center gap-3">
                                   <div
-                                    onClick={() => openLightbox(prod.images, 0, prod.name)}
+                                    onClick={() => openLightbox(getProductMediaSlides(prod), 0, prod.name)}
                                     className="relative w-12 h-12 rounded-xl overflow-hidden bg-muted border border-border shrink-0 cursor-pointer group/zoom"
-                                    title="Clique para ampliar a foto do produto"
+                                    title="Clique para ampliar a foto/vídeo do produto"
                                   >
-                                    <img
+                                    <ProductMediaView
                                       src={prod.images?.[0] || '/images/look-3103.png'}
                                       alt={prod.name}
+                                      autoPlay={false}
+                                      muted={true}
+                                      showVideoBadge={getProductMediaSlides(prod).some((m) => isVideoMedia(m))}
                                       className="w-full h-full object-cover transition-transform duration-300 group-hover/zoom:scale-110"
                                     />
                                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/zoom:opacity-100 transition-opacity flex items-center justify-center">

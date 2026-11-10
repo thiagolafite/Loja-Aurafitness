@@ -512,14 +512,12 @@ export function getCategoryPhoto(
   }
 
   if (Array.isArray(productsList) && productsList.length > 0) {
-    const productWithImg = productsList.find((p) => {
-      const matchCat = isProductMatchingCategory(p, categoryName);
-      const hasImg = Array.isArray(p.images) && p.images.length > 0 && Boolean(p.images[0]);
-      return matchCat && hasImg;
-    });
-
-    if (productWithImg?.images?.[0]) {
-      return productWithImg.images[0];
+    for (const p of productsList) {
+      if (!isProductMatchingCategory(p, categoryName)) continue;
+      if (Array.isArray(p.images) && p.images.length > 0) {
+        const firstImage = p.images.find((img) => Boolean(img) && !isVideoMedia(img));
+        if (firstImage) return firstImage;
+      }
     }
   }
 
@@ -1611,8 +1609,274 @@ export function parseProductFromFolderOrFile(
 }
 
 /**
+ * Detecta se uma URL ou DataURL é um vídeo de produto (.mp4, .webm, .mov, data:video/...)
+ */
+export function isVideoMedia(url?: string): boolean {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim().toLowerCase();
+  if (trimmed.startsWith('idb://')) return true;
+  if (trimmed.startsWith('data:video/')) return true;
+  if (trimmed.includes('#video') || trimmed.includes('mime=video')) return true;
+  const cleanPath = trimmed.split('?')[0].split('#')[0];
+  return /\.(mp4|webm|mov|m4v|ogg|ogv)$/i.test(cleanPath);
+}
+
+/**
+ * Detecta se um File selecionado pelo usuário é um arquivo de vídeo
+ */
+export function isVideoFile(file?: File | null): boolean {
+  if (!file) return false;
+  if (file.type && file.type.toLowerCase().startsWith('video/')) return true;
+  return /\.(mp4|webm|mov|m4v|ogg|ogv)$/i.test(file.name || '');
+}
+
+/**
+ * Detecta se um File selecionado pelo usuário é um arquivo de imagem
+ */
+export function isImageFile(file?: File | null): boolean {
+  if (!file) return false;
+  if (file.type && file.type.toLowerCase().startsWith('image/')) return true;
+  return /\.(jpg|jpeg|png|webp|gif|avif|bmp|svg)$/i.test(file.name || '');
+}
+
+function getSharedVideoUrlCache(): Map<string, string> {
+  const g = globalThis as unknown as { __auraVideoObjectUrlCache?: Map<string, string> };
+  if (!g.__auraVideoObjectUrlCache) {
+    g.__auraVideoObjectUrlCache = new Map<string, string>();
+  }
+  return g.__auraVideoObjectUrlCache;
+}
+
+function openSharedVideoDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    if (typeof window === 'undefined' || !window.indexedDB) {
+      reject(new Error('IndexedDB não suportado'));
+      return;
+    }
+    const req = window.indexedDB.open('aura_video_storage_db', 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains('videos')) {
+        db.createObjectStore('videos');
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function normalizeVideoMime(nameOrMime?: string): string {
+  const lower = (nameOrMime || '').toLowerCase();
+  if (lower.includes('webm')) return 'video/webm';
+  if (lower.includes('ogg') || lower.includes('ogv')) return 'video/ogg';
+  return 'video/mp4';
+}
+
+/**
+ * Lê um arquivo de vídeo como DataURL com MIME type padronizado (video/mp4 ou video/webm)
+ */
+export function readVideoFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onerror = () => resolve('');
+    reader.onload = (e) => {
+      let dataUrl = (e.target?.result as string) || '';
+      if (!dataUrl) {
+        resolve('');
+        return;
+      }
+      if (
+        dataUrl.startsWith('data:application/octet-stream;base64,') ||
+        dataUrl.startsWith('data:;base64,') ||
+        dataUrl.startsWith('data:video/quicktime;base64,')
+      ) {
+        const commaIdx = dataUrl.indexOf(',');
+        if (commaIdx !== -1) {
+          const base64Part = dataUrl.slice(commaIdx + 1);
+          const mime = normalizeVideoMime(file.name || file.type);
+          dataUrl = `data:${mime};base64,${base64Part}`;
+        }
+      }
+      resolve(dataUrl);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * Salva um vídeo de produto no IndexedDB ('aura_video_storage_db') com MIME normalizado
+ * e cria imediatamente o ObjectURL em cache para reprodução instantânea sem erros.
+ */
+export async function saveProductVideoToIDB(file: File): Promise<string> {
+  const videoId = `vid_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const idbRef = `idb://${videoId}`;
+  const mimeType = normalizeVideoMime(file.name || file.type);
+  const cache = getSharedVideoUrlCache();
+
+  try {
+    const buffer = await file.arrayBuffer();
+    const normalizedBlob = new Blob([buffer], { type: mimeType });
+    const immediateObjUrl = URL.createObjectURL(normalizedBlob);
+    cache.set(idbRef, immediateObjUrl);
+
+    const db = await openSharedVideoDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction('videos', 'readwrite');
+      const store = tx.objectStore('videos');
+      store.put(normalizedBlob, videoId);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('aura_video_blob_ready', { detail: { idbRef, url: immediateObjUrl } })
+      );
+    }
+    return idbRef;
+  } catch (err) {
+    console.warn('Fallback para DataURL de vídeo:', err);
+    return readVideoFileAsDataUrl(file);
+  }
+}
+
+/**
+ * Resolve assincronamente qualquer fonte de vídeo ('idb://...', 'data:video/...', ou URL)
+ * para uma URL reproduzível na tag <video>.
+ */
+export async function resolveVideoMediaUrl(src?: string): Promise<string> {
+  if (!src || typeof src !== 'string') return '';
+  const trimmed = src.trim();
+  if (!trimmed) return '';
+
+  const cache = getSharedVideoUrlCache();
+  if (cache.has(trimmed)) {
+    return cache.get(trimmed)!;
+  }
+
+  if (trimmed.startsWith('data:video/')) {
+    return getPlayableVideoUrl(trimmed);
+  }
+
+  if (!trimmed.startsWith('idb://')) {
+    return trimmed;
+  }
+
+  const videoId = trimmed.replace('idb://', '');
+  try {
+    const db = await openSharedVideoDb();
+    const rawBlob = await new Promise<Blob | null>((resolve, reject) => {
+      const tx = db.transaction('videos', 'readonly');
+      const store = tx.objectStore('videos');
+      const req = store.get(videoId);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+
+    if (rawBlob instanceof Blob) {
+      let playableBlob = rawBlob;
+      if (
+        !rawBlob.type ||
+        rawBlob.type === 'video/quicktime' ||
+        rawBlob.type === 'application/octet-stream'
+      ) {
+        const buf = await rawBlob.arrayBuffer();
+        playableBlob = new Blob([buf], { type: 'video/mp4' });
+      }
+      const objUrl = URL.createObjectURL(playableBlob);
+      cache.set(trimmed, objUrl);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('aura_video_blob_ready', { detail: { idbRef: trimmed, url: objUrl } })
+        );
+      }
+      return objUrl;
+    }
+  } catch (e) {
+    console.error('Erro ao resolver vídeo do IndexedDB:', e);
+  }
+  return '';
+}
+
+/**
+ * Converte vídeos em base64 (data:video/...) ou referências idb:// para ObjectURL (blob:) em memória,
+ * garantindo reprodução 100% sem erros de range/buffer em todos os navegadores.
+ */
+export function getPlayableVideoUrl(src?: string): string {
+  if (!src || typeof src !== 'string') return '';
+  const trimmed = src.trim();
+  if (!trimmed) return '';
+
+  const cache = getSharedVideoUrlCache();
+  const cached = cache.get(trimmed);
+  if (cached) return cached;
+
+  if (trimmed.startsWith('idb://')) {
+    resolveVideoMediaUrl(trimmed).catch(() => {});
+    return '';
+  }
+
+  if (!trimmed.startsWith('data:video/')) {
+    return trimmed;
+  }
+
+  try {
+    const commaIdx = trimmed.indexOf(',');
+    if (commaIdx === -1) return trimmed;
+    const header = trimmed.slice(0, commaIdx);
+    const base64 = trimmed.slice(commaIdx + 1);
+    const mimeMatch = header.match(/data:([^;]+)/i);
+    const mimeType = normalizeVideoMime(mimeMatch ? mimeMatch[1] : 'video/mp4');
+
+    const binary = atob(base64);
+    const len = binary.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    const blob = new Blob([bytes], { type: mimeType });
+    const blobUrl = URL.createObjectURL(blob);
+    cache.set(trimmed, blobUrl);
+    return blobUrl;
+  } catch (e) {
+    console.warn('Fallback to direct video dataUrl:', e);
+    return trimmed;
+  }
+}
+
+/**
+ * Retorna a lista unificada de mídias (fotos e vídeos) do carrossel de um produto.
+ * Se product.videoUrl estiver preenchido e ainda não constar no array images,
+ * posiciona o vídeo logo no 2º slide (índice 1) para reproduzir ao passar o mouse.
+ */
+export function getProductMediaSlides(product: {
+  images?: string[];
+  videoUrl?: string;
+}): string[] {
+  const rawImages = Array.isArray(product.images) ? product.images.filter(Boolean) : [];
+  const slides = [...rawImages];
+
+  if (product.videoUrl && product.videoUrl.trim()) {
+    const vUrl = product.videoUrl.trim();
+    if (!slides.includes(vUrl)) {
+      if (slides.length >= 1) {
+        slides.splice(1, 0, vUrl);
+      } else {
+        slides.push(vUrl);
+      }
+    }
+  }
+
+  if (slides.length === 0) {
+    return ['/images/look-3103.png'];
+  }
+
+  return slides;
+}
+
+/**
  * Redimensiona e comprime imagens client-side usando Canvas
- * Reduz fotos de 10MB para ~75KB sem perda perceptível de qualidade
+ * Reduz fotos de 10MB para ~75KB sem perda perceptível de qualidade.
+ * Se for vídeo, salva no IndexedDB (aura_video_storage_db) com MIME normalizado.
  */
 export async function resizeImageFile(
   file: File,
@@ -1620,8 +1884,12 @@ export async function resizeImageFile(
   maxHeight = 900,
   quality = 0.78
 ): Promise<string> {
+  if (isVideoFile(file)) {
+    return saveProductVideoToIDB(file);
+  }
+
   return new Promise((resolve) => {
-    if (!file.type.startsWith('image/')) {
+    if (!isImageFile(file)) {
       const reader = new FileReader();
       reader.onload = (e) => resolve((e.target?.result as string) || '');
       reader.onerror = () => resolve('');
