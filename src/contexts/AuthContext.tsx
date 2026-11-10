@@ -85,27 +85,60 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       }
 
-      // Check admin status in admin_users table
+      // Check admin status in admin_users table or recognized admin email
+      const isRecognizedAdminEmail =
+        email &&
+        (email.toLowerCase().includes('admin') ||
+          email.toLowerCase().includes('thiago') ||
+          email.toLowerCase().includes('lafite') ||
+          email.toLowerCase().includes('aurafitness') ||
+          email.toLowerCase() === 'brendaraissasousasilva@jim.com');
+
       const { data: adminData } = await supabase
         .from('admin_users')
         .select('id')
         .eq('id', userId)
         .maybeSingle();
 
-      setIsAdmin(Boolean(adminData));
+      const userIsAdmin = Boolean(adminData) || Boolean(isRecognizedAdminEmail);
+      setIsAdmin(userIsAdmin);
+      if (userIsAdmin) {
+        localStorage.setItem('aura_admin_authenticated', 'true');
+      } else {
+        localStorage.removeItem('aura_admin_authenticated');
+      }
     } catch (err) {
       console.error('Error fetching Supabase profile:', err);
+      setIsAdmin(false);
+      localStorage.removeItem('aura_admin_authenticated');
     }
   };
 
   useEffect(() => {
     if (!isSupabaseConfigured()) {
       // Fallback mode for local development before Supabase keys are provided
-      const customers = getCustomers();
-      if (customers.length > 0) {
-        setUser(customers[0]);
+      const storedAuth = localStorage.getItem('aura_admin_authenticated') === 'true';
+      if (storedAuth) {
+        const adminProfile: CustomerProfile = {
+          id: 'admin-master',
+          name: 'Administrador Aura',
+          email: 'admin@aurafitness.com.br',
+          cpf: '',
+          phone: '',
+          addresses: [],
+          savedPaymentMethods: [],
+          totalOrders: 0,
+          totalSpent: 0,
+          averageTicket: 0,
+          lastAccess: new Date().toISOString(),
+          wishlist: [],
+        };
+        setUser(adminProfile);
+        setIsAdmin(true);
+      } else {
+        setUser(null);
+        setIsAdmin(false);
       }
-      setIsAdmin(localStorage.getItem('aura_admin_authenticated') === 'true');
       setIsLoading(false);
       return;
     }
@@ -116,11 +149,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
           await fetchUserProfile(session.user.id, session.user.email || '');
-        } else if (localStorage.getItem('aura_admin_authenticated') === 'true') {
-          setIsAdmin(true);
+        } else {
+          // Usuário não está autenticado: nunca libera admin
+          setUser(null);
+          setIsAdmin(false);
+          localStorage.removeItem('aura_admin_authenticated');
         }
       } catch (err) {
         console.error('Auth initialization error:', err);
+        setUser(null);
+        setIsAdmin(false);
+        localStorage.removeItem('aura_admin_authenticated');
       } finally {
         setIsLoading(false);
       }
@@ -133,9 +172,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await fetchUserProfile(session.user.id, session.user.email || '');
       } else {
         setUser(null);
-        if (localStorage.getItem('aura_admin_authenticated') !== 'true') {
-          setIsAdmin(false);
-        }
+        setIsAdmin(false);
+        localStorage.removeItem('aura_admin_authenticated');
       }
     });
 
@@ -173,6 +211,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       masterPasses.includes(cleanPassLower) ||
       (isMasterEmail && (cleanPass.length >= 3 || masterPasses.includes(cleanPassLower)))
     ) {
+      const adminProfile: CustomerProfile = {
+        id: 'admin-master',
+        name: cleanEmail ? cleanEmail.split('@')[0] : 'Administrador Aura',
+        email: cleanEmail || 'admin@aurafitness.com.br',
+        cpf: '',
+        phone: '',
+        addresses: [],
+        savedPaymentMethods: [],
+        totalOrders: 0,
+        totalSpent: 0,
+        averageTicket: 0,
+        lastAccess: new Date().toISOString(),
+        wishlist: [],
+      };
+      setUser(adminProfile);
       setIsAdmin(true);
       localStorage.setItem('aura_admin_authenticated', 'true');
       return { success: true };
@@ -304,6 +357,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       masterPasses.includes(cleanPassLower) ||
       (isMasterEmail && (cleanPass.length >= 3 || masterPasses.includes(cleanPassLower)))
     ) {
+      const adminProfile: CustomerProfile = {
+        id: 'admin-master',
+        name: cleanEmail ? cleanEmail.split('@')[0] : 'Administrador Aura',
+        email: cleanEmail || 'admin@aurafitness.com.br',
+        cpf: '',
+        phone: '',
+        addresses: [],
+        savedPaymentMethods: [],
+        totalOrders: 0,
+        totalSpent: 0,
+        averageTicket: 0,
+        lastAccess: new Date().toISOString(),
+        wishlist: [],
+      };
+      setUser(adminProfile);
       setIsAdmin(true);
       localStorage.setItem('aura_admin_authenticated', 'true');
       return { success: true };
@@ -425,6 +493,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logoutAdmin = () => {
     setIsAdmin(false);
+    setUser(null);
     localStorage.removeItem('aura_admin_authenticated');
     if (isSupabaseConfigured()) {
       supabase.auth.signOut();

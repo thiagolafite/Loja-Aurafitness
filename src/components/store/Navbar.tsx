@@ -245,8 +245,8 @@ export const Navbar: React.FC = () => {
               )}
             </button>
 
-            {/* Admin Badge */}
-            {isAdmin && (
+            {/* Admin Badge - Só aparece quando o usuário estiver logado E tiver permissão de administrador */}
+            {user && isAdmin && (
               <div className="flex items-center gap-1">
                 <Link
                   to="/admin"
@@ -528,6 +528,17 @@ export const Navbar: React.FC = () => {
                     {link.name}
                   </Link>
                 ))}
+
+                {user && isAdmin && (
+                  <Link
+                    to="/admin"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="flex items-center gap-2 text-amber-300 font-bold py-2 border-b border-[#2b5223]"
+                  >
+                    <ShieldAlert className="w-4 h-4 text-amber-300" />
+                    <span>Painel Administrativo</span>
+                  </Link>
+                )}
               </div>
             </motion.div>
           )}
