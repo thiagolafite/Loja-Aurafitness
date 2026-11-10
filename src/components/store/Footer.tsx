@@ -15,9 +15,11 @@ export const Footer: React.FC = () => {
           {/* Brand Info */}
           <div className="lg:col-span-2 space-y-4">
             <Link to="/" className="inline-block group">
-              <span className="font-sirenik text-3xl font-normal tracking-[0.08em] text-[#fff9f3] group-hover:text-rose-200 transition-colors block">
-                Aura Fitness
-              </span>
+              <img
+                src="/images/logo-aura-fitness.png"
+                alt="Aura Fitness"
+                className="h-14 w-auto object-contain mb-2 group-hover:opacity-90 transition-opacity"
+              />
               <span className="text-[10px] uppercase font-bold tracking-[0.25em] text-amber-300">
                 Boutique de Moda Feminina
               </span>

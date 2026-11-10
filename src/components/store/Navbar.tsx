@@ -107,14 +107,13 @@ export const Navbar: React.FC = () => {
             {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
 
-          {/* Logo Aura Fitness - Right Aligned Stacked with Sirenik font */}
-          <Link to="/" className="flex flex-col items-end justify-center leading-none group py-0.5 select-none text-right">
-            <span className="font-sirenik text-3xl sm:text-4xl font-normal tracking-[0.08em] text-[#fbf5ed] group-hover:text-rose-200 transition-colors drop-shadow-sm">
-              Aura
-            </span>
-            <span className="font-sans text-[10px] sm:text-[11px] font-bold tracking-[0.2em] text-amber-300/95 group-hover:text-rose-100 uppercase -mt-0.5">
-              Fitness
-            </span>
+          {/* Logomarca Aura Fitness */}
+          <Link to="/" className="flex items-center justify-center group py-0.5 select-none" aria-label="Aura Fitness - Página inicial">
+            <img
+              src="/images/logo-aura-fitness.png"
+              alt="Aura Fitness"
+              className="h-10 sm:h-12 w-auto object-contain group-hover:opacity-90 group-hover:scale-105 transition-all duration-300 drop-shadow-sm"
+            />
           </Link>
 
           {/* Right Action Bar */}
