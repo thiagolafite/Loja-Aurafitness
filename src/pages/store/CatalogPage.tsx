@@ -35,8 +35,11 @@ import {
   normalizeText,
 } from '../../lib/productClassifier';
 import { Product, StoreSection } from '../../types';
+import { useAuth } from '../../contexts/AuthContext';
 
 export const CatalogPage: React.FC = () => {
+  const { user, isAdmin } = useAuth();
+  const canManageProducts = Boolean(user && isAdmin);
   const [searchParams, setSearchParams] = useSearchParams();
   const [allProducts, setAllProducts] = useState<Product[]>(() => getProducts());
   const [categories, setCategories] = useState<AvailableCategory[]>(() => getStoredCategories());
@@ -905,7 +908,7 @@ export const CatalogPage: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  {filteredProducts.length >= 2 && (
+                  {canManageProducts && filteredProducts.length >= 2 && (
                     <button
                       type="button"
                       onClick={() => {
@@ -955,7 +958,7 @@ export const CatalogPage: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-3 self-start sm:self-end">
-                      {items.length >= 2 && (
+                      {canManageProducts && items.length >= 2 && (
                         <button
                           type="button"
                           onClick={() => {
@@ -1003,23 +1006,25 @@ export const CatalogPage: React.FC = () => {
         </main>
       </div>
 
-      {/* Modal de Agrupamento Manual de Produtos / Poses */}
-      <ManualMergeProductsModal
-        isOpen={isManualMergeOpen}
-        onClose={() => setIsManualMergeOpen(false)}
-        initialSelectedIds={
-          mergeCategoryTarget && mergeCategoryTarget !== 'todos'
-            ? allProducts
-                .filter((p) => isProductMatchingCategory(p, mergeCategoryTarget))
-                .map((p) => p.id)
-            : []
-        }
-        defaultCategoryFilter={mergeCategoryTarget || selectedCategory || 'todos'}
-        onSuccess={() => {
-          setCategories(getStoredCategories());
-          setAllProducts([...getProducts()]);
-        }}
-      />
+      {/* Modal de Agrupamento Manual de Produtos / Poses (Somente Administradores) */}
+      {canManageProducts && (
+        <ManualMergeProductsModal
+          isOpen={isManualMergeOpen}
+          onClose={() => setIsManualMergeOpen(false)}
+          initialSelectedIds={
+            mergeCategoryTarget && mergeCategoryTarget !== 'todos'
+              ? allProducts
+                  .filter((p) => isProductMatchingCategory(p, mergeCategoryTarget))
+                  .map((p) => p.id)
+              : []
+          }
+          defaultCategoryFilter={mergeCategoryTarget || selectedCategory || 'todos'}
+          onSuccess={() => {
+            setCategories(getStoredCategories());
+            setAllProducts([...getProducts()]);
+          }}
+        />
+      )}
     </div>
   );
 };
