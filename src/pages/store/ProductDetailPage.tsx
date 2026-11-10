@@ -287,7 +287,14 @@ export const ProductDetailPage: React.FC = () => {
           {/* Size Selection */}
           <div>
             <div className="flex justify-between items-center text-xs mb-2">
-              <span className="font-semibold text-foreground uppercase tracking-wider">Tamanho:</span>
+              <div className="flex items-center gap-1.5">
+                <span className="font-semibold text-foreground uppercase tracking-wider">Tamanho:</span>
+                <span className="font-bold text-primary text-xs">
+                  {selectedSize}
+                  {selectedSize === 'M' && ' (Veste 34 a 38)'}
+                  {selectedSize === 'G' && ' (Veste 40 ao 44)'}
+                </span>
+              </div>
               <button
                 onClick={() => setIsSizeGuideOpen(true)}
                 className="text-xs text-primary font-semibold hover:underline flex items-center gap-1"
@@ -295,18 +302,49 @@ export const ProductDetailPage: React.FC = () => {
                 <Ruler className="w-3.5 h-3.5" /> Guia de Medidas
               </button>
             </div>
+
+            {/* Caixa Rápida de Informativo de Tamanhos */}
+            <div className="mb-2.5 grid grid-cols-2 gap-2 text-center text-xs">
+              <button
+                type="button"
+                onClick={() => setSelectedSize('M')}
+                className={`py-1.5 px-2.5 rounded-xl border transition-all text-left flex items-center justify-between ${
+                  selectedSize === 'M'
+                    ? 'bg-primary/10 border-primary text-primary font-bold shadow-xs'
+                    : 'bg-muted/40 border-border text-foreground hover:border-primary/40'
+                }`}
+              >
+                <span className="font-black text-xs">M</span>
+                <span className="text-[11px] font-semibold text-muted-foreground">Veste 34 a 38</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedSize('G')}
+                className={`py-1.5 px-2.5 rounded-xl border transition-all text-left flex items-center justify-between ${
+                  selectedSize === 'G'
+                    ? 'bg-primary/10 border-primary text-primary font-bold shadow-xs'
+                    : 'bg-muted/40 border-border text-foreground hover:border-primary/40'
+                }`}
+              >
+                <span className="font-black text-xs">G</span>
+                <span className="text-[11px] font-semibold text-muted-foreground">Veste 40 ao 44</span>
+              </button>
+            </div>
+
             <div className="grid grid-cols-5 gap-2">
               {product.sizes.map((sz) => (
                 <button
                   key={sz}
                   onClick={() => setSelectedSize(sz)}
-                  className={`py-2 text-xs font-bold rounded-xl border transition-all ${
+                  className={`py-2 text-xs font-bold rounded-xl border transition-all flex flex-col items-center justify-center ${
                     selectedSize === sz
                       ? 'bg-primary text-white border-primary shadow-md scale-105'
                       : 'bg-background border-border text-foreground hover:border-primary/50'
                   }`}
                 >
-                  {sz}
+                  <span>{sz}</span>
+                  {sz === 'M' && <span className="text-[9px] font-normal opacity-85">34-38</span>}
+                  {sz === 'G' && <span className="text-[9px] font-normal opacity-85">40-44</span>}
                 </button>
               ))}
             </div>

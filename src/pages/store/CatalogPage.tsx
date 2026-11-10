@@ -12,6 +12,7 @@ import {
   Tag,
   Check,
   Layers,
+  Ruler,
 } from 'lucide-react';
 import { ProductCard } from '../../components/store/ProductCard';
 import { ManualMergeProductsModal } from '../../components/admin/ManualMergeProductsModal';
@@ -745,44 +746,77 @@ export const CatalogPage: React.FC = () => {
           {/* Size Filter (Sincronizado com tamanhos disponíveis na categoria ativa) */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider">
-                Tamanhos
+              <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <Ruler className="w-3.5 h-3.5 text-primary" />
+                <span>Tamanhos</span>
               </h4>
               {selectedSizes.length > 0 && (
                 <button
                   onClick={() => setSelectedSizes([])}
                   className="text-[10px] text-primary hover:underline font-semibold"
                 >
-                  Limpar
+                  Limpar ({selectedSizes.length})
                 </button>
               )}
             </div>
+
+            {/* Caixa Informativa Elegante sobre Tamanhos das Peças */}
+            <div className="mb-2.5 p-2.5 rounded-xl bg-primary/10 border border-primary/20 text-xs space-y-1.5">
+              <div className="text-[11px] font-bold text-foreground flex items-center justify-between">
+                <span>Guia de Vestimento das Peças:</span>
+                <span className="text-[10px] text-primary font-semibold">Padrão Aura</span>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5 text-center">
+                <div className="bg-background/90 py-1.5 px-2 rounded-lg border border-border shadow-xs">
+                  <div className="font-black text-primary text-xs">Tamanho M</div>
+                  <div className="text-[10px] text-muted-foreground font-bold">Veste 34 a 38</div>
+                </div>
+                <div className="bg-background/90 py-1.5 px-2 rounded-lg border border-border text-center shadow-xs">
+                  <div className="font-black text-primary text-xs">Tamanho G</div>
+                  <div className="text-[10px] text-muted-foreground font-bold">Veste 40 ao 44</div>
+                </div>
+              </div>
+            </div>
+
             <div className="flex flex-wrap gap-1.5">
-              {availableSizesWithCount.map(({ size: sz, count }) => (
-                <button
-                  key={sz}
-                  onClick={() => toggleSize(sz)}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-xl border transition-colors flex items-center gap-1 ${
-                    selectedSizes.includes(sz)
-                      ? 'bg-primary text-white border-primary shadow-sm'
-                      : 'bg-background border-border text-muted-foreground hover:border-primary/50'
-                  }`}
-                  title={`${count} ${count === 1 ? 'peça disponível' : 'peças disponíveis'} no tamanho ${sz}`}
-                >
-                  <span>{sz}</span>
-                  {count > 0 && (
-                    <span
-                      className={`text-[9px] px-1 rounded-full ${
-                        selectedSizes.includes(sz)
-                          ? 'bg-white/20 text-white'
-                          : 'text-muted-foreground/70'
-                      }`}
-                    >
-                      {count}
-                    </span>
-                  )}
-                </button>
-              ))}
+              {availableSizesWithCount.map(({ size: sz, count }) => {
+                const isSelected = selectedSizes.includes(sz);
+                const sizeSubtitle =
+                  sz.toUpperCase() === 'M' ? '34-38' : sz.toUpperCase() === 'G' ? '40-44' : null;
+
+                return (
+                  <button
+                    key={sz}
+                    onClick={() => toggleSize(sz)}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all flex items-center gap-1.5 ${
+                      isSelected
+                        ? 'bg-primary text-white border-primary shadow-sm font-bold'
+                        : 'bg-background border-border text-foreground hover:border-primary/50'
+                    }`}
+                    title={`${sz}${sizeSubtitle ? ` (veste ${sizeSubtitle})` : ''} - ${count} ${count === 1 ? 'peça disponível' : 'peças disponíveis'}`}
+                  >
+                    <span>{sz}</span>
+                    {sizeSubtitle && (
+                      <span
+                        className={`text-[9px] font-normal ${
+                          isSelected ? 'text-white/80' : 'text-muted-foreground'
+                        }`}
+                      >
+                        ({sizeSubtitle})
+                      </span>
+                    )}
+                    {count > 0 && (
+                      <span
+                        className={`text-[9px] px-1 rounded-full ${
+                          isSelected ? 'bg-white/20 text-white' : 'text-muted-foreground/70'
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

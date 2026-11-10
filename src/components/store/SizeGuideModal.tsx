@@ -44,8 +44,25 @@ export const SizeGuideModal: React.FC<SizeGuideModalProps> = ({ isOpen, onClose 
               Consulte a tabela abaixo com as medidas corporais padrão em centímetros para escolher o tamanho ideal do seu look.
             </p>
 
+            <div className="bg-primary/10 border border-primary/20 text-foreground p-3.5 rounded-2xl mb-4 space-y-2">
+              <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                <Ruler className="w-4 h-4 text-primary" />
+                <span>Padrão Oficial de Vestimento Aura Fitness:</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-center text-xs">
+                <div className="bg-background p-2 rounded-xl border border-border shadow-xs">
+                  <div className="font-black text-primary text-sm">Tamanho M</div>
+                  <div className="text-xs text-muted-foreground font-bold">Veste do 34 ao 38</div>
+                </div>
+                <div className="bg-background p-2 rounded-xl border border-border shadow-xs">
+                  <div className="font-black text-primary text-sm">Tamanho G</div>
+                  <div className="text-xs text-muted-foreground font-bold">Veste do 40 ao 44</div>
+                </div>
+              </div>
+            </div>
+
             <div className="bg-amber-500/10 border border-amber-500/20 text-foreground text-xs p-3 rounded-xl mb-4 font-medium">
-              🌿 <strong>Dica da Aura:</strong> Nossas peças têm tecido com elastano — se você estiver entre dois tamanhos, recomendamos o menor para um ajuste mais justo.
+              🌿 <strong>Dica da Aura:</strong> Nossas peças têm tecido com poliamida e elastano de alta compressão — abraçam as curvas e proporcionam sustentação e modelagem impecáveis.
             </div>
 
             <div className="overflow-x-auto rounded-xl border border-border mb-6">
