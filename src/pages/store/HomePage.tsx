@@ -4,7 +4,6 @@ import { ArrowRight, ChevronLeft, ChevronRight, Heart, Sparkles, Copy, Check } f
 import { motion } from 'framer-motion';
 import { ProductCard } from '../../components/store/ProductCard';
 import { TrustBar } from '../../components/store/TrustBar';
-import { HomeVideoStoriesSection } from '../../components/store/HomeVideoStoriesSection';
 import {
   getProducts,
   fetchProductsAsync,
@@ -536,9 +535,6 @@ export const HomePage: React.FC = () => {
 
       {/* Trust Ticker Bar (Matching Image 2) */}
       <TrustBar />
-
-      {/* Provador Virtual - Looks em Vídeo */}
-      <HomeVideoStoriesSection />
 
       {/* Navegue por Categoria Showcase com Ordem Personalizada */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
