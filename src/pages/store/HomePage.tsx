@@ -9,6 +9,7 @@ import {
   fetchProductsAsync,
   getHeroBanners,
   getStoreSections,
+  initialHeroBanners,
 } from '../../lib/dataClient';
 import { Product, HeroBannerSlide, StoreSection } from '../../types';
 import {
@@ -81,7 +82,12 @@ export const HomePage: React.FC = () => {
   }, []);
 
   const activeBanners = heroBanners.filter((b) => b.active);
-  const heroSlides = activeBanners.length > 0 ? activeBanners : getHeroBanners();
+  const heroSlides =
+    activeBanners.length > 0
+      ? activeBanners
+      : getHeroBanners().length > 0
+      ? getHeroBanners()
+      : initialHeroBanners;
 
   const [copiedCoupon, setCopiedCoupon] = useState<string | null>(null);
 
@@ -98,10 +104,12 @@ export const HomePage: React.FC = () => {
   };
 
   const handleNextSlide = () => {
+    if (heroSlides.length <= 1) return;
     setCurrentSlide((prev) => (prev + 1) % heroSlides.length);
   };
 
   const handlePrevSlide = () => {
+    if (heroSlides.length <= 1) return;
     setCurrentSlide((prev) => (prev - 1 + heroSlides.length) % heroSlides.length);
   };
 
@@ -119,8 +127,22 @@ export const HomePage: React.FC = () => {
     setTouchStartX(null);
   };
 
-  const safeSlideIndex = currentSlide < heroSlides.length ? currentSlide : 0;
-  const slide = heroSlides[safeSlideIndex];
+  const safeSlideIndex =
+    heroSlides.length > 0 ? Math.min(Math.max(currentSlide, 0), heroSlides.length - 1) : 0;
+  const slide: HeroBannerSlide =
+    heroSlides[safeSlideIndex] ||
+    initialHeroBanners[0] || {
+      id: 'default-fallback',
+      title: 'Aura Fitness',
+      subtitle: 'Moda fitness de alta performance',
+      badge: 'NOVA COLEÇÃO',
+      buttonText: 'VER PRODUTOS',
+      link: '/catalogo',
+      leftImage: '/images/look-3214.png',
+      rightImage: '/images/macaco-bless.png',
+      active: true,
+      order: 1,
+    };
 
   return (
     <div className="space-y-12 pb-16">
@@ -185,8 +207,8 @@ export const HomePage: React.FC = () => {
                 className="relative overflow-hidden shadow-md border border-white/20 shrink-0 select-none"
               >
                 <img
-                  src={slide.leftImage}
-                  alt={slide.title}
+                  src={slide.leftImage || '/images/look-3214.png'}
+                  alt={slide.title || 'Aura Fitness'}
                   style={getImageInlineStyle('left', slide)}
                   className="h-full w-full object-top"
                 />
@@ -299,8 +321,8 @@ export const HomePage: React.FC = () => {
                 className="overflow-hidden shadow-2xl relative border border-white/20 shrink-0 select-none"
               >
                 <img
-                  src={slide.leftImage}
-                  alt={slide.title}
+                  src={slide.leftImage || '/images/look-3214.png'}
+                  alt={slide.title || 'Aura Fitness'}
                   style={getImageInlineStyle('left', slide)}
                   className="w-full h-full object-top transition-transform duration-700"
                 />

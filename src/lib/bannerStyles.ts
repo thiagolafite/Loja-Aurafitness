@@ -3,8 +3,9 @@ import { HeroBannerSlide } from '../types';
 
 export function getImageInlineStyle(
   side: 'left' | 'right',
-  slide: Partial<HeroBannerSlide>
+  slide?: Partial<HeroBannerSlide> | null
 ): React.CSSProperties {
+  if (!slide) return { objectFit: 'cover', objectPosition: 'center top' };
   const isLeft = side === 'left';
   const scale = (isLeft ? slide.leftImageScale : slide.rightImageScale) ?? 100;
   const posX = (isLeft ? slide.leftImagePositionX : slide.rightImagePositionX) ?? 50;
@@ -47,7 +48,8 @@ export function getImageInlineStyle(
   };
 }
 
-export function getBannerBackgroundStyle(slide: Partial<HeroBannerSlide>): React.CSSProperties {
+export function getBannerBackgroundStyle(slide?: Partial<HeroBannerSlide> | null): React.CSSProperties {
+  if (!slide) return { backgroundColor: '#123922' };
   const primary =
     slide.centerBgColor ||
     (slide.bannerStyle === 'editorial-light'
@@ -75,7 +77,8 @@ export function getBannerHeightClass(height?: 'compact' | 'normal' | 'tall'): st
   return 'h-[340px] sm:h-[390px] md:h-[500px] lg:h-[540px]';
 }
 
-export function getBannerButtonStyle(slide: Partial<HeroBannerSlide>): React.CSSProperties {
+export function getBannerButtonStyle(slide?: Partial<HeroBannerSlide> | null): React.CSSProperties {
+  if (!slide) return {};
   const bg = slide.buttonBgColor || undefined;
   const color = slide.buttonTextColor || undefined;
   const border = slide.buttonBorderColor ? `1px solid ${slide.buttonBorderColor}` : undefined;
@@ -127,9 +130,14 @@ export function resolveMobileTitleFontSize(size?: number | 'sm' | 'md' | 'lg' | 
 
 export function getImageCardContainerStyle(
   side: 'left' | 'right',
-  slide: Partial<HeroBannerSlide>,
+  slide?: Partial<HeroBannerSlide> | null,
   isMobile: boolean = false
 ): React.CSSProperties {
+  if (!slide) {
+    return isMobile
+      ? { width: '42%', height: '90%', borderRadius: '16px' }
+      : { width: '26%', maxWidth: '300px', height: '85%', borderRadius: '24px' };
+  }
   const isLeft = side === 'left';
   const widthPercent = (isLeft ? slide.leftImageCardWidth : slide.rightImageCardWidth) ?? 26;
   const heightPercent = (isLeft ? slide.leftImageCardHeight : slide.rightImageCardHeight) ?? 85;
