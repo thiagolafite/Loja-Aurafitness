@@ -603,29 +603,15 @@ export const HomePage: React.FC = () => {
       {/* Trust Ticker Bar (Matching Image 2) */}
       <TrustBar />
 
-      {/* Navegue por Categoria Showcase com Ordem Personalizada */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
-        <div className="flex items-end justify-between border-b border-border pb-4 mb-6">
-          <div className="space-y-1 text-left">
-            <span className="text-[11px] font-extrabold tracking-widest uppercase text-emerald-800 dark:text-amber-400 block flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span>COLEÇÕES OFICIAIS AURA</span>
-            </span>
-            <h2 className="text-2xl sm:text-3xl font-serif font-normal text-foreground flex items-center gap-2">
-              <span>Navegue por Categoria</span>
-              <Heart className="w-5 h-5 text-rose-500 fill-rose-500/20" />
-            </h2>
-          </div>
-          <Link
-            to="/catalogo"
-            className="text-xs font-bold uppercase tracking-wider text-[#164024] hover:text-[#0b2414] dark:text-amber-400 flex items-center gap-1.5 transition-colors group"
-          >
-            <span className="group-hover:underline">VER CATÁLOGO COMPLETO</span>
-            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-          </Link>
+      {/* Compre por Categorias Showcase (Design Ampliado Inspirado no Padrão Fashion) */}
+      <section className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-2">
+        <div className="text-center mb-6 sm:mb-8">
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-serif sm:font-sans font-medium text-foreground tracking-tight">
+            Compre por categorias
+          </h2>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 sm:gap-5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3.5 lg:gap-4.5">
           {categories
             .filter((cat) => {
               const nonEmptyCount = categories.filter(
@@ -635,54 +621,34 @@ export const HomePage: React.FC = () => {
               return products.filter((p) => isProductMatchingCategory(p, cat.name)).length > 0;
             })
             .slice(0, 5)
-            .map((cat, idx) => {
-              const count = products.filter(
-                (p) => isProductMatchingCategory(p, cat.name)
-              ).length;
+            .map((cat) => {
               const photo = getCategoryPhoto(cat.name, products);
 
-            return (
-              <Link
-                key={cat.name}
-                to={`/catalogo?categoria=${encodeURIComponent(cat.name)}`}
-                className="group relative h-[310px] sm:h-[360px] rounded-3xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-500 flex flex-col justify-between p-4 sm:p-5 border border-emerald-900/10 hover:border-emerald-600/60"
-              >
-                {/* Imagem Real de Produto de Acordo com a Categoria */}
-                <img
-                  src={photo}
-                  alt={cat.name}
-                  className="absolute inset-0 w-full h-full object-cover object-top group-hover:scale-108 transition-transform duration-700 ease-out filter brightness-[0.93]"
-                />
+              return (
+                <Link
+                  key={cat.name}
+                  to={`/catalogo?categoria=${encodeURIComponent(cat.name)}`}
+                  className="group relative h-[250px] sm:h-[300px] lg:h-[350px] xl:h-[380px] rounded-xl sm:rounded-2xl overflow-hidden shadow-sm hover:shadow-2xl transition-all duration-500 border border-black/5 dark:border-white/10"
+                >
+                  {/* Foto de Destaque da Categoria em Alta Resolução */}
+                  <img
+                    src={photo}
+                    alt={cat.name}
+                    className="absolute inset-0 w-full h-full object-cover object-top filter brightness-[0.96] group-hover:scale-105 group-hover:brightness-100 transition-all duration-700 ease-out"
+                  />
 
-                {/* Gradiente Elegante para Máxima Leitura */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-black/10 group-hover:from-black/95 group-hover:via-black/40 transition-colors duration-500" />
+                  {/* Gradiente Suave de Fundo para Leitura Cristalina do Texto */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
 
-                {/* Badge Superior: Quantidade de Peças */}
-                <div className="relative z-10 flex items-center justify-between">
-                  <span className="bg-black/60 backdrop-blur-md border border-white/20 text-white text-[10px] font-extrabold tracking-wider uppercase px-3 py-1 rounded-full shadow-sm">
-                    {count > 0 ? `${count} ${count === 1 ? 'modelo' : 'modelos'}` : 'Explorar'}
-                  </span>
-                  <span className="w-8 h-8 rounded-full bg-white/20 hover:bg-white text-white hover:text-slate-900 backdrop-blur-md flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:scale-110 transition-all duration-300 shadow">
-                    <ArrowRight className="w-4 h-4" />
-                  </span>
-                </div>
-
-                {/* Informações da Categoria no Rodapé do Card */}
-                <div className="relative z-10 space-y-1 text-left">
-                  <span className="text-[10px] uppercase tracking-widest font-extrabold text-amber-300 block">
-                    {idx + 1}ª Coleção Aura
-                  </span>
-                  <h3 className="font-serif font-bold text-lg sm:text-xl text-white tracking-wide group-hover:text-rose-200 transition-colors drop-shadow-md">
-                    {cat.name}
-                  </h3>
-                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-rose-100 group-hover:text-white pt-0.5">
-                    <span>Ver Coleção</span>
-                    <ArrowRight className="w-3.5 h-3.5 text-amber-400 group-hover:translate-x-1 transition-transform" />
+                  {/* Nome da Categoria Centralizado na Base */}
+                  <div className="absolute inset-x-0 bottom-0 p-3 sm:p-4 text-center z-10">
+                    <h3 className="font-semibold text-sm sm:text-base lg:text-lg text-white tracking-wide drop-shadow-md group-hover:text-amber-200 transition-colors">
+                      {cat.name}
+                    </h3>
                   </div>
-                </div>
-              </Link>
-            );
-          })}
+                </Link>
+              );
+            })}
         </div>
       </section>
 
