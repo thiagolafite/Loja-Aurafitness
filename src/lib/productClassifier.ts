@@ -2100,8 +2100,10 @@ export function isFileAlreadyImported(
 export function consolidateDuplicateProducts(products: Product[]): {
   consolidated: Product[];
   mergedCount: number;
+  absorbedIds: string[];
 } {
   const modelMap = new Map<string, Product>();
+  const absorbedIds: string[] = [];
   let mergedCount = 0;
 
   for (const prod of products) {
@@ -2112,6 +2114,9 @@ export function consolidateDuplicateProducts(products: Product[]): {
       // Mescla com o produto existente
       const existing = modelMap.get(key)!;
       mergedCount++;
+      if (prod.id && prod.id !== existing.id) {
+        absorbedIds.push(prod.id);
+      }
 
       // Unifica imagens sem duplicar
       const combinedImages = [...(existing.images || [])];
@@ -2166,7 +2171,7 @@ export function consolidateDuplicateProducts(products: Product[]): {
     colors: getEffectiveProductColors(p),
     sizes: getProductSizes(p),
   }));
-  return { consolidated, mergedCount };
+  return { consolidated, mergedCount, absorbedIds };
 }
 
 /**

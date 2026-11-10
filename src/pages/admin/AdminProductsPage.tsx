@@ -36,6 +36,7 @@ import {
   saveProduct,
   saveProductAsync,
   saveAllProducts,
+  saveAllProductsAsync,
   deleteProduct,
   bulkDeleteProductsAsync,
   deleteAllProductsAsync,
@@ -410,8 +411,8 @@ export const AdminProductsPage: React.FC = () => {
   }, [products]);
 
   // Unifica automaticamente produtos duplicados com numeração no catálogo
-  const handleConsolidateDuplicates = () => {
-    const { consolidated, mergedCount } = consolidateDuplicateProducts(products);
+  const handleConsolidateDuplicates = async () => {
+    const { consolidated, mergedCount, absorbedIds } = consolidateDuplicateProducts(products);
     if (mergedCount === 0) {
       showToast('Nenhum modelo repetido foi encontrado.');
       return;
@@ -426,7 +427,9 @@ export const AdminProductsPage: React.FC = () => {
     }
 
     try {
-      saveAllProducts(consolidated);
+      // Atualiza o estado da tela imediatamente com os produtos consolidados para sumir com o banner na hora
+      setProducts(consolidated);
+      await saveAllProductsAsync(consolidated, absorbedIds);
       refreshProducts();
       showToast(`✓ ${mergedCount} modelo(s) e fotos foram unificados com sucesso!`);
     } catch (err) {

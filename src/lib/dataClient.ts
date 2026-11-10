@@ -945,6 +945,32 @@ export function saveAllProducts(products: Product[]): void {
   }
 }
 
+export async function saveAllProductsAsync(products: Product[], removedIds: string[] = []): Promise<void> {
+  // 1. Atualiza cache e localStorage imediatamente
+  saveAllProducts(products);
+
+  // 2. Se houver IDs absorvidos/excluídos, deleta do banco Supabase
+  if (removedIds.length > 0) {
+    await bulkDeleteProductsAsync(removedIds);
+  }
+
+  // 3. Persiste os produtos unificados no Supabase
+  if (isSupabaseConfigured() && typeof window !== 'undefined') {
+    try {
+      await fetch('/api/sync-store', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'upsert_products',
+          payload: { products },
+        }),
+      });
+    } catch (e) {
+      console.warn('Erro ao sincronizar upsert_products em lote:', e);
+    }
+  }
+}
+
 export async function bulkDeleteProductsAsync(ids: string[]): Promise<void> {
   if (!ids || ids.length === 0) return;
 
