@@ -98,3 +98,29 @@ export function getBannerButtonRadiusClass(
   if (radius === 'rounded-none') return 'rounded-none';
   return 'rounded-full';
 }
+
+export function resolveTitleFontSize(size?: number | 'sm' | 'md' | 'lg' | 'xl' | '2xl'): string | undefined {
+  if (!size) return undefined;
+  if (typeof size === 'number') return `${size}px`;
+  const map: Record<string, string> = {
+    sm: '28px',
+    md: '36px',
+    lg: '44px',
+    xl: '52px',
+    '2xl': '60px',
+  };
+  return map[size] || size;
+}
+
+export function resolveMobileTitleFontSize(size?: number | 'sm' | 'md' | 'lg' | 'xl' | '2xl'): string | undefined {
+  if (!size) return undefined;
+  if (typeof size === 'number') return `${Math.min(size, 20)}px`;
+  const map: Record<string, string> = {
+    sm: '13px',
+    md: '15px',
+    lg: '17px',
+    xl: '19px',
+    '2xl': '21px',
+  };
+  return map[size] || '17px';
+}
