@@ -28,6 +28,8 @@ import {
   deleteStoredCategory,
   getCategoryPhoto,
   normalizeCategoryName,
+  isProductMatchingCategory,
+  STORE_CATEGORIES,
   AvailableCategory,
   resizeImageFile,
 } from '../../lib/productClassifier';
@@ -117,9 +119,7 @@ export const AdminCategoryPhotosPage: React.FC = () => {
 
   // Products belonging to the selected category (for picking from catalog)
   const categoryProducts = selectedCategory
-    ? products.filter(
-        (p) => normalizeCategoryName(p.category) === normalizeCategoryName(selectedCategory.name)
-      )
+    ? products.filter((p) => isProductMatchingCategory(p, selectedCategory.name))
     : [];
 
   return (
@@ -195,11 +195,12 @@ export const AdminCategoryPhotosPage: React.FC = () => {
       {/* Categories Cards Grid Matching Home Page Look */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5">
         {categories.map((cat) => {
-          const count = products.filter(
-            (p) => normalizeCategoryName(p.category) === cat.name
-          ).length;
+          const count = products.filter((p) => isProductMatchingCategory(p, cat.name)).length;
           const photo = getCategoryPhoto(cat.name, products);
-          const hasCustomImage = Boolean(cat.image);
+          const defaultDef = STORE_CATEGORIES.find(
+            (c) => c.name.toLowerCase() === cat.name.toLowerCase()
+          );
+          const hasCustomImage = Boolean(cat.image && cat.image.trim() && cat.image !== defaultDef?.image);
 
           return (
             <div

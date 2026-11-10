@@ -496,11 +496,14 @@ export function getCategoryPhoto(
   }[] = []
 ): string {
   const storedCats = getStoredCategories();
+  const targetLower = categoryName.trim().toLowerCase();
   const catDef = storedCats.find(
-    (c) => c.name.trim().toLowerCase() === categoryName.trim().toLowerCase()
+    (c) => c.name.trim().toLowerCase() === targetLower || (c.slug && c.slug.toLowerCase() === targetLower)
   );
 
-  const defaultDef = STORE_CATEGORIES.find((c) => areCategoriesEquivalent(c.name, categoryName));
+  const defaultDef = STORE_CATEGORIES.find(
+    (c) => c.name.trim().toLowerCase() === targetLower || (c.slug && c.slug.toLowerCase() === targetLower)
+  );
   const hasCustomAdminImage =
     catDef?.image &&
     typeof catDef.image === 'string' &&
@@ -1034,9 +1037,11 @@ export function saveNewCategory(
  */
 export function updateCategoryPhoto(categoryName: string, imageUrl: string): AvailableCategory[] {
   const current = getStoredCategories();
-  const norm = normalizeCategoryName(categoryName);
+  const targetLower = categoryName.trim().toLowerCase();
   const updated = current.map((cat) => {
-    if (normalizeCategoryName(cat.name) === norm) {
+    const catNameLower = cat.name.trim().toLowerCase();
+    const catSlugLower = (cat.slug || '').trim().toLowerCase();
+    if (catNameLower === targetLower || (catSlugLower && catSlugLower === targetLower)) {
       return { ...cat, image: imageUrl };
     }
     return cat;
@@ -1050,11 +1055,15 @@ export function updateCategoryPhoto(categoryName: string, imageUrl: string): Ava
  */
 export function resetCategoryPhoto(categoryName: string): AvailableCategory[] {
   const current = getStoredCategories();
-  const norm = normalizeCategoryName(categoryName);
-  const defaultDef = STORE_CATEGORIES.find((c) => normalizeCategoryName(c.name) === norm);
+  const targetLower = categoryName.trim().toLowerCase();
+  const defaultDef = STORE_CATEGORIES.find(
+    (c) => c.name.trim().toLowerCase() === targetLower || (c.slug && c.slug.toLowerCase() === targetLower)
+  );
   const updated = current.map((cat) => {
-    if (normalizeCategoryName(cat.name) === norm) {
-      return { ...cat, image: defaultDef?.image || '/images/look-3103.png' };
+    const catNameLower = cat.name.trim().toLowerCase();
+    const catSlugLower = (cat.slug || '').trim().toLowerCase();
+    if (catNameLower === targetLower || (catSlugLower && catSlugLower === targetLower)) {
+      return { ...cat, image: defaultDef?.image || '' };
     }
     return cat;
   });
