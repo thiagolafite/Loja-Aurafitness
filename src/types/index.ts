@@ -324,11 +324,65 @@ export interface HeroBannerSlide {
   centerBgColor?: string; // Cor de fundo (#163923 ou #f4f4f2)
   active: boolean;
   order: number;
-  // Campos avançados inspirados em editoriais de moda fitness (Cupons, Best Sellers e Alta Conversão)
-  bannerStyle?: 'classic-3col' | 'editorial-light' | 'bold-dark';
+  // Campos avançados inspirados em editoriais de moda fitness
+  bannerStyle?: 'classic-3col' | 'editorial-light' | 'bold-dark' | 'single-full' | 'split-50';
   couponCode?: string; // Ex: 'PRIMEIRA30' ou 'BEMVINDAAURA'
   discountHighlight?: string; // Ex: 'R$ 30,00 DE DESCONTO'
   disclaimer?: string; // Ex: '*Cupom válido em pedidos de primeira compra a partir de R$ 299...'
+
+  // === TOTAL DESIGN CONTROL ===
+  // Layout e Dimensões
+  bannerHeight?: 'compact' | 'normal' | 'tall';
+  backgroundType?: 'solid' | 'gradient';
+  bgGradientEndColor?: string;
+  gradientDirection?: 'to-r' | 'to-b' | 'to-br';
+  overlayOpacity?: number; // 0 a 100
+  ambientGlow?: boolean;
+  ambientGlowColor?: string;
+
+  // Foto 1 (Esquerda / Principal)
+  leftImageScale?: number; // 50 a 180 (padrão 100)
+  leftImagePositionX?: number; // 0 a 100 (padrão 50)
+  leftImagePositionY?: number; // 0 a 100 (padrão 20)
+  leftImageFit?: 'cover' | 'contain';
+  leftImageBrightness?: number; // 50 a 150 (padrão 100)
+  leftImageContrast?: number; // 50 a 150 (padrão 100)
+  leftImageSaturate?: number; // 0 a 200 (padrão 100)
+  leftImageBlur?: number; // 0 a 15 (padrão 0)
+  leftImageGrayscale?: number; // 0 a 100 (padrão 0)
+  leftImageSepia?: number; // 0 a 100 (padrão 0)
+  leftImageOpacity?: number; // 20 a 100 (padrão 100)
+  leftImageFlipX?: boolean;
+
+  // Foto 2 (Direita)
+  rightImageScale?: number;
+  rightImagePositionX?: number;
+  rightImagePositionY?: number;
+  rightImageFit?: 'cover' | 'contain';
+  rightImageBrightness?: number;
+  rightImageContrast?: number;
+  rightImageSaturate?: number;
+  rightImageBlur?: number;
+  rightImageGrayscale?: number;
+  rightImageSepia?: number;
+  rightImageOpacity?: number;
+  rightImageFlipX?: boolean;
+
+  // Tipografia e Cores
+  titleColor?: string;
+  subtitleColor?: string;
+  titleFontSize?: number | 'sm' | 'md' | 'lg' | 'xl' | '2xl';
+  titleFontFamily?: 'serif' | 'sans';
+  textAlign?: 'left' | 'center' | 'right';
+  badgeBgColor?: string;
+  badgeTextColor?: string;
+
+  // Botão CTA
+  buttonBgColor?: string;
+  buttonTextColor?: string;
+  buttonBorderColor?: string;
+  buttonRadius?: 'rounded-full' | 'rounded-2xl' | 'rounded-xl' | 'rounded-none';
+  buttonGlow?: boolean;
 }
 
 export interface FloatingVideoItem {

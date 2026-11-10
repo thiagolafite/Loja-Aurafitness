@@ -12,6 +12,13 @@ import {
 } from '../../lib/dataClient';
 import { Product, HeroBannerSlide, StoreSection } from '../../types';
 import {
+  getImageInlineStyle,
+  getBannerBackgroundStyle,
+  getBannerHeightClass,
+  getBannerButtonStyle,
+  getBannerButtonRadiusClass,
+} from '../../lib/bannerStyles';
+import {
   STORE_CATEGORIES,
   normalizeCategoryName,
   getCategoryPhoto,
@@ -120,7 +127,7 @@ export const HomePage: React.FC = () => {
         onTouchEnd={handleTouchEnd}
         className="relative w-full overflow-hidden select-none p-0 m-0"
       >
-        <div className="relative w-full flex items-center justify-center h-[340px] sm:h-[390px] md:h-[500px] lg:h-[540px]">
+        <div className={`relative w-full flex items-center justify-center ${getBannerHeightClass(slide.bannerHeight)}`}>
           {/* Floating Left Arrow (Apenas Desktop) */}
           <button
             onClick={handlePrevSlide}
@@ -142,9 +149,23 @@ export const HomePage: React.FC = () => {
           {/* ESTILO 1: EDITORIAL LIGHT (Inspirado no Banner de Primeira Compra / R$30 OFF) */}
           {slide.bannerStyle === 'editorial-light' ? (
             <div
-              style={{ backgroundColor: slide.centerBgColor || '#f5f5f3' }}
+              style={getBannerBackgroundStyle(slide)}
               className="w-full h-full relative overflow-hidden flex items-center text-neutral-900 transition-all duration-500"
             >
+              {/* Brilho Aura Ambiente (Opcional) */}
+              {slide.ambientGlow && (
+                <div
+                  style={{ background: `radial-gradient(circle at center, ${slide.ambientGlowColor || '#10b981'}35 0%, transparent 70%)` }}
+                  className="absolute inset-0 pointer-events-none z-0 blur-2xl"
+                />
+              )}
+              {slide.overlayOpacity ? (
+                <div
+                  style={{ opacity: slide.overlayOpacity / 100 }}
+                  className="absolute inset-0 bg-black pointer-events-none z-10"
+                />
+              ) : null}
+
               {/* Gradiente sutil e nobre que preenche toda a tela */}
               <div className="absolute inset-0 bg-gradient-to-r from-[#ecefe9] via-transparent to-[#ecefe9] pointer-events-none opacity-80" />
 
@@ -155,7 +176,8 @@ export const HomePage: React.FC = () => {
                   <img
                     src={slide.leftImage}
                     alt={slide.title}
-                    className="h-full w-full object-cover object-top filter brightness-100 contrast-[1.02]"
+                    style={getImageInlineStyle('left', slide)}
+                    className="h-full w-full object-top"
                   />
                   {/* Gradiente suave na borda direita para fundir harmoniosamente com a área de texto */}
                   <div
@@ -175,7 +197,10 @@ export const HomePage: React.FC = () => {
                 {/* Lado Direito: Tipografia Compacta, Legível e Botão de Ação */}
                 <div className="relative z-20 w-[55%] h-full flex flex-col items-center justify-center text-center px-2 py-3 overflow-hidden my-auto">
                   {/* Kicker / Título Superior */}
-                  <span className="text-[9px] sm:text-[10px] font-extrabold tracking-widest text-neutral-600 uppercase mb-0.5 line-clamp-1 max-w-full">
+                  <span
+                    style={{ color: slide.titleColor }}
+                    className="text-[9px] sm:text-[10px] font-extrabold tracking-widest text-neutral-600 uppercase mb-0.5 line-clamp-1 max-w-full"
+                  >
                     {slide.title}
                   </span>
 
@@ -212,14 +237,18 @@ export const HomePage: React.FC = () => {
                   )}
 
                   {/* Subtítulo Compacto (máx 2 linhas) */}
-                  <p className="text-[9px] sm:text-[10px] text-neutral-600 font-medium line-clamp-2 leading-tight my-1 max-w-[190px]">
+                  <p
+                    style={{ color: slide.subtitleColor }}
+                    className="text-[9px] sm:text-[10px] text-neutral-600 font-medium line-clamp-2 leading-tight my-1 max-w-[190px]"
+                  >
                     {slide.subtitle}
                   </p>
 
                   {/* Botão de Compra CTA */}
                   <Link
                     to={slide.link}
-                    className="inline-flex items-center gap-1 px-4 py-1.5 rounded-full bg-white hover:bg-neutral-100 text-neutral-950 font-black text-[10px] tracking-wider uppercase transition-all shadow-md active:scale-95 border border-neutral-300 mt-1"
+                    style={getBannerButtonStyle(slide)}
+                    className={`inline-flex items-center gap-1 px-4 py-1.5 ${getBannerButtonRadiusClass(slide.buttonRadius)} bg-white hover:bg-neutral-100 text-neutral-950 font-black text-[10px] tracking-wider uppercase transition-all shadow-md active:scale-95 border border-neutral-300 mt-1`}
                   >
                     <span>{slide.buttonText || 'COMPRAR'}</span>
                     <ArrowRight className="w-3 h-3" />
@@ -248,7 +277,8 @@ export const HomePage: React.FC = () => {
                   <img
                     src={slide.leftImage}
                     alt={slide.title}
-                    className="h-full w-full object-cover object-top filter brightness-100 contrast-[1.02] group-hover:scale-105 transition-transform duration-700"
+                    style={getImageInlineStyle('left', slide)}
+                    className="h-full w-full object-top transition-transform duration-700"
                   />
                   <div className="absolute bottom-6 left-6 z-10">
                     <div className="w-16 h-16 rounded-full border-2 border-neutral-700/30 flex flex-col items-center justify-center text-center p-1 backdrop-blur-xs select-none bg-white/20">
@@ -260,7 +290,14 @@ export const HomePage: React.FC = () => {
 
                 {/* Centro: Chamada, Desconto, Box de Cupom e Botão */}
                 <div className="relative z-20 w-5/12 flex flex-col items-center text-center px-6 py-6 my-auto">
-                  <h3 className="text-xs sm:text-sm lg:text-base font-extrabold tracking-[0.25em] text-neutral-700 uppercase mb-2">
+                  <h3
+                    style={{
+                      color: slide.titleColor,
+                      fontSize: slide.titleFontSize ? `${slide.titleFontSize}px` : undefined,
+                      fontFamily: slide.titleFontFamily === 'sans' ? 'sans-serif' : undefined,
+                    }}
+                    className="text-xs sm:text-sm lg:text-base font-extrabold tracking-[0.25em] text-neutral-700 uppercase mb-2"
+                  >
                     {slide.title}
                   </h3>
                   {slide.discountHighlight && (
@@ -295,12 +332,16 @@ export const HomePage: React.FC = () => {
                       </button>
                     </div>
                   )}
-                  <p className="text-xs text-neutral-600 font-medium max-w-sm mb-5 leading-relaxed">
+                  <p
+                    style={{ color: slide.subtitleColor }}
+                    className="text-xs text-neutral-600 font-medium max-w-sm mb-5 leading-relaxed"
+                  >
                     {slide.subtitle}
                   </p>
                   <Link
                     to={slide.link}
-                    className="inline-flex items-center gap-2 px-8 py-3 rounded-full bg-white/95 hover:bg-white text-neutral-950 font-extrabold text-xs sm:text-sm tracking-widest uppercase transition-all shadow-md hover:shadow-xl hover:scale-105 active:scale-95 border border-neutral-300/80"
+                    style={getBannerButtonStyle(slide)}
+                    className={`inline-flex items-center gap-2 px-8 py-3 ${getBannerButtonRadiusClass(slide.buttonRadius)} bg-white/95 hover:bg-white text-neutral-950 font-extrabold text-xs sm:text-sm tracking-widest uppercase transition-all shadow-md hover:shadow-xl hover:scale-105 active:scale-95 border border-neutral-300/80`}
                   >
                     <span>{slide.buttonText || 'COMPRAR AGORA'}</span>
                     <ArrowRight className="w-4 h-4" />
@@ -324,7 +365,8 @@ export const HomePage: React.FC = () => {
                   <img
                     src={slide.rightImage || slide.leftImage}
                     alt="Detalhes da peça"
-                    className="h-full w-full object-cover object-top opacity-85 filter contrast-[1.03]"
+                    style={getImageInlineStyle('right', slide)}
+                    className="h-full w-full object-top"
                   />
                   <div className="absolute inset-0 bg-gradient-to-l from-transparent via-transparent to-[#ecefe9]/40" />
                   {slide.disclaimer && (
@@ -340,10 +382,22 @@ export const HomePage: React.FC = () => {
           ) : slide.bannerStyle === 'bold-dark' ? (
             /* ESTILO 2: BOLD DARK (Inspirado no Banner Best Sellers) */
             <div
-              style={{ backgroundColor: slide.centerBgColor || '#0b1610' }}
+              style={getBannerBackgroundStyle(slide)}
               className="w-full h-full relative overflow-hidden flex items-center justify-between text-white transition-all duration-500"
             >
               {/* Brilhos radiantes de fundo */}
+              {slide.ambientGlow && (
+                <div
+                  style={{ background: `radial-gradient(circle at center, ${slide.ambientGlowColor || '#10b981'}40 0%, transparent 70%)` }}
+                  className="absolute inset-0 pointer-events-none z-0 blur-3xl"
+                />
+              )}
+              {slide.overlayOpacity ? (
+                <div
+                  style={{ opacity: slide.overlayOpacity / 100 }}
+                  className="absolute inset-0 bg-black pointer-events-none z-10"
+                />
+              ) : null}
               <div className="absolute -top-24 -right-24 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
               <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -354,7 +408,8 @@ export const HomePage: React.FC = () => {
                   <img
                     src={slide.leftImage}
                     alt={slide.title}
-                    className="h-full w-full object-cover object-top filter brightness-95 contrast-105"
+                    style={getImageInlineStyle('left', slide)}
+                    className="h-full w-full object-top"
                   />
                   {/* Gradiente suave na borda direita para fundir harmoniosamente */}
                   <div
@@ -372,11 +427,21 @@ export const HomePage: React.FC = () => {
 
                 {/* Lado Direito: Tipografia Best Sellers Compacta */}
                 <div className="relative z-20 w-[55%] h-full flex flex-col items-start justify-center text-left pl-2 pr-3 py-3 overflow-hidden my-auto">
-                  <span className="text-[8px] sm:text-[9px] font-extrabold tracking-widest uppercase text-amber-300 bg-white/10 px-2 py-0.5 rounded-full border border-white/15 mb-1">
+                  <span
+                    style={{ backgroundColor: slide.badgeBgColor, color: slide.badgeTextColor }}
+                    className="text-[8px] sm:text-[9px] font-extrabold tracking-widest uppercase text-amber-300 bg-white/10 px-2 py-0.5 rounded-full border border-white/15 mb-1"
+                  >
                     ★ {slide.badge || 'MAIS DESEJADOS'}
                   </span>
 
-                  <h1 className="text-xl sm:text-2xl font-serif font-black tracking-tight text-white uppercase leading-none mb-1 break-words line-clamp-2 drop-shadow-md">
+                  <h1
+                    style={{
+                      color: slide.titleColor,
+                      fontSize: slide.titleFontSize ? `${slide.titleFontSize}px` : undefined,
+                      fontFamily: slide.titleFontFamily === 'sans' ? 'sans-serif' : undefined,
+                    }}
+                    className="text-xl sm:text-2xl font-serif font-black tracking-tight text-white uppercase leading-none mb-1 break-words line-clamp-2 drop-shadow-md"
+                  >
                     {slide.title}
                   </h1>
 
@@ -386,13 +451,17 @@ export const HomePage: React.FC = () => {
                     </p>
                   )}
 
-                  <p className="text-[9px] sm:text-[10px] text-neutral-300 font-light line-clamp-2 leading-tight mb-2">
+                  <p
+                    style={{ color: slide.subtitleColor }}
+                    className="text-[9px] sm:text-[10px] text-neutral-300 font-light line-clamp-2 leading-tight mb-2"
+                  >
                     {slide.subtitle}
                   </p>
 
                   <Link
                     to={slide.link}
-                    className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-white hover:bg-neutral-100 text-neutral-950 font-black text-[10px] tracking-wider uppercase transition-all shadow-md active:scale-95"
+                    style={getBannerButtonStyle(slide)}
+                    className={`inline-flex items-center gap-1.5 px-4 py-1.5 ${getBannerButtonRadiusClass(slide.buttonRadius)} bg-white hover:bg-neutral-100 text-neutral-950 font-black text-[10px] tracking-wider uppercase transition-all shadow-md active:scale-95`}
                   >
                     <span>{slide.buttonText || 'COMPRAR'}</span>
                     <ArrowRight className="w-3 h-3" />
@@ -419,7 +488,8 @@ export const HomePage: React.FC = () => {
                   <img
                     src={slide.leftImage}
                     alt={slide.title}
-                    className="h-full w-full object-cover object-top filter brightness-95 contrast-105"
+                    style={getImageInlineStyle('left', slide)}
+                    className="h-full w-full object-top"
                   />
                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-[#0b1610]" />
                   <div className="absolute bottom-6 left-6 z-10">
@@ -432,11 +502,21 @@ export const HomePage: React.FC = () => {
 
                 <div className="relative z-20 w-7/12 flex flex-col items-start text-left px-8 lg:px-12 py-6 my-auto">
                   <div className="mb-2">
-                    <span className="text-xs font-extrabold tracking-[0.3em] uppercase text-amber-300 bg-white/10 px-3.5 py-1 rounded-full border border-white/15">
+                    <span
+                      style={{ backgroundColor: slide.badgeBgColor, color: slide.badgeTextColor }}
+                      className="text-xs font-extrabold tracking-[0.3em] uppercase text-amber-300 bg-white/10 px-3.5 py-1 rounded-full border border-white/15"
+                    >
                       ★ {slide.badge || 'MAIS DESEJADOS'}
                     </span>
                   </div>
-                  <h1 className="text-5xl lg:text-7xl font-serif font-black tracking-tight text-white uppercase leading-[0.95] mb-2 drop-shadow-md">
+                  <h1
+                    style={{
+                      color: slide.titleColor,
+                      fontSize: slide.titleFontSize ? `${slide.titleFontSize}px` : undefined,
+                      fontFamily: slide.titleFontFamily === 'sans' ? 'sans-serif' : undefined,
+                    }}
+                    className="text-5xl lg:text-7xl font-serif font-black tracking-tight text-white uppercase leading-[0.95] mb-2 drop-shadow-md"
+                  >
                     {slide.title}
                   </h1>
                   {slide.discountHighlight && (
@@ -444,12 +524,16 @@ export const HomePage: React.FC = () => {
                       {slide.discountHighlight}
                     </p>
                   )}
-                  <p className="text-xs sm:text-sm text-neutral-300 font-light max-w-md mb-7 leading-relaxed">
+                  <p
+                    style={{ color: slide.subtitleColor }}
+                    className="text-xs sm:text-sm text-neutral-300 font-light max-w-md mb-7 leading-relaxed"
+                  >
                     {slide.subtitle}
                   </p>
                   <Link
                     to={slide.link}
-                    className="inline-flex items-center gap-2 px-8 py-3.5 rounded-full bg-white hover:bg-neutral-100 text-neutral-950 font-extrabold text-xs tracking-widest uppercase transition-all shadow-xl hover:scale-105 active:scale-95"
+                    style={getBannerButtonStyle(slide)}
+                    className={`inline-flex items-center gap-2 px-8 py-3.5 ${getBannerButtonRadiusClass(slide.buttonRadius)} bg-white hover:bg-neutral-100 text-neutral-950 font-extrabold text-xs tracking-widest uppercase transition-all shadow-xl hover:scale-105 active:scale-95`}
                   >
                     <span>{slide.buttonText || 'COMPRAR AGORA'}</span>
                     <ArrowRight className="w-4 h-4" />
@@ -472,16 +556,30 @@ export const HomePage: React.FC = () => {
           ) : (
             /* ESTILO 3: CARROSSEL CLÁSSICO 3 COLUNAS (Verde Floresta Nobre) */
             <div
-              style={{ backgroundColor: slide.centerBgColor || '#123922' }}
+              style={getBannerBackgroundStyle(slide)}
               className="w-full h-full relative overflow-hidden flex items-center justify-center text-white py-2 sm:py-4 md:py-6 px-3 sm:px-6"
             >
+              {slide.ambientGlow && (
+                <div
+                  style={{ background: `radial-gradient(circle at center, ${slide.ambientGlowColor || '#10b981'}40 0%, transparent 70%)` }}
+                  className="absolute inset-0 pointer-events-none z-0 blur-3xl"
+                />
+              )}
+              {slide.overlayOpacity ? (
+                <div
+                  style={{ opacity: slide.overlayOpacity / 100 }}
+                  className="absolute inset-0 bg-black pointer-events-none z-10"
+                />
+              ) : null}
+
               {/* VERSÃO MOBILE COMPACTA E RESPONSIVA (< md) */}
               <div className="flex md:hidden w-full h-full relative z-10 items-center justify-between rounded-2xl overflow-hidden border border-emerald-400/20 bg-gradient-to-r from-[#0d2818] via-[#123922] to-[#0d2818] shadow-lg">
                 <div className="relative w-[45%] h-full flex items-end justify-center overflow-hidden shrink-0">
                   <img
                     src={slide.leftImage}
                     alt={slide.title}
-                    className="h-full w-full object-cover object-top filter brightness-95"
+                    style={getImageInlineStyle('left', slide)}
+                    className="h-full w-full object-top"
                   />
                   <div
                     style={{ background: `linear-gradient(to left, ${slide.centerBgColor || '#123922'}, transparent)` }}
@@ -495,21 +593,35 @@ export const HomePage: React.FC = () => {
                 </div>
 
                 <div className="relative z-20 w-[55%] h-full flex flex-col items-center justify-center text-center px-2 py-3 overflow-hidden my-auto">
-                  <span className="text-[8px] font-extrabold tracking-widest uppercase text-amber-300 mb-1 bg-white/10 px-2 py-0.5 rounded-full border border-amber-300/30">
+                  <span
+                    style={{ backgroundColor: slide.badgeBgColor, color: slide.badgeTextColor }}
+                    className="text-[8px] font-extrabold tracking-widest uppercase text-amber-300 mb-1 bg-white/10 px-2 py-0.5 rounded-full border border-amber-300/30"
+                  >
                     ✨ {slide.badge}
                   </span>
 
-                  <h1 className="text-lg sm:text-xl font-serif tracking-wide text-[#fff9f3] uppercase leading-tight line-clamp-2 mb-1 drop-shadow-md">
+                  <h1
+                    style={{
+                      color: slide.titleColor,
+                      fontSize: slide.titleFontSize ? `${slide.titleFontSize}px` : undefined,
+                      fontFamily: slide.titleFontFamily === 'sans' ? 'sans-serif' : undefined,
+                    }}
+                    className="text-lg sm:text-xl font-serif tracking-wide text-[#fff9f3] uppercase leading-tight line-clamp-2 mb-1 drop-shadow-md"
+                  >
                     {slide.title}
                   </h1>
 
-                  <p className="text-[9px] sm:text-[10px] text-rose-100/90 font-light line-clamp-2 leading-tight my-1 max-w-[190px]">
+                  <p
+                    style={{ color: slide.subtitleColor }}
+                    className="text-[9px] sm:text-[10px] text-rose-100/90 font-light line-clamp-2 leading-tight my-1 max-w-[190px]"
+                  >
                     {slide.subtitle}
                   </p>
 
                   <Link
                     to={slide.link}
-                    className="inline-flex items-center gap-1 px-4 py-1.5 rounded-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 text-slate-950 font-black text-[10px] uppercase shadow-md active:scale-95 mt-1"
+                    style={getBannerButtonStyle(slide)}
+                    className={`inline-flex items-center gap-1 px-4 py-1.5 ${getBannerButtonRadiusClass(slide.buttonRadius)} bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 text-slate-950 font-black text-[10px] uppercase shadow-md active:scale-95 mt-1`}
                   >
                     <span>{slide.buttonText || 'VER PEÇAS'}</span>
                     <ArrowRight className="w-3 h-3" />
@@ -536,7 +648,8 @@ export const HomePage: React.FC = () => {
                   <img
                     src={slide.leftImage}
                     alt="Model Aura 1"
-                    className="w-full h-full object-cover object-top filter brightness-95 group-hover:scale-108 transition-transform duration-700"
+                    style={getImageInlineStyle('left', slide)}
+                    className="w-full h-full object-top transition-transform duration-700"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
                   <div className="absolute bottom-4 left-4 right-4 text-center">
@@ -547,23 +660,37 @@ export const HomePage: React.FC = () => {
                 </div>
 
                 <div
-                  style={{ backgroundColor: slide.centerBgColor || '#123922' }}
+                  style={getBannerBackgroundStyle(slide)}
                   className="w-2/4 h-[450px] lg:h-[510px] rounded-3xl p-8 lg:p-12 flex flex-col items-center justify-center text-center text-white relative shadow-2xl overflow-hidden border border-emerald-400/30"
                 >
                   <div className="absolute -top-24 -right-24 w-64 h-64 bg-amber-400/10 rounded-full blur-3xl pointer-events-none" />
                   <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-rose-500/15 rounded-full blur-3xl pointer-events-none" />
-                  <span className="text-[11px] font-extrabold tracking-[0.3em] uppercase text-amber-300 mb-3 bg-white/10 px-4 py-1 rounded-full border border-amber-300/30 backdrop-blur-sm">
+                  <span
+                    style={{ backgroundColor: slide.badgeBgColor, color: slide.badgeTextColor }}
+                    className="text-[11px] font-extrabold tracking-[0.3em] uppercase text-amber-300 mb-3 bg-white/10 px-4 py-1 rounded-full border border-amber-300/30 backdrop-blur-sm"
+                  >
                     ✨ {slide.badge}
                   </span>
-                  <h1 className="text-4xl lg:text-5xl font-serif tracking-wide font-normal text-[#fff9f3] uppercase mb-4 drop-shadow-md">
+                  <h1
+                    style={{
+                      color: slide.titleColor,
+                      fontSize: slide.titleFontSize ? `${slide.titleFontSize}px` : undefined,
+                      fontFamily: slide.titleFontFamily === 'sans' ? 'sans-serif' : undefined,
+                    }}
+                    className="text-4xl lg:text-5xl font-serif tracking-wide font-normal text-[#fff9f3] uppercase mb-4 drop-shadow-md"
+                  >
                     {slide.title}
                   </h1>
-                  <p className="text-xs sm:text-sm text-rose-100/90 font-light max-w-sm mb-8 leading-relaxed">
+                  <p
+                    style={{ color: slide.subtitleColor }}
+                    className="text-xs sm:text-sm text-rose-100/90 font-light max-w-sm mb-8 leading-relaxed"
+                  >
                     {slide.subtitle}
                   </p>
                   <Link
                     to={slide.link}
-                    className="inline-block px-8 py-3.5 rounded-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-bold text-xs tracking-widest uppercase transition-all shadow-xl hover:scale-105 active:scale-95 hover:shadow-amber-400/30"
+                    style={getBannerButtonStyle(slide)}
+                    className={`inline-block px-8 py-3.5 ${getBannerButtonRadiusClass(slide.buttonRadius)} bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-bold text-xs tracking-widest uppercase transition-all shadow-xl hover:scale-105 active:scale-95 hover:shadow-amber-400/30`}
                   >
                     {slide.buttonText} &rarr;
                   </Link>
@@ -585,7 +712,8 @@ export const HomePage: React.FC = () => {
                   <img
                     src={slide.rightImage}
                     alt="Model Aura 2"
-                    className="w-full h-full object-cover object-top filter brightness-95 group-hover:scale-108 transition-transform duration-700"
+                    style={getImageInlineStyle('right', slide)}
+                    className="w-full h-full object-top transition-transform duration-700"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
                   <div className="absolute bottom-4 left-4 right-4 text-center">

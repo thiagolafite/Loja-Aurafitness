@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   ExternalLink,
   ChevronRight,
+  ArrowRight,
   Move,
   ShoppingBag,
   SlidersHorizontal,
@@ -34,8 +35,22 @@ import {
   Palette,
   Copy,
   Package,
+  Smartphone,
+  Monitor,
+  Sliders,
+  Type,
+  MousePointer,
+  RotateCcw,
+  ZoomIn,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import {
+  getImageInlineStyle,
+  getBannerBackgroundStyle,
+  getBannerHeightClass,
+  getBannerButtonStyle,
+  getBannerButtonRadiusClass,
+} from '../../lib/bannerStyles';
 import {
   getStoreSections,
   saveStoreSection,
@@ -99,6 +114,9 @@ export const AdminSectionsBannersPage: React.FC = () => {
   const [isBannerModalOpen, setIsBannerModalOpen] = useState(false);
   const [editingBanner, setEditingBanner] = useState<Partial<HeroBannerSlide> | null>(null);
   const [bannerProductPhotoPickerSide, setBannerProductPhotoPickerSide] = useState<'left' | 'right' | null>(null);
+  const [bannerStudioTab, setBannerStudioTab] = useState<'fotos' | 'filtros' | 'design' | 'textos' | 'botao'>('fotos');
+  const [bannerPreviewDevice, setBannerPreviewDevice] = useState<'desktop' | 'mobile'>('desktop');
+  const [bannerFilterSide, setBannerFilterSide] = useState<'left' | 'right' | 'both'>('left');
   const [isUploadingBannerLeft, setIsUploadingBannerLeft] = useState(false);
   const [isUploadingBannerRight, setIsUploadingBannerRight] = useState(false);
   const leftFileRef = useRef<HTMLInputElement>(null);
@@ -265,8 +283,56 @@ export const AdminSectionsBannersPage: React.FC = () => {
   // ==========================================
   // BANNER HANDLERS
   // ==========================================
+  const DEFAULT_BANNER_SETTINGS: Partial<HeroBannerSlide> = {
+    bannerHeight: 'normal',
+    backgroundType: 'solid',
+    centerBgColor: '#f5f5f3',
+    bgGradientEndColor: '#e0e7dd',
+    gradientDirection: 'to-r',
+    overlayOpacity: 0,
+    ambientGlow: false,
+    ambientGlowColor: '#10b981',
+    leftImageScale: 100,
+    leftImagePositionX: 50,
+    leftImagePositionY: 20,
+    leftImageFit: 'cover',
+    leftImageBrightness: 100,
+    leftImageContrast: 100,
+    leftImageSaturate: 100,
+    leftImageBlur: 0,
+    leftImageGrayscale: 0,
+    leftImageSepia: 0,
+    leftImageOpacity: 100,
+    leftImageFlipX: false,
+    rightImageScale: 100,
+    rightImagePositionX: 50,
+    rightImagePositionY: 20,
+    rightImageFit: 'cover',
+    rightImageBrightness: 100,
+    rightImageContrast: 100,
+    rightImageSaturate: 100,
+    rightImageBlur: 0,
+    rightImageGrayscale: 0,
+    rightImageSepia: 0,
+    rightImageOpacity: 100,
+    rightImageFlipX: false,
+    titleColor: '#171717',
+    subtitleColor: '#525252',
+    titleFontSize: 36,
+    titleFontFamily: 'serif',
+    textAlign: 'center',
+    badgeBgColor: '#00000015',
+    badgeTextColor: '#171717',
+    buttonBgColor: '#ffffff',
+    buttonTextColor: '#0a0a0a',
+    buttonBorderColor: '#d4d4d4',
+    buttonRadius: 'rounded-full',
+    buttonGlow: false,
+  };
+
   const handleOpenNewBannerModal = () => {
     setEditingBanner({
+      ...DEFAULT_BANNER_SETTINGS,
       badge: 'PRIMEIRA COMPRA',
       title: 'VISTA-SE DE CONFIANÇA!',
       discountHighlight: 'R$ 30,00 DE DESCONTO',
@@ -281,11 +347,17 @@ export const AdminSectionsBannersPage: React.FC = () => {
       bannerStyle: 'editorial-light',
       active: true,
     });
+    setBannerStudioTab('fotos');
+    setBannerProductPhotoPickerSide(null);
     setIsBannerModalOpen(true);
   };
 
   const handleOpenEditBannerModal = (banner: HeroBannerSlide) => {
-    setEditingBanner({ ...banner });
+    setEditingBanner({
+      ...DEFAULT_BANNER_SETTINGS,
+      ...banner,
+    });
+    setBannerStudioTab('fotos');
     setBannerProductPhotoPickerSide(null);
     setIsBannerModalOpen(true);
   };
@@ -1405,70 +1477,355 @@ export const AdminSectionsBannersPage: React.FC = () => {
       )}
 
       {/* ===================================================================== */}
-      {/* MODAL: CRIAR OU EDITAR BANNER PRINCIPAL (HERO SLIDE COM FOTOS)        */}
+      {/* MODAL: AURA BANNER STUDIO - CONTROLE TOTAL DE DESIGN E FOTOS         */}
       {/* ===================================================================== */}
       {isBannerModalOpen && editingBanner && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
           <div
             onClick={() => setIsBannerModalOpen(false)}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm"
           />
 
-          <div className="relative bg-card text-card-foreground border border-border w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden z-10 p-6 space-y-5 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <div>
-                <h3 className="font-serif font-bold text-lg text-foreground">
-                  {editingBanner.id ? 'Editar Banner Principal' : 'Novo Banner do Carrossel Principal'}
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                  Adicione fotos do seu computador e configure o destino do clique.
-                </p>
+          <div className="relative bg-card text-card-foreground border border-border w-full max-w-5xl rounded-3xl shadow-2xl overflow-hidden z-10 flex flex-col max-h-[94vh]">
+            {/* Cabeçalho do Banner Studio */}
+            <div className="flex items-center justify-between border-b border-border px-6 py-4 bg-muted/20 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+                  <Palette className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-serif font-bold text-lg text-foreground flex items-center gap-2">
+                    {editingBanner.id ? 'Studio de Design do Banner' : 'Novo Banner no Studio'}
+                    <span className="text-[10px] font-sans font-bold bg-primary/10 text-primary px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                      Controle Total
+                    </span>
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Ajuste fotos, escala, posição, filtros, cores, sombras, tipografia e botões com pré-visualização ao vivo.
+                  </p>
+                </div>
               </div>
-              <button
-                onClick={() => setIsBannerModalOpen(false)}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-5 h-5" />
-              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSaveBanner}
+                  className="bg-primary hover:bg-primary-hover text-white px-5 py-2 rounded-xl font-bold shadow-md transition-all text-xs flex items-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Salvar Banner</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsBannerModalOpen(false)}
+                  className="text-muted-foreground hover:text-foreground p-2 rounded-xl hover:bg-muted transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
-            <form onSubmit={handleSaveBanner} className="space-y-4 text-xs">
-              {/* Fotos do Banner (Esquerda e Direita) */}
-              <div className="p-4 bg-muted/30 border border-border rounded-2xl space-y-3">
+            {/* Corpo com Scroll: Pré-Visualização + Tabs de Customização */}
+            <div className="overflow-y-auto p-4 sm:p-6 space-y-5">
+              {/* ÁREA DE PRÉ-VISUALIZAÇÃO AO VIVO (DESKTOP & CELULAR) */}
+              <div className="bg-muted/40 border border-border rounded-2xl p-3.5 space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-foreground block">
-                    Fotos dos Modelos no Banner (Upload Fácil):
+                  <span className="text-[11px] font-bold text-foreground flex items-center gap-1.5 uppercase tracking-wider">
+                    <Eye className="w-3.5 h-3.5 text-primary" />
+                    Pré-visualização em Tempo Real:
                   </span>
-                  {editingBanner.bannerStyle === 'bold-dark' && (
-                    <span className="text-[10px] text-amber-500 font-bold bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
-                      ★ Dark Chic usa a Foto 1 como modelo principal
-                    </span>
-                  )}
+
+                  {/* Toggle de Dispositivo: Computador vs Celular */}
+                  <div className="inline-flex items-center bg-background border border-border rounded-xl p-0.5 shadow-xs">
+                    <button
+                      type="button"
+                      onClick={() => setBannerPreviewDevice('desktop')}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                        bannerPreviewDevice === 'desktop'
+                          ? 'bg-primary text-white shadow-xs'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      <Monitor className="w-3.5 h-3.5" />
+                      <span>Computador</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBannerPreviewDevice('mobile')}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                        bannerPreviewDevice === 'mobile'
+                          ? 'bg-primary text-white shadow-xs'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      <Smartphone className="w-3.5 h-3.5" />
+                      <span>Celular</span>
+                    </button>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Foto 1 (Esquerda / Principal) */}
-                  <div className="space-y-2">
-                    <label className="block font-semibold">
-                      {editingBanner.bannerStyle === 'bold-dark'
-                        ? 'Foto Principal do Modelo (Destaque)'
-                        : 'Foto 1 (Esquerda)'}
-                    </label>
-                    <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-muted border border-border">
-                      <img
-                        src={editingBanner.leftImage || '/images/look-3214.png'}
-                        alt="Foto 1"
-                        className="w-full h-full object-cover object-top"
-                      />
+                {/* Container do Banner Preview */}
+                <div className="flex items-center justify-center p-2 bg-neutral-950/20 rounded-xl overflow-hidden">
+                  {bannerPreviewDevice === 'desktop' ? (
+                    /* PREVIEW DESKTOP */
+                    <div
+                      style={getBannerBackgroundStyle(editingBanner)}
+                      className="w-full h-56 sm:h-64 rounded-2xl overflow-hidden relative border border-white/10 shadow-lg flex items-center justify-between px-6 transition-all"
+                    >
+                      {editingBanner.ambientGlow && (
+                        <div
+                          style={{
+                            background: `radial-gradient(circle at center, ${editingBanner.ambientGlowColor || '#10b981'}40 0%, transparent 70%)`,
+                          }}
+                          className="absolute inset-0 pointer-events-none z-0 blur-2xl"
+                        />
+                      )}
+                      {editingBanner.overlayOpacity ? (
+                        <div
+                          style={{ opacity: editingBanner.overlayOpacity / 100 }}
+                          className="absolute inset-0 bg-black pointer-events-none z-10"
+                        />
+                      ) : null}
+
+                      {/* Foto Esquerda */}
+                      <div className="relative w-3/12 h-full flex items-end justify-center overflow-hidden shrink-0 z-10">
+                        <img
+                          src={editingBanner.leftImage || '/images/look-3214.png'}
+                          alt="Foto 1"
+                          style={getImageInlineStyle('left', editingBanner)}
+                          className="h-full w-full object-top"
+                        />
+                      </div>
+
+                      {/* Textos Centrais */}
+                      <div className="relative z-20 w-6/12 flex flex-col items-center text-center px-4 py-2 my-auto">
+                        {editingBanner.badge && (
+                          <span
+                            style={{
+                              backgroundColor: editingBanner.badgeBgColor || 'rgba(0,0,0,0.15)',
+                              color: editingBanner.badgeTextColor || '#171717',
+                            }}
+                            className="text-[9px] font-extrabold tracking-widest uppercase px-2.5 py-0.5 rounded-full border border-white/20 mb-1"
+                          >
+                            ★ {editingBanner.badge}
+                          </span>
+                        )}
+
+                        <h2
+                          style={{
+                            color: editingBanner.titleColor || '#ffffff',
+                            fontFamily: editingBanner.titleFontFamily === 'sans' ? 'sans-serif' : 'serif',
+                            fontSize: typeof editingBanner.titleFontSize === 'number' ? `${Math.min(editingBanner.titleFontSize, 38)}px` : '28px',
+                          }}
+                          className="font-black uppercase leading-tight tracking-tight drop-shadow-md mb-1"
+                        >
+                          {editingBanner.title || 'TÍTULO DO BANNER'}
+                        </h2>
+
+                        {editingBanner.discountHighlight && (
+                          <div className="text-sm font-black text-amber-300 uppercase tracking-wide leading-none mb-1">
+                            {editingBanner.discountHighlight}
+                          </div>
+                        )}
+
+                        {editingBanner.couponCode && (
+                          <div className="inline-flex items-center gap-1 bg-black/60 text-white font-mono text-[10px] px-2.5 py-0.5 rounded-md border border-white/20 mb-1.5">
+                            <span className="text-neutral-400 font-sans text-[8px]">CUPOM:</span>
+                            <span className="text-amber-300 font-bold">{editingBanner.couponCode}</span>
+                          </div>
+                        )}
+
+                        <p
+                          style={{ color: editingBanner.subtitleColor || 'rgba(255,255,255,0.8)' }}
+                          className="text-[10px] line-clamp-2 max-w-sm mb-2.5 leading-tight"
+                        >
+                          {editingBanner.subtitle || 'Subtítulo descritivo com toque nobre e aveludado.'}
+                        </p>
+
+                        <div
+                          style={getBannerButtonStyle(editingBanner)}
+                          className={`inline-flex items-center gap-1 px-4 py-1.5 ${getBannerButtonRadiusClass(editingBanner.buttonRadius)} text-[11px] font-extrabold uppercase shadow-md select-none`}
+                        >
+                          <span>{editingBanner.buttonText || 'COMPRAR AGORA'}</span>
+                          <ArrowRight className="w-3 h-3" />
+                        </div>
+                      </div>
+
+                      {/* Foto Direita */}
+                      <div className="relative w-3/12 h-full flex items-end justify-center overflow-hidden shrink-0 z-10">
+                        <img
+                          src={editingBanner.rightImage || editingBanner.leftImage || '/images/macaco-bless.png'}
+                          alt="Foto 2"
+                          style={getImageInlineStyle('right', editingBanner)}
+                          className="h-full w-full object-top"
+                        />
+                      </div>
                     </div>
-                    <input
-                      ref={leftFileRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleUploadBannerFile(e, 'left')}
-                      className="hidden"
-                    />
+                  ) : (
+                    /* PREVIEW CELULAR */
+                    <div
+                      style={getBannerBackgroundStyle(editingBanner)}
+                      className="w-full max-w-[340px] h-44 rounded-2xl overflow-hidden relative border border-white/20 shadow-xl flex items-center justify-between p-2 transition-all"
+                    >
+                      {editingBanner.ambientGlow && (
+                        <div
+                          style={{
+                            background: `radial-gradient(circle at center, ${editingBanner.ambientGlowColor || '#10b981'}40 0%, transparent 70%)`,
+                          }}
+                          className="absolute inset-0 pointer-events-none z-0 blur-xl"
+                        />
+                      )}
+                      {editingBanner.overlayOpacity ? (
+                        <div
+                          style={{ opacity: editingBanner.overlayOpacity / 100 }}
+                          className="absolute inset-0 bg-black pointer-events-none z-10"
+                        />
+                      ) : null}
+
+                      {/* Lado Esquerdo Mobile: Foto */}
+                      <div className="relative w-[45%] h-full flex items-end justify-center overflow-hidden shrink-0 z-10 rounded-xl">
+                        <img
+                          src={editingBanner.leftImage || '/images/look-3214.png'}
+                          alt="Foto Modelo"
+                          style={getImageInlineStyle('left', editingBanner)}
+                          className="h-full w-full object-top"
+                        />
+                      </div>
+
+                      {/* Lado Direito Mobile: Textos & Botão */}
+                      <div className="relative z-20 w-[55%] h-full flex flex-col items-center justify-center text-center px-1.5 py-1 my-auto overflow-hidden">
+                        <span
+                          style={{ color: editingBanner.titleColor || '#ffffff' }}
+                          className="text-[8px] font-extrabold tracking-widest uppercase mb-0.5 line-clamp-1"
+                        >
+                          {editingBanner.title || 'TÍTULO'}
+                        </span>
+
+                        {editingBanner.discountHighlight && (
+                          <div className="text-[11px] font-black uppercase text-amber-300 leading-tight line-clamp-1">
+                            {editingBanner.discountHighlight}
+                          </div>
+                        )}
+
+                        {editingBanner.couponCode && (
+                          <div className="text-[8px] font-mono bg-black/60 text-amber-300 px-1.5 py-0.5 rounded my-0.5 border border-white/20">
+                            CUPOM: {editingBanner.couponCode}
+                          </div>
+                        )}
+
+                        <p
+                          style={{ color: editingBanner.subtitleColor || 'rgba(255,255,255,0.8)' }}
+                          className="text-[8px] line-clamp-1 my-0.5"
+                        >
+                          {editingBanner.subtitle || 'Subtítulo da peça'}
+                        </p>
+
+                        <div
+                          style={getBannerButtonStyle(editingBanner)}
+                          className={`inline-flex items-center gap-0.5 px-2.5 py-1 ${getBannerButtonRadiusClass(editingBanner.buttonRadius)} text-[9px] font-bold uppercase shadow-sm select-none mt-1`}
+                        >
+                          <span>{editingBanner.buttonText || 'COMPRAR'}</span>
+                          <ArrowRight className="w-2.5 h-2.5" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* BARRA DE NAVEGAÇÃO DAS ABAS DO STUDIO */}
+              <div className="flex items-center gap-1.5 border-b border-border pb-2 overflow-x-auto">
+                <button
+                  type="button"
+                  onClick={() => setBannerStudioTab('fotos')}
+                  className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold text-xs transition-all whitespace-nowrap ${
+                    bannerStudioTab === 'fotos'
+                      ? 'bg-primary text-white shadow-xs'
+                      : 'bg-muted/50 text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <ImageIcon className="w-4 h-4" />
+                  <span>Fotos & Enquadramento</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setBannerStudioTab('filtros')}
+                  className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold text-xs transition-all whitespace-nowrap ${
+                    bannerStudioTab === 'filtros'
+                      ? 'bg-primary text-white shadow-xs'
+                      : 'bg-muted/50 text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Sliders className="w-4 h-4" />
+                  <span>Filtros & Efeitos</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setBannerStudioTab('design')}
+                  className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold text-xs transition-all whitespace-nowrap ${
+                    bannerStudioTab === 'design'
+                      ? 'bg-primary text-white shadow-xs'
+                      : 'bg-muted/50 text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Palette className="w-4 h-4" />
+                  <span>Design & Fundo</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setBannerStudioTab('textos')}
+                  className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold text-xs transition-all whitespace-nowrap ${
+                    bannerStudioTab === 'textos'
+                      ? 'bg-primary text-white shadow-xs'
+                      : 'bg-muted/50 text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Type className="w-4 h-4" />
+                  <span>Textos & Tipografia</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setBannerStudioTab('botao')}
+                  className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold text-xs transition-all whitespace-nowrap ${
+                    bannerStudioTab === 'botao'
+                      ? 'bg-primary text-white shadow-xs'
+                      : 'bg-muted/50 text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <MousePointer className="w-4 h-4" />
+                  <span>Botão de Ação (CTA)</span>
+                </button>
+              </div>
+
+              {/* ========================================================= */}
+              {/* ABA 1: FOTOS & ENQUADRAMENTO (TAMANHO, POSIÇÃO, ESPELHO) */}
+              {/* ========================================================= */}
+              {bannerStudioTab === 'fotos' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* FOTO 1 (ESQUERDA / PRINCIPAL) */}
+                  <div className="bg-muted/30 border border-border rounded-2xl p-4 space-y-3.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-foreground text-xs flex items-center gap-1.5">
+                        <ImageIcon className="w-3.5 h-3.5 text-primary" />
+                        Foto 1 (Esquerda / Principal)
+                      </span>
+                      <span className="text-[10px] text-muted-foreground font-mono">
+                        Zoom: {editingBanner.leftImageScale || 100}%
+                      </span>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-1.5">
+                      <input
+                        ref={leftFileRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleUploadBannerFile(e, 'left')}
+                        className="hidden"
+                      />
                       <button
                         type="button"
                         onClick={() => leftFileRef.current?.click()}
@@ -1492,13 +1849,12 @@ export const AdminSectionsBannersPage: React.FC = () => {
                       </button>
                     </div>
 
-                    {/* Galeria de Fotos de Produtos para Foto 1 */}
                     {bannerProductPhotoPickerSide === 'left' && (
                       <div className="p-2.5 bg-muted/60 border border-primary/30 rounded-xl space-y-1.5">
                         <span className="text-[10px] font-bold text-primary block">
-                          Clique na foto desejada para aplicar na Foto 1:
+                          Clique na foto de produto desejada:
                         </span>
-                        <div className="grid grid-cols-3 gap-1.5 max-h-40 overflow-y-auto pr-1">
+                        <div className="grid grid-cols-3 gap-1.5 max-h-36 overflow-y-auto pr-1">
                           {products.flatMap((p) =>
                             (p.images || []).map((imgUrl, i) => (
                               <button
@@ -1506,19 +1862,12 @@ export const AdminSectionsBannersPage: React.FC = () => {
                                 type="button"
                                 onClick={() => {
                                   setEditingBanner((prev) =>
-                                    prev
-                                      ? {
-                                          ...prev,
-                                          leftImage: imgUrl,
-                                          rightImage: prev.rightImage || imgUrl,
-                                        }
-                                      : prev
+                                    prev ? { ...prev, leftImage: imgUrl } : prev
                                   );
                                   setBannerProductPhotoPickerSide(null);
                                   showToast(`Foto do produto "${p.name}" aplicada à Foto 1!`);
                                 }}
-                                className="aspect-[3/4] rounded-lg overflow-hidden border border-border hover:border-primary transition-all relative group"
-                                title={p.name}
+                                className="aspect-[3/4] rounded-lg overflow-hidden border border-border hover:border-primary transition-all"
                               >
                                 <img src={imgUrl} alt={p.name} className="w-full h-full object-cover object-top" />
                               </button>
@@ -1537,30 +1886,155 @@ export const AdminSectionsBannersPage: React.FC = () => {
                       }
                       className="w-full bg-background border border-border rounded-xl px-2.5 py-1.5 text-[11px] outline-none"
                     />
-                  </div>
 
-                  {/* Foto 2 (Direita) */}
-                  <div className="space-y-2">
-                    <label className="block font-semibold">
-                      {editingBanner.bannerStyle === 'bold-dark'
-                        ? 'Foto 2 (Opcional no Dark Chic)'
-                        : 'Foto 2 (Direita)'}
-                    </label>
-                    <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-muted border border-border">
-                      <img
-                        src={editingBanner.rightImage || editingBanner.leftImage || '/images/macaco-bless.png'}
-                        alt="Foto 2"
-                        className="w-full h-full object-cover object-top"
+                    {/* Controles de Escala / Zoom */}
+                    <div className="space-y-1 pt-1">
+                      <div className="flex justify-between text-[11px]">
+                        <span className="font-semibold text-muted-foreground flex items-center gap-1">
+                          <ZoomIn className="w-3 h-3 text-primary" />
+                          Zoom / Tamanho:
+                        </span>
+                        <span className="font-mono font-bold text-foreground">
+                          {editingBanner.leftImageScale ?? 100}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="50"
+                        max="180"
+                        value={editingBanner.leftImageScale ?? 100}
+                        onChange={(e) =>
+                          setEditingBanner({
+                            ...editingBanner,
+                            leftImageScale: Number(e.target.value),
+                          })
+                        }
+                        className="w-full accent-primary cursor-pointer"
                       />
                     </div>
-                    <input
-                      ref={rightFileRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleUploadBannerFile(e, 'right')}
-                      className="hidden"
-                    />
+
+                    {/* Controles de Posição Horizontal (X) */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[11px]">
+                        <span className="font-semibold text-muted-foreground">Posição Horizontal (X):</span>
+                        <span className="font-mono font-bold text-foreground">
+                          {editingBanner.leftImagePositionX ?? 50}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={editingBanner.leftImagePositionX ?? 50}
+                        onChange={(e) =>
+                          setEditingBanner({
+                            ...editingBanner,
+                            leftImagePositionX: Number(e.target.value),
+                          })
+                        }
+                        className="w-full accent-primary cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Controles de Posição Vertical (Y) */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[11px]">
+                        <span className="font-semibold text-muted-foreground">Posição Vertical (Y):</span>
+                        <span className="font-mono font-bold text-foreground">
+                          {editingBanner.leftImagePositionY ?? 20}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={editingBanner.leftImagePositionY ?? 20}
+                        onChange={(e) =>
+                          setEditingBanner({
+                            ...editingBanner,
+                            leftImagePositionY: Number(e.target.value),
+                          })
+                        }
+                        className="w-full accent-primary cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Ajuste (Cover/Contain) e Espelhar Horizontal */}
+                    <div className="flex items-center justify-between pt-1 gap-2">
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditingBanner({
+                              ...editingBanner,
+                              leftImageFit: 'cover',
+                            })
+                          }
+                          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${
+                            (editingBanner.leftImageFit || 'cover') === 'cover'
+                              ? 'bg-primary text-white border-primary'
+                              : 'bg-background text-muted-foreground border-border'
+                          }`}
+                        >
+                          Preencher (Cover)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditingBanner({
+                              ...editingBanner,
+                              leftImageFit: 'contain',
+                            })
+                          }
+                          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${
+                            editingBanner.leftImageFit === 'contain'
+                              ? 'bg-primary text-white border-primary'
+                              : 'bg-background text-muted-foreground border-border'
+                          }`}
+                        >
+                          Conter (Contain)
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setEditingBanner({
+                            ...editingBanner,
+                            leftImageFlipX: !editingBanner.leftImageFlipX,
+                          })
+                        }
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${
+                          editingBanner.leftImageFlipX
+                            ? 'bg-primary text-white border-primary'
+                            : 'bg-background text-muted-foreground border-border'
+                        }`}
+                      >
+                        {editingBanner.leftImageFlipX ? '✓ Espelhado' : '⇄ Espelhar'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* FOTO 2 (DIREITA / DETALHES) */}
+                  <div className="bg-muted/30 border border-border rounded-2xl p-4 space-y-3.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-foreground text-xs flex items-center gap-1.5">
+                        <ImageIcon className="w-3.5 h-3.5 text-primary" />
+                        Foto 2 (Direita / Detalhes)
+                      </span>
+                      <span className="text-[10px] text-muted-foreground font-mono">
+                        Zoom: {editingBanner.rightImageScale || 100}%
+                      </span>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-1.5">
+                      <input
+                        ref={rightFileRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleUploadBannerFile(e, 'right')}
+                        className="hidden"
+                      />
                       <button
                         type="button"
                         onClick={() => rightFileRef.current?.click()}
@@ -1584,13 +2058,12 @@ export const AdminSectionsBannersPage: React.FC = () => {
                       </button>
                     </div>
 
-                    {/* Galeria de Fotos de Produtos para Foto 2 */}
                     {bannerProductPhotoPickerSide === 'right' && (
                       <div className="p-2.5 bg-muted/60 border border-primary/30 rounded-xl space-y-1.5">
                         <span className="text-[10px] font-bold text-primary block">
-                          Clique na foto desejada para aplicar na Foto 2:
+                          Clique na foto de produto desejada:
                         </span>
-                        <div className="grid grid-cols-3 gap-1.5 max-h-40 overflow-y-auto pr-1">
+                        <div className="grid grid-cols-3 gap-1.5 max-h-36 overflow-y-auto pr-1">
                           {products.flatMap((p) =>
                             (p.images || []).map((imgUrl, i) => (
                               <button
@@ -1603,8 +2076,7 @@ export const AdminSectionsBannersPage: React.FC = () => {
                                   setBannerProductPhotoPickerSide(null);
                                   showToast(`Foto do produto "${p.name}" aplicada à Foto 2!`);
                                 }}
-                                className="aspect-[3/4] rounded-lg overflow-hidden border border-border hover:border-primary transition-all relative group"
-                                title={p.name}
+                                className="aspect-[3/4] rounded-lg overflow-hidden border border-border hover:border-primary transition-all"
                               >
                                 <img src={imgUrl} alt={p.name} className="w-full h-full object-cover object-top" />
                               </button>
@@ -1623,191 +2095,1279 @@ export const AdminSectionsBannersPage: React.FC = () => {
                       }
                       className="w-full bg-background border border-border rounded-xl px-2.5 py-1.5 text-[11px] outline-none"
                     />
+
+                    {/* Controles de Escala / Zoom */}
+                    <div className="space-y-1 pt-1">
+                      <div className="flex justify-between text-[11px]">
+                        <span className="font-semibold text-muted-foreground flex items-center gap-1">
+                          <ZoomIn className="w-3 h-3 text-primary" />
+                          Zoom / Tamanho:
+                        </span>
+                        <span className="font-mono font-bold text-foreground">
+                          {editingBanner.rightImageScale ?? 100}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="50"
+                        max="180"
+                        value={editingBanner.rightImageScale ?? 100}
+                        onChange={(e) =>
+                          setEditingBanner({
+                            ...editingBanner,
+                            rightImageScale: Number(e.target.value),
+                          })
+                        }
+                        className="w-full accent-primary cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Controles de Posição Horizontal (X) */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[11px]">
+                        <span className="font-semibold text-muted-foreground">Posição Horizontal (X):</span>
+                        <span className="font-mono font-bold text-foreground">
+                          {editingBanner.rightImagePositionX ?? 50}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={editingBanner.rightImagePositionX ?? 50}
+                        onChange={(e) =>
+                          setEditingBanner({
+                            ...editingBanner,
+                            rightImagePositionX: Number(e.target.value),
+                          })
+                        }
+                        className="w-full accent-primary cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Controles de Posição Vertical (Y) */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[11px]">
+                        <span className="font-semibold text-muted-foreground">Posição Vertical (Y):</span>
+                        <span className="font-mono font-bold text-foreground">
+                          {editingBanner.rightImagePositionY ?? 20}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={editingBanner.rightImagePositionY ?? 20}
+                        onChange={(e) =>
+                          setEditingBanner({
+                            ...editingBanner,
+                            rightImagePositionY: Number(e.target.value),
+                          })
+                        }
+                        className="w-full accent-primary cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Ajuste (Cover/Contain) e Espelhar Horizontal */}
+                    <div className="flex items-center justify-between pt-1 gap-2">
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditingBanner({
+                              ...editingBanner,
+                              rightImageFit: 'cover',
+                            })
+                          }
+                          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${
+                            (editingBanner.rightImageFit || 'cover') === 'cover'
+                              ? 'bg-primary text-white border-primary'
+                              : 'bg-background text-muted-foreground border-border'
+                          }`}
+                        >
+                          Preencher (Cover)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditingBanner({
+                              ...editingBanner,
+                              rightImageFit: 'contain',
+                            })
+                          }
+                          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${
+                            editingBanner.rightImageFit === 'contain'
+                              ? 'bg-primary text-white border-primary'
+                              : 'bg-background text-muted-foreground border-border'
+                          }`}
+                        >
+                          Conter (Contain)
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setEditingBanner({
+                            ...editingBanner,
+                            rightImageFlipX: !editingBanner.rightImageFlipX,
+                          })
+                        }
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${
+                          editingBanner.rightImageFlipX
+                            ? 'bg-primary text-white border-primary'
+                            : 'bg-background text-muted-foreground border-border'
+                        }`}
+                      >
+                        {editingBanner.rightImageFlipX ? '✓ Espelhado' : '⇄ Espelhar'}
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
-              {/* Estilo Visual do Banner */}
-              <div className="bg-muted/40 p-3.5 rounded-2xl border border-border space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="block text-xs font-bold text-foreground">
-                    Estilo Visual do Banner:
-                  </label>
-                  <span className="text-[10px] text-muted-foreground">
-                    Altera a diagramação do slide na Home
-                  </span>
-                </div>
-                <select
-                  value={editingBanner.bannerStyle || 'classic-3col'}
-                  onChange={(e) =>
-                    setEditingBanner({
-                      ...editingBanner,
-                      bannerStyle: e.target.value as any,
-                    })
-                  }
-                  className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs font-semibold outline-none"
-                >
-                  <option value="editorial-light">🎟️ Editorial Clean (Fundo Claro / Cupom / Desconto R$30)</option>
-                  <option value="bold-dark">🖤 Dark Chic (Best Sellers / Contraste Noturno)</option>
-                  <option value="classic-3col">🌿 Carrossel Clássico 3 Colunas (Verde Floresta Nobre)</option>
-                </select>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
-                      Destaque de Desconto:
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ex: R$ 30,00 DE DESCONTO"
-                      value={editingBanner.discountHighlight || ''}
-                      onChange={(e) =>
-                        setEditingBanner({ ...editingBanner, discountHighlight: e.target.value })
-                      }
-                      className="w-full bg-background border border-border rounded-xl px-2.5 py-1.5 text-xs outline-none"
-                    />
+              {/* ========================================================= */}
+              {/* ABA 2: FILTROS & EFEITOS (BRILHO, CONTRASTE, P&B, SÉPIA)  */}
+              {/* ========================================================= */}
+              {bannerStudioTab === 'filtros' && (
+                <div className="space-y-4">
+                  {/* Seletor de alvo dos filtros */}
+                  <div className="flex items-center justify-between bg-muted/40 p-2.5 rounded-xl border border-border">
+                    <span className="text-xs font-bold text-foreground">
+                      Ajustar Filtros Para:
+                    </span>
+                    <div className="inline-flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setBannerFilterSide('left')}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                          bannerFilterSide === 'left'
+                            ? 'bg-primary text-white'
+                            : 'bg-background text-muted-foreground border border-border'
+                        }`}
+                      >
+                        Foto 1 (Esquerda)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBannerFilterSide('right')}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                          bannerFilterSide === 'right'
+                            ? 'bg-primary text-white'
+                            : 'bg-background text-muted-foreground border border-border'
+                        }`}
+                      >
+                        Foto 2 (Direita)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBannerFilterSide('both')}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                          bannerFilterSide === 'both'
+                            ? 'bg-primary text-white'
+                            : 'bg-background text-muted-foreground border border-border'
+                        }`}
+                      >
+                        Ambas as Fotos
+                      </button>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
-                      Código do Cupom:
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ex: PRIMEIRA30"
-                      value={editingBanner.couponCode || ''}
-                      onChange={(e) =>
-                        setEditingBanner({ ...editingBanner, couponCode: e.target.value })
-                      }
-                      className="w-full bg-background border border-border rounded-xl px-2.5 py-1.5 text-xs outline-none font-mono font-bold"
-                    />
+
+                  {/* Presets Rápidos de 1 Clique */}
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+                      ⚡ Efeitos & Presets Rápidos:
+                    </span>
+                    <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const reset = {
+                            brightness: 100,
+                            contrast: 100,
+                            saturate: 100,
+                            blur: 0,
+                            grayscale: 0,
+                            sepia: 0,
+                            opacity: 100,
+                          };
+                          setEditingBanner((prev) => {
+                            if (!prev) return prev;
+                            const update: any = { ...prev };
+                            if (bannerFilterSide === 'left' || bannerFilterSide === 'both') {
+                              update.leftImageBrightness = reset.brightness;
+                              update.leftImageContrast = reset.contrast;
+                              update.leftImageSaturate = reset.saturate;
+                              update.leftImageBlur = reset.blur;
+                              update.leftImageGrayscale = reset.grayscale;
+                              update.leftImageSepia = reset.sepia;
+                              update.leftImageOpacity = reset.opacity;
+                            }
+                            if (bannerFilterSide === 'right' || bannerFilterSide === 'both') {
+                              update.rightImageBrightness = reset.brightness;
+                              update.rightImageContrast = reset.contrast;
+                              update.rightImageSaturate = reset.saturate;
+                              update.rightImageBlur = reset.blur;
+                              update.rightImageGrayscale = reset.grayscale;
+                              update.rightImageSepia = reset.sepia;
+                              update.rightImageOpacity = reset.opacity;
+                            }
+                            return update;
+                          });
+                          showToast('Filtros resetados para Padrão!');
+                        }}
+                        className="p-2.5 rounded-xl border border-border bg-card hover:border-primary text-left text-xs transition-all"
+                      >
+                        <div className="font-bold text-foreground">Original</div>
+                        <div className="text-[10px] text-muted-foreground">Sem efeitos</div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingBanner((prev) => {
+                            if (!prev) return prev;
+                            const update: any = { ...prev };
+                            if (bannerFilterSide === 'left' || bannerFilterSide === 'both') {
+                              update.leftImageGrayscale = 100;
+                              update.leftImageContrast = 115;
+                              update.leftImageBrightness = 102;
+                            }
+                            if (bannerFilterSide === 'right' || bannerFilterSide === 'both') {
+                              update.rightImageGrayscale = 100;
+                              update.rightImageContrast = 115;
+                              update.rightImageBrightness = 102;
+                            }
+                            return update;
+                          });
+                          showToast('Preset P&B Nobre aplicado!');
+                        }}
+                        className="p-2.5 rounded-xl border border-border bg-card hover:border-primary text-left text-xs transition-all"
+                      >
+                        <div className="font-bold text-foreground">🖤 P&B Nobre</div>
+                        <div className="text-[10px] text-muted-foreground">Grayscale 100%</div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingBanner((prev) => {
+                            if (!prev) return prev;
+                            const update: any = { ...prev };
+                            if (bannerFilterSide === 'left' || bannerFilterSide === 'both') {
+                              update.leftImageSaturate = 140;
+                              update.leftImageContrast = 112;
+                              update.leftImageBrightness = 102;
+                            }
+                            if (bannerFilterSide === 'right' || bannerFilterSide === 'both') {
+                              update.rightImageSaturate = 140;
+                              update.rightImageContrast = 112;
+                              update.rightImageBrightness = 102;
+                            }
+                            return update;
+                          });
+                          showToast('Preset Vibrante aplicado!');
+                        }}
+                        className="p-2.5 rounded-xl border border-border bg-card hover:border-primary text-left text-xs transition-all"
+                      >
+                        <div className="font-bold text-foreground">✨ Vibrante</div>
+                        <div className="text-[10px] text-muted-foreground">Cores vivas</div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingBanner((prev) => {
+                            if (!prev) return prev;
+                            const update: any = { ...prev };
+                            if (bannerFilterSide === 'left' || bannerFilterSide === 'both') {
+                              update.leftImageBrightness = 108;
+                              update.leftImageSaturate = 88;
+                              update.leftImageContrast = 96;
+                            }
+                            if (bannerFilterSide === 'right' || bannerFilterSide === 'both') {
+                              update.rightImageBrightness = 108;
+                              update.rightImageSaturate = 88;
+                              update.rightImageContrast = 96;
+                            }
+                            return update;
+                          });
+                          showToast('Preset Suave Editorial aplicado!');
+                        }}
+                        className="p-2.5 rounded-xl border border-border bg-card hover:border-primary text-left text-xs transition-all"
+                      >
+                        <div className="font-bold text-foreground">🌸 Editorial</div>
+                        <div className="text-[10px] text-muted-foreground">Luz suave</div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingBanner((prev) => {
+                            if (!prev) return prev;
+                            const update: any = { ...prev };
+                            if (bannerFilterSide === 'left' || bannerFilterSide === 'both') {
+                              update.leftImageContrast = 125;
+                              update.leftImageBrightness = 92;
+                              update.leftImageSaturate = 110;
+                            }
+                            if (bannerFilterSide === 'right' || bannerFilterSide === 'both') {
+                              update.rightImageContrast = 125;
+                              update.rightImageBrightness = 92;
+                              update.rightImageSaturate = 110;
+                            }
+                            return update;
+                          });
+                          showToast('Preset Noturno aplicado!');
+                        }}
+                        className="p-2.5 rounded-xl border border-border bg-card hover:border-primary text-left text-xs transition-all"
+                      >
+                        <div className="font-bold text-foreground">🌙 Noturno</div>
+                        <div className="text-[10px] text-muted-foreground">Alto contraste</div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingBanner((prev) => {
+                            if (!prev) return prev;
+                            const update: any = { ...prev };
+                            if (bannerFilterSide === 'left' || bannerFilterSide === 'both') {
+                              update.leftImageSepia = 50;
+                              update.leftImageBrightness = 104;
+                              update.leftImageContrast = 98;
+                            }
+                            if (bannerFilterSide === 'right' || bannerFilterSide === 'both') {
+                              update.rightImageSepia = 50;
+                              update.rightImageBrightness = 104;
+                              update.rightImageContrast = 98;
+                            }
+                            return update;
+                          });
+                          showToast('Preset Vintage aplicado!');
+                        }}
+                        className="p-2.5 rounded-xl border border-border bg-card hover:border-primary text-left text-xs transition-all"
+                      >
+                        <div className="font-bold text-foreground">🌾 Vintage</div>
+                        <div className="text-[10px] text-muted-foreground">Sépia quente</div>
+                      </button>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
-                      Regras / Disclaimer:
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ex: *Cupom válido acima de R$ 299..."
-                      value={editingBanner.disclaimer || ''}
-                      onChange={(e) =>
-                        setEditingBanner({ ...editingBanner, disclaimer: e.target.value })
-                      }
-                      className="w-full bg-background border border-border rounded-xl px-2.5 py-1.5 text-xs outline-none"
-                    />
+
+                  {/* Sliders Detalhados de Filtros */}
+                  <div className="bg-muted/30 border border-border rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Brilho */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="font-semibold text-muted-foreground">Brilho (Brightness):</span>
+                        <span className="font-mono font-bold text-foreground">
+                          {(bannerFilterSide === 'right' ? editingBanner.rightImageBrightness : editingBanner.leftImageBrightness) ?? 100}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="50"
+                        max="180"
+                        value={(bannerFilterSide === 'right' ? editingBanner.rightImageBrightness : editingBanner.leftImageBrightness) ?? 100}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setEditingBanner((prev) => {
+                            if (!prev) return prev;
+                            const u: any = { ...prev };
+                            if (bannerFilterSide === 'left' || bannerFilterSide === 'both') u.leftImageBrightness = val;
+                            if (bannerFilterSide === 'right' || bannerFilterSide === 'both') u.rightImageBrightness = val;
+                            return u;
+                          });
+                        }}
+                        className="w-full accent-primary cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Contraste */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="font-semibold text-muted-foreground">Contraste (Contrast):</span>
+                        <span className="font-mono font-bold text-foreground">
+                          {(bannerFilterSide === 'right' ? editingBanner.rightImageContrast : editingBanner.leftImageContrast) ?? 100}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="50"
+                        max="180"
+                        value={(bannerFilterSide === 'right' ? editingBanner.rightImageContrast : editingBanner.leftImageContrast) ?? 100}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setEditingBanner((prev) => {
+                            if (!prev) return prev;
+                            const u: any = { ...prev };
+                            if (bannerFilterSide === 'left' || bannerFilterSide === 'both') u.leftImageContrast = val;
+                            if (bannerFilterSide === 'right' || bannerFilterSide === 'both') u.rightImageContrast = val;
+                            return u;
+                          });
+                        }}
+                        className="w-full accent-primary cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Saturação */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="font-semibold text-muted-foreground">Saturação de Cores:</span>
+                        <span className="font-mono font-bold text-foreground">
+                          {(bannerFilterSide === 'right' ? editingBanner.rightImageSaturate : editingBanner.leftImageSaturate) ?? 100}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="200"
+                        value={(bannerFilterSide === 'right' ? editingBanner.rightImageSaturate : editingBanner.leftImageSaturate) ?? 100}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setEditingBanner((prev) => {
+                            if (!prev) return prev;
+                            const u: any = { ...prev };
+                            if (bannerFilterSide === 'left' || bannerFilterSide === 'both') u.leftImageSaturate = val;
+                            if (bannerFilterSide === 'right' || bannerFilterSide === 'both') u.rightImageSaturate = val;
+                            return u;
+                          });
+                        }}
+                        className="w-full accent-primary cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Desfoque (Blur) */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="font-semibold text-muted-foreground">Desfoque (Blur):</span>
+                        <span className="font-mono font-bold text-foreground">
+                          {(bannerFilterSide === 'right' ? editingBanner.rightImageBlur : editingBanner.leftImageBlur) ?? 0}px
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="15"
+                        value={(bannerFilterSide === 'right' ? editingBanner.rightImageBlur : editingBanner.leftImageBlur) ?? 0}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setEditingBanner((prev) => {
+                            if (!prev) return prev;
+                            const u: any = { ...prev };
+                            if (bannerFilterSide === 'left' || bannerFilterSide === 'both') u.leftImageBlur = val;
+                            if (bannerFilterSide === 'right' || bannerFilterSide === 'both') u.rightImageBlur = val;
+                            return u;
+                          });
+                        }}
+                        className="w-full accent-primary cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Tons de Cinza (Grayscale) */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="font-semibold text-muted-foreground">Preto & Branco (Grayscale):</span>
+                        <span className="font-mono font-bold text-foreground">
+                          {(bannerFilterSide === 'right' ? editingBanner.rightImageGrayscale : editingBanner.leftImageGrayscale) ?? 0}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={(bannerFilterSide === 'right' ? editingBanner.rightImageGrayscale : editingBanner.leftImageGrayscale) ?? 0}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setEditingBanner((prev) => {
+                            if (!prev) return prev;
+                            const u: any = { ...prev };
+                            if (bannerFilterSide === 'left' || bannerFilterSide === 'both') u.leftImageGrayscale = val;
+                            if (bannerFilterSide === 'right' || bannerFilterSide === 'both') u.rightImageGrayscale = val;
+                            return u;
+                          });
+                        }}
+                        className="w-full accent-primary cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Efeito Sépia */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="font-semibold text-muted-foreground">Efeito Sépia Vintage:</span>
+                        <span className="font-mono font-bold text-foreground">
+                          {(bannerFilterSide === 'right' ? editingBanner.rightImageSepia : editingBanner.leftImageSepia) ?? 0}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={(bannerFilterSide === 'right' ? editingBanner.rightImageSepia : editingBanner.leftImageSepia) ?? 0}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setEditingBanner((prev) => {
+                            if (!prev) return prev;
+                            const u: any = { ...prev };
+                            if (bannerFilterSide === 'left' || bannerFilterSide === 'both') u.leftImageSepia = val;
+                            if (bannerFilterSide === 'right' || bannerFilterSide === 'both') u.rightImageSepia = val;
+                            return u;
+                          });
+                        }}
+                        className="w-full accent-primary cursor-pointer"
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
-              {/* Textos Centrais do Banner */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold mb-1">Badge Superior</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ex: NOVA COLEÇÃO, 🔥 BLACK FRIDAY, ☀️ VERÃO 2026"
-                    value={editingBanner.badge || ''}
-                    onChange={(e) =>
-                      setEditingBanner({ ...editingBanner, badge: e.target.value })
-                    }
-                    className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs outline-none"
-                  />
+              {/* ========================================================= */}
+              {/* ABA 3: DESIGN, FUNDO & AURA GLOW                          */}
+              {/* ========================================================= */}
+              {bannerStudioTab === 'design' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Estilo Visual do Banner */}
+                    <div className="bg-muted/30 border border-border rounded-2xl p-4 space-y-2">
+                      <label className="block text-xs font-bold text-foreground">
+                        Diagramação do Banner:
+                      </label>
+                      <select
+                        value={editingBanner.bannerStyle || 'classic-3col'}
+                        onChange={(e) =>
+                          setEditingBanner({
+                            ...editingBanner,
+                            bannerStyle: e.target.value as any,
+                          })
+                        }
+                        className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs font-semibold outline-none"
+                      >
+                        <option value="editorial-light">🎟️ Editorial Clean (Fundo Claro / Cupom / Desconto R$30)</option>
+                        <option value="bold-dark">🖤 Dark Chic (Best Sellers / Contraste Noturno)</option>
+                        <option value="classic-3col">🌿 Carrossel Clássico 3 Colunas (Verde Nobre)</option>
+                      </select>
+                    </div>
+
+                    {/* Altura do Banner */}
+                    <div className="bg-muted/30 border border-border rounded-2xl p-4 space-y-2">
+                      <label className="block text-xs font-bold text-foreground">
+                        Altura do Banner na Loja:
+                      </label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setEditingBanner({ ...editingBanner, bannerHeight: 'compact' })}
+                          className={`py-2 rounded-xl text-xs font-bold border transition-all ${
+                            editingBanner.bannerHeight === 'compact'
+                              ? 'bg-primary text-white border-primary shadow-xs'
+                              : 'bg-background text-muted-foreground border-border'
+                          }`}
+                        >
+                          Compacto
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingBanner({ ...editingBanner, bannerHeight: 'normal' })}
+                          className={`py-2 rounded-xl text-xs font-bold border transition-all ${
+                            (editingBanner.bannerHeight || 'normal') === 'normal'
+                              ? 'bg-primary text-white border-primary shadow-xs'
+                              : 'bg-background text-muted-foreground border-border'
+                          }`}
+                        >
+                          Padrão (Médio)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingBanner({ ...editingBanner, bannerHeight: 'tall' })}
+                          className={`py-2 rounded-xl text-xs font-bold border transition-all ${
+                            editingBanner.bannerHeight === 'tall'
+                              ? 'bg-primary text-white border-primary shadow-xs'
+                              : 'bg-background text-muted-foreground border-border'
+                          }`}
+                        >
+                          Alto / Imersivo
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Fundo: Sólido vs Gradiente & Seletor de Cores */}
+                  <div className="bg-muted/30 border border-border rounded-2xl p-4 space-y-3.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-foreground">
+                        Cor e Efeito do Fundo:
+                      </span>
+                      <div className="inline-flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setEditingBanner({ ...editingBanner, backgroundType: 'solid' })}
+                          className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all ${
+                            (editingBanner.backgroundType || 'solid') === 'solid'
+                              ? 'bg-primary text-white border-primary'
+                              : 'bg-background text-muted-foreground border-border'
+                          }`}
+                        >
+                          Cor Sólida
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingBanner({ ...editingBanner, backgroundType: 'gradient' })}
+                          className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all ${
+                            editingBanner.backgroundType === 'gradient'
+                              ? 'bg-primary text-white border-primary'
+                              : 'bg-background text-muted-foreground border-border'
+                          }`}
+                        >
+                          Gradiente
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Cor Primária */}
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] font-semibold text-muted-foreground">
+                          Cor Principal do Fundo:
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={editingBanner.centerBgColor || '#123922'}
+                            onChange={(e) =>
+                              setEditingBanner({ ...editingBanner, centerBgColor: e.target.value })
+                            }
+                            className="w-10 h-10 rounded-xl cursor-pointer border border-border bg-transparent p-0.5"
+                          />
+                          <input
+                            type="text"
+                            value={editingBanner.centerBgColor || '#123922'}
+                            onChange={(e) =>
+                              setEditingBanner({ ...editingBanner, centerBgColor: e.target.value })
+                            }
+                            className="w-32 bg-background border border-border rounded-xl px-2.5 py-2 text-xs font-mono font-bold outline-none"
+                          />
+                        </div>
+
+                        {/* Cores Sugeridas Aura */}
+                        <div className="flex items-center gap-1.5 pt-1">
+                          <span className="text-[10px] text-muted-foreground">Aura:</span>
+                          {[
+                            { name: 'Verde Aura', hex: '#123922' },
+                            { name: 'Dark Chic', hex: '#0b1610' },
+                            { name: 'Off-White', hex: '#f5f5f3' },
+                            { name: 'Slate', hex: '#0f172a' },
+                            { name: 'Terracota', hex: '#3b1d11' },
+                            { name: 'Dourado', hex: '#453209' },
+                          ].map((col) => (
+                            <button
+                              key={col.hex}
+                              type="button"
+                              onClick={() => setEditingBanner({ ...editingBanner, centerBgColor: col.hex })}
+                              title={col.name}
+                              style={{ backgroundColor: col.hex }}
+                              className="w-6 h-6 rounded-full border border-white/30 shadow-xs hover:scale-110 transition-transform"
+                            />
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Gradiente Secundário (Se Gradiente) */}
+                      {editingBanner.backgroundType === 'gradient' ? (
+                        <div className="space-y-1.5">
+                          <label className="block text-[11px] font-semibold text-muted-foreground">
+                            Cor Final do Gradiente:
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="color"
+                              value={editingBanner.bgGradientEndColor || '#0d2818'}
+                              onChange={(e) =>
+                                setEditingBanner({ ...editingBanner, bgGradientEndColor: e.target.value })
+                              }
+                              className="w-10 h-10 rounded-xl cursor-pointer border border-border bg-transparent p-0.5"
+                            />
+                            <input
+                              type="text"
+                              value={editingBanner.bgGradientEndColor || '#0d2818'}
+                              onChange={(e) =>
+                                setEditingBanner({ ...editingBanner, bgGradientEndColor: e.target.value })
+                              }
+                              className="w-32 bg-background border border-border rounded-xl px-2.5 py-2 text-xs font-mono font-bold outline-none"
+                            />
+                          </div>
+
+                          <div className="flex items-center gap-1 pt-1">
+                            <span className="text-[10px] text-muted-foreground mr-1">Direção:</span>
+                            {(['to-r', 'to-b', 'to-br'] as const).map((dir) => (
+                              <button
+                                key={dir}
+                                type="button"
+                                onClick={() => setEditingBanner({ ...editingBanner, gradientDirection: dir })}
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                  (editingBanner.gradientDirection || 'to-r') === dir
+                                    ? 'bg-primary text-white border-primary'
+                                    : 'bg-background text-muted-foreground border-border'
+                                }`}
+                              >
+                                {dir === 'to-r' ? '→ Horizontal' : dir === 'to-b' ? '↓ Vertical' : '↘ Diagonal'}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-xs">
+                            <span className="font-semibold text-muted-foreground">Escurecimento Geral (Overlay):</span>
+                            <span className="font-mono font-bold text-foreground">
+                              {editingBanner.overlayOpacity ?? 0}%
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0"
+                            max="80"
+                            value={editingBanner.overlayOpacity ?? 0}
+                            onChange={(e) =>
+                              setEditingBanner({ ...editingBanner, overlayOpacity: Number(e.target.value) })
+                            }
+                            className="w-full accent-primary cursor-pointer"
+                          />
+                          <p className="text-[10px] text-muted-foreground">
+                            Ajuda a destacar textos sobre fotos muito claras.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Aura Glow Efeito de Luz de Fundo */}
+                  <div className="bg-muted/30 border border-border rounded-2xl p-4 flex items-center justify-between">
+                    <div>
+                      <div className="font-bold text-foreground text-xs flex items-center gap-1.5">
+                        <Sparkles className="w-4 h-4 text-emerald-400" />
+                        Efeito Aura Glow (Luz Ambiente Radiante)
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Adiciona um halo de luz difusa e sofisticada atrás dos modelos e textos.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      {editingBanner.ambientGlow && (
+                        <div className="flex items-center gap-1">
+                          {['#10b981', '#eab308', '#f43f5e', '#38bdf8', '#a855f7'].map((glowColor) => (
+                            <button
+                              key={glowColor}
+                              type="button"
+                              onClick={() => setEditingBanner({ ...editingBanner, ambientGlowColor: glowColor })}
+                              style={{ backgroundColor: glowColor }}
+                              className={`w-6 h-6 rounded-full border-2 transition-transform ${
+                                (editingBanner.ambientGlowColor || '#10b981') === glowColor
+                                  ? 'border-white scale-110 shadow-md'
+                                  : 'border-transparent opacity-60'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setEditingBanner({
+                            ...editingBanner,
+                            ambientGlow: !editingBanner.ambientGlow,
+                          })
+                        }
+                        className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all ${
+                          editingBanner.ambientGlow
+                            ? 'bg-emerald-600 text-white border-emerald-500 shadow-sm'
+                            : 'bg-background text-muted-foreground border-border'
+                        }`}
+                      >
+                        {editingBanner.ambientGlow ? '✓ Brilho Ativado' : 'Desativado'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
+              )}
 
-                <div>
-                  <label className="block font-semibold mb-1">Título de Impacto *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ex: FORÇA & ESTILO, ATÉ 50% OFF"
-                    value={editingBanner.title || ''}
-                    onChange={(e) =>
-                      setEditingBanner({ ...editingBanner, title: e.target.value })
-                    }
-                    className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs outline-none font-bold"
-                  />
+              {/* ========================================================= */}
+              {/* ABA 4: TEXTOS, CUPOM, DESCONTO & TIPOGRAFIA               */}
+              {/* ========================================================= */}
+              {bannerStudioTab === 'textos' && (
+                <div className="space-y-4">
+                  {/* Badge Superior */}
+                  <div className="bg-muted/30 border border-border rounded-2xl p-4 space-y-3">
+                    <span className="text-xs font-bold text-foreground block">
+                      Badge / Selo Superior (Destaque):
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="sm:col-span-2">
+                        <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                          Texto do Badge:
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Ex: NOVA COLEÇÃO 2026, 🔥 BLACK FRIDAY, ★ MAIS DESEJADOS"
+                          value={editingBanner.badge || ''}
+                          onChange={(e) => setEditingBanner({ ...editingBanner, badge: e.target.value })}
+                          className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs outline-none font-bold"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                            Cor Fundo:
+                          </label>
+                          <input
+                            type="color"
+                            value={editingBanner.badgeBgColor || '#e5a93c'}
+                            onChange={(e) => setEditingBanner({ ...editingBanner, badgeBgColor: e.target.value })}
+                            className="w-full h-9 rounded-xl border border-border p-1 bg-background cursor-pointer"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                            Cor Texto:
+                          </label>
+                          <input
+                            type="color"
+                            value={editingBanner.badgeTextColor || '#000000'}
+                            onChange={(e) => setEditingBanner({ ...editingBanner, badgeTextColor: e.target.value })}
+                            className="w-full h-9 rounded-xl border border-border p-1 bg-background cursor-pointer"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Título Principal */}
+                  <div className="bg-muted/30 border border-border rounded-2xl p-4 space-y-3">
+                    <span className="text-xs font-bold text-foreground block">
+                      Título Principal do Banner:
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="sm:col-span-2">
+                        <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                          Texto do Título:
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="Ex: FORÇA & EFEITO LIPO, BEST SELLERS"
+                          value={editingBanner.title || ''}
+                          onChange={(e) => setEditingBanner({ ...editingBanner, title: e.target.value })}
+                          className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm outline-none font-black"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                          Cor do Título:
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={editingBanner.titleColor || '#ffffff'}
+                            onChange={(e) => setEditingBanner({ ...editingBanner, titleColor: e.target.value })}
+                            className="w-9 h-9 rounded-xl border border-border p-1 bg-background cursor-pointer"
+                          />
+                          <input
+                            type="text"
+                            value={editingBanner.titleColor || '#ffffff'}
+                            onChange={(e) => setEditingBanner({ ...editingBanner, titleColor: e.target.value })}
+                            className="w-24 bg-background border border-border rounded-xl px-2 py-1.5 text-xs font-mono font-bold"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                          Estilo da Fonte:
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setEditingBanner({ ...editingBanner, titleFontFamily: 'serif' })}
+                            className={`py-1.5 rounded-xl text-xs font-serif font-bold border transition-all ${
+                              (editingBanner.titleFontFamily || 'serif') === 'serif'
+                                ? 'bg-primary text-white border-primary'
+                                : 'bg-background text-muted-foreground border-border'
+                            }`}
+                          >
+                            Serifada Chic (Aura)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingBanner({ ...editingBanner, titleFontFamily: 'sans' })}
+                            className={`py-1.5 rounded-xl text-xs font-sans font-bold border transition-all ${
+                              editingBanner.titleFontFamily === 'sans'
+                                ? 'bg-primary text-white border-primary'
+                                : 'bg-background text-muted-foreground border-border'
+                            }`}
+                          >
+                            Sem Serifa (Moderna)
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="flex justify-between text-[11px] font-semibold text-muted-foreground mb-1">
+                          <span>Tamanho da Fonte:</span>
+                          <span className="font-mono text-foreground">{editingBanner.titleFontSize || 36}px</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="24"
+                          max="72"
+                          value={editingBanner.titleFontSize || 36}
+                          onChange={(e) =>
+                            setEditingBanner({ ...editingBanner, titleFontSize: Number(e.target.value) })
+                          }
+                          className="w-full accent-primary cursor-pointer"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Subtítulo */}
+                  <div className="bg-muted/30 border border-border rounded-2xl p-4 space-y-3">
+                    <span className="text-xs font-bold text-foreground block">
+                      Subtítulo Descritivo:
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="sm:col-span-2">
+                        <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                          Texto do Subtítulo:
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Ex: Conjuntos anatômicos que abraçam seu movimento com sustentação premium..."
+                          value={editingBanner.subtitle || ''}
+                          onChange={(e) => setEditingBanner({ ...editingBanner, subtitle: e.target.value })}
+                          className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                          Cor do Subtítulo:
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={editingBanner.subtitleColor || '#e2e8f0'}
+                            onChange={(e) => setEditingBanner({ ...editingBanner, subtitleColor: e.target.value })}
+                            className="w-9 h-9 rounded-xl border border-border p-1 bg-background cursor-pointer"
+                          />
+                          <input
+                            type="text"
+                            value={editingBanner.subtitleColor || '#e2e8f0'}
+                            onChange={(e) => setEditingBanner({ ...editingBanner, subtitleColor: e.target.value })}
+                            className="w-24 bg-background border border-border rounded-xl px-2 py-1.5 text-xs font-mono font-bold"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Desconto, Cupom e Regras */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                        Destaque de Desconto:
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ex: R$ 30,00 DE DESCONTO"
+                        value={editingBanner.discountHighlight || ''}
+                        onChange={(e) =>
+                          setEditingBanner({ ...editingBanner, discountHighlight: e.target.value })
+                        }
+                        className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs outline-none font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                        Código do Cupom:
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ex: PRIMEIRA30"
+                        value={editingBanner.couponCode || ''}
+                        onChange={(e) =>
+                          setEditingBanner({ ...editingBanner, couponCode: e.target.value })
+                        }
+                        className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs outline-none font-mono font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                        Regras / Disclaimer:
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ex: *Cupom válido acima de R$ 299..."
+                        value={editingBanner.disclaimer || ''}
+                        onChange={(e) =>
+                          setEditingBanner({ ...editingBanner, disclaimer: e.target.value })
+                        }
+                        className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs outline-none"
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
 
-              <div>
-                <label className="block font-semibold mb-1">Subtítulo Descritivo</label>
-                <input
-                  type="text"
-                  placeholder="Ex: Conjuntos que abraçam seu movimento com toque aveludado e zero transparência..."
-                  value={editingBanner.subtitle || ''}
-                  onChange={(e) =>
-                    setEditingBanner({ ...editingBanner, subtitle: e.target.value })
-                  }
-                  className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs outline-none"
-                />
-              </div>
+              {/* ========================================================= */}
+              {/* ABA 5: BOTÃO DE AÇÃO (CTA), FORMATO, CORES & GLOW         */}
+              {/* ========================================================= */}
+              {bannerStudioTab === 'botao' && (
+                <div className="space-y-4">
+                  <div className="bg-muted/30 border border-border rounded-2xl p-4 space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-foreground mb-1">
+                          Texto do Botão CTA:
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Ex: COMPRAR AGORA, VER CONJUNTOS, MODA VERÃO"
+                          value={editingBanner.buttonText || ''}
+                          onChange={(e) =>
+                            setEditingBanner({ ...editingBanner, buttonText: e.target.value })
+                          }
+                          className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-xs outline-none font-bold"
+                        />
+                      </div>
 
-              {/* Botão de Chamada & Destino do Link */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold mb-1">Texto do Botão CTA</label>
-                  <input
-                    type="text"
-                    placeholder="Ex: VER CONJUNTOS, APROVEITAR OFERTAS, VER MODA VERÃO"
-                    value={editingBanner.buttonText || ''}
-                    onChange={(e) =>
-                      setEditingBanner({ ...editingBanner, buttonText: e.target.value })
-                    }
-                    className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs outline-none font-bold"
-                  />
+                      <div>
+                        <label className="block text-xs font-bold text-foreground mb-1">
+                          Destino ao Clicar no Botão:
+                        </label>
+                        <select
+                          value={editingBanner.link || '/catalogo'}
+                          onChange={(e) =>
+                            setEditingBanner({ ...editingBanner, link: e.target.value })
+                          }
+                          className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-xs font-semibold outline-none"
+                        >
+                          <optgroup label="Seções Criadas da Loja">
+                            {sections.map((sec) => (
+                              <option key={sec.id} value={`/catalogo?secao=${sec.slug}`}>
+                                Seção: {sec.name}
+                              </option>
+                            ))}
+                          </optgroup>
+                          <optgroup label="Categorias Principais">
+                            {categories.map((c) => (
+                              <option key={c.name} value={`/catalogo?categoria=${encodeURIComponent(c.name)}`}>
+                                Categoria: {c.name}
+                              </option>
+                            ))}
+                          </optgroup>
+                          <optgroup label="Páginas Gerais">
+                            <option value="/catalogo">Catálogo Completo</option>
+                            <option value="/catalogo?promocao=true">Apenas Promoções</option>
+                            <option value="/catalogo?ordenar=mais-recentes">Lançamentos</option>
+                            <option value="/catalogo?ordenar=mais-vendidos">Mais Vendidos</option>
+                          </optgroup>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Cores do Botão (Fundo, Texto e Borda) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-border">
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] font-semibold text-muted-foreground">
+                          Cor de Fundo do Botão:
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={editingBanner.buttonBgColor || '#ffffff'}
+                            onChange={(e) =>
+                              setEditingBanner({ ...editingBanner, buttonBgColor: e.target.value })
+                            }
+                            className="w-9 h-9 rounded-xl border border-border p-1 bg-background cursor-pointer"
+                          />
+                          <input
+                            type="text"
+                            value={editingBanner.buttonBgColor || '#ffffff'}
+                            onChange={(e) =>
+                              setEditingBanner({ ...editingBanner, buttonBgColor: e.target.value })
+                            }
+                            className="w-24 bg-background border border-border rounded-xl px-2 py-1.5 text-xs font-mono font-bold"
+                          />
+                        </div>
+
+                        {/* Cores Rápidas para o Botão */}
+                        <div className="flex items-center gap-1.5 pt-1">
+                          {[
+                            { name: 'Branco', hex: '#ffffff' },
+                            { name: 'Dourado', hex: '#E5A93C' },
+                            { name: 'Verde Aura', hex: '#123922' },
+                            { name: 'Preto', hex: '#0a0a0a' },
+                            { name: 'Rosa Vibrante', hex: '#f43f5e' },
+                          ].map((bCol) => (
+                            <button
+                              key={bCol.hex}
+                              type="button"
+                              onClick={() => setEditingBanner({ ...editingBanner, buttonBgColor: bCol.hex })}
+                              title={bCol.name}
+                              style={{ backgroundColor: bCol.hex }}
+                              className="w-5 h-5 rounded-full border border-black/20 shadow-xs hover:scale-110 transition-transform"
+                            />
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] font-semibold text-muted-foreground">
+                          Cor do Texto do Botão:
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={editingBanner.buttonTextColor || '#0a0a0a'}
+                            onChange={(e) =>
+                              setEditingBanner({ ...editingBanner, buttonTextColor: e.target.value })
+                            }
+                            className="w-9 h-9 rounded-xl border border-border p-1 bg-background cursor-pointer"
+                          />
+                          <input
+                            type="text"
+                            value={editingBanner.buttonTextColor || '#0a0a0a'}
+                            onChange={(e) =>
+                              setEditingBanner({ ...editingBanner, buttonTextColor: e.target.value })
+                            }
+                            className="w-24 bg-background border border-border rounded-xl px-2 py-1.5 text-xs font-mono font-bold"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] font-semibold text-muted-foreground">
+                          Cor da Borda (Opcional):
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={editingBanner.buttonBorderColor || '#e2e8f0'}
+                            onChange={(e) =>
+                              setEditingBanner({ ...editingBanner, buttonBorderColor: e.target.value })
+                            }
+                            className="w-9 h-9 rounded-xl border border-border p-1 bg-background cursor-pointer"
+                          />
+                          <input
+                            type="text"
+                            value={editingBanner.buttonBorderColor || ''}
+                            placeholder="Nenhuma"
+                            onChange={(e) =>
+                              setEditingBanner({ ...editingBanner, buttonBorderColor: e.target.value })
+                            }
+                            className="w-24 bg-background border border-border rounded-xl px-2 py-1.5 text-xs font-mono"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Formato do Botão & Brilho Glow */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-border">
+                      <div>
+                        <label className="block text-xs font-bold text-foreground mb-1.5">
+                          Formato e Cantos do Botão:
+                        </label>
+                        <div className="grid grid-cols-3 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setEditingBanner({ ...editingBanner, buttonRadius: 'rounded-full' })}
+                            className={`py-2 rounded-xl text-xs font-bold border transition-all ${
+                              (editingBanner.buttonRadius || 'rounded-full') === 'rounded-full'
+                                ? 'bg-primary text-white border-primary shadow-xs'
+                                : 'bg-background text-muted-foreground border-border'
+                            }`}
+                          >
+                            Pílula (Redondo)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingBanner({ ...editingBanner, buttonRadius: 'rounded-2xl' })}
+                            className={`py-2 rounded-xl text-xs font-bold border transition-all ${
+                              editingBanner.buttonRadius === 'rounded-2xl'
+                                ? 'bg-primary text-white border-primary shadow-xs'
+                                : 'bg-background text-muted-foreground border-border'
+                            }`}
+                          >
+                            Suave (2xl)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingBanner({ ...editingBanner, buttonRadius: 'rounded-none' })}
+                            className={`py-2 rounded-xl text-xs font-bold border transition-all ${
+                              editingBanner.buttonRadius === 'rounded-none'
+                                ? 'bg-primary text-white border-primary shadow-xs'
+                                : 'bg-background text-muted-foreground border-border'
+                            }`}
+                          >
+                            Reto Moderno
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col justify-center">
+                        <label className="block text-xs font-bold text-foreground mb-1.5">
+                          Brilho Neon / Glow no Botão:
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditingBanner({
+                              ...editingBanner,
+                              buttonGlow: !editingBanner.buttonGlow,
+                            })
+                          }
+                          className={`py-2 px-4 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-2 ${
+                            editingBanner.buttonGlow
+                              ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md font-black'
+                              : 'bg-background text-muted-foreground border-border'
+                          }`}
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>{editingBanner.buttonGlow ? '✓ Brilho Luminoso Ativado' : 'Sem Brilho Glow'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
+              )}
+            </div>
 
-                <div>
-                  <label className="block font-semibold mb-1">
-                    Destino do Botão (Onde o cliente vai ao clicar):
-                  </label>
-                  <select
-                    value={editingBanner.link || '/catalogo'}
-                    onChange={(e) =>
-                      setEditingBanner({ ...editingBanner, link: e.target.value })
-                    }
-                    className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs font-semibold outline-none"
-                  >
-                    <optgroup label="Seções Criadas da Loja">
-                      {sections.map((sec) => (
-                        <option key={sec.id} value={`/catalogo?secao=${sec.slug}`}>
-                          Seção: {sec.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Categorias Principais">
-                      {categories.map((c) => (
-                        <option key={c.name} value={`/catalogo?categoria=${encodeURIComponent(c.name)}`}>
-                          Categoria: {c.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Páginas Gerais">
-                      <option value="/catalogo">Catálogo Completo</option>
-                      <option value="/catalogo?promocao=true">Apenas Promoções</option>
-                      <option value="/catalogo?ordenar=mais-recentes">Lançamentos</option>
-                      <option value="/catalogo?ordenar=mais-vendidos">Mais Vendidos</option>
-                    </optgroup>
-                  </select>
-                </div>
-              </div>
+            {/* Rodapé com Ações */}
+            <div className="border-t border-border px-6 py-3.5 bg-muted/20 flex items-center justify-between shrink-0">
+              <span className="text-[11px] text-muted-foreground">
+                Dica: Você pode visualizar em 💻 Computador e 📱 Celular no topo antes de salvar.
+              </span>
 
-              <div className="pt-3 border-t border-border flex justify-end gap-2.5">
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setIsBannerModalOpen(false)}
-                  className="bg-secondary text-foreground px-4 py-2.5 rounded-xl font-semibold hover:bg-secondary/80"
+                  className="bg-secondary text-foreground px-4 py-2.5 rounded-xl font-semibold hover:bg-secondary/80 text-xs"
                 >
                   Cancelar
                 </button>
                 <button
-                  type="submit"
-                  className="bg-primary hover:bg-primary-hover text-white px-6 py-2.5 rounded-xl font-bold shadow-md transition-all"
+                  type="button"
+                  onClick={handleSaveBanner}
+                  className="bg-primary hover:bg-primary-hover text-white px-6 py-2.5 rounded-xl font-bold shadow-md transition-all text-xs flex items-center gap-1.5"
                 >
-                  Salvar Banner
+                  <Check className="w-4 h-4" />
+                  <span>Salvar Todas as Alterações</span>
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
