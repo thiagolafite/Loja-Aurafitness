@@ -43,6 +43,8 @@ import {
   isImageFile,
   isVideoFile,
   isVideoMedia,
+  STANDARD_STORE_SIZES,
+  extractSizesFromText,
 } from '../../lib/productClassifier';
 import { ProductMediaView } from '../store/ProductMediaView';
 
@@ -77,6 +79,7 @@ interface GroupedProductItem {
   price: number;
   promotionalPrice?: number;
   size?: string;
+  sizes: string[];
   colors: { name: string; hex: string }[];
   isSet: boolean;
   images: string[];
@@ -422,6 +425,14 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
             existing.newImagesCount = (existing.newImagesCount || 0) + 1;
           }
           if (!existing.size && parsed.size) existing.size = parsed.size;
+          // Unifica tamanhos identificados
+          if (parsed.sizes && parsed.sizes.length > 0) {
+            for (const sz of parsed.sizes) {
+              if (!existing.sizes.includes(sz)) {
+                existing.sizes.push(sz);
+              }
+            }
+          }
           parsed.colors.forEach((col) => {
             if (!existing.colors.some((c) => c.name.toLowerCase() === col.name.toLowerCase())) {
               existing.colors.push(col);
@@ -438,6 +449,15 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
             initialImages.push(compressedDataUrl);
           }
 
+          const detectedSizes =
+            storeMatch?.sizes && storeMatch.sizes.length > 0
+              ? [...storeMatch.sizes]
+              : parsed.sizes && parsed.sizes.length > 0
+              ? [...parsed.sizes]
+              : parsed.size
+              ? [parsed.size]
+              : ['P', 'M', 'G', 'GG'];
+
           productMap.set(parsed.groupKey, {
             id: storeMatch?.id,
             groupKey: parsed.groupKey,
@@ -446,6 +466,7 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
             price: storeMatch ? storeMatch.price : parsed.price,
             promotionalPrice: storeMatch?.promotionalPrice,
             size: parsed.size || storeMatch?.sizes?.[0],
+            sizes: detectedSizes,
             colors:
               storeMatch && storeMatch.colors && storeMatch.colors.length > 0
                 ? storeMatch.colors
@@ -527,6 +548,7 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
       const photos: string[] = [];
       const videos: string[] = [];
       const combinedColors = [...base.colors];
+      const combinedSizes: string[] = [];
 
       for (const item of itemsToMerge) {
         for (const media of item.images) {
@@ -541,6 +563,18 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
             combinedColors.push(col);
           }
         }
+        for (const sz of item.sizes || []) {
+          if (!combinedSizes.includes(sz)) {
+            combinedSizes.push(sz);
+          }
+        }
+        if (item.size && !combinedSizes.includes(item.size)) {
+          combinedSizes.push(item.size);
+        }
+      }
+
+      if (combinedSizes.length === 0) {
+        combinedSizes.push('P', 'M', 'G', 'GG');
       }
 
       const combinedImages =
@@ -553,6 +587,7 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
         images: combinedImages,
         videoUrl: videos[0] || base.videoUrl,
         colors: combinedColors,
+        sizes: combinedSizes,
         newImagesCount: combinedImages.length,
       };
 
@@ -582,12 +617,15 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
     try {
       const productsToCreate: Partial<Product>[] = groupedProducts.map((g, idx) => {
         const primaryColorName = g.colors[0]?.name || 'Preto';
-        const defaultSizes = g.size
-          ? [g.size, 'P', 'M', 'G'].filter((v, i, a) => a.indexOf(v) === i)
-          : ['P', 'M', 'G'];
+        const finalSizes =
+          g.sizes && g.sizes.length > 0
+            ? g.sizes
+            : g.size
+            ? [g.size, 'P', 'M', 'G'].filter((v, i, a) => a.indexOf(v) === i)
+            : ['P', 'M', 'G', 'GG'];
 
         const stockMap: Record<string, number> = {};
-        defaultSizes.forEach((s) => {
+        finalSizes.forEach((s) => {
           stockMap[`${s}-${primaryColorName}`] = g.size && s === g.size ? 10 : 8;
         });
 
@@ -600,7 +638,7 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
           videoUrl: g.videoUrl || g.images.find((m) => isVideoMedia(m)),
           price: g.price,
           promotionalPrice: g.promotionalPrice,
-          sizes: defaultSizes,
+          sizes: finalSizes,
           stock: stockMap,
           description: `Peça oficial Aura Fitness da categoria ${g.category}. Tecido de alta compressão, toque aveludado e zero transparência.`,
           sku: g.existingSku || `AUR-${g.category.slice(0, 3).toUpperCase()}-${Date.now().toString().slice(-4)}-${idx + 1}`,
@@ -1181,7 +1219,7 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 {prod.size && (
                                   <span className="px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-700 dark:text-amber-300 text-[10px] font-bold">
-                                    Tam: {prod.size}
+                                    Tam. Detectado: {prod.size}
                                   </span>
                                 )}
                                 {prod.isSet && (
@@ -1201,6 +1239,35 @@ export const ProductImporterModal: React.FC<ProductImporterModalProps> = ({
                                     <span>{c.name}</span>
                                   </span>
                                 ))}
+                              </div>
+
+                              {/* Seletor Rápido de Grade de Tamanhos */}
+                              <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                                <span className="text-[10px] font-bold text-muted-foreground mr-0.5">Tamanhos:</span>
+                                {STANDARD_STORE_SIZES.map((sz) => {
+                                  const isSelected = (prod.sizes || []).includes(sz);
+                                  return (
+                                    <button
+                                      key={sz}
+                                      type="button"
+                                      onClick={() => {
+                                        const cur = prod.sizes || [];
+                                        const next = isSelected
+                                          ? cur.filter((s) => s !== sz)
+                                          : [...cur, sz];
+                                        handleUpdateGroupedProduct(idx, { sizes: next });
+                                      }}
+                                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold border transition-all ${
+                                        isSelected
+                                          ? 'bg-primary text-white border-primary shadow-xs'
+                                          : 'bg-muted/40 text-muted-foreground border-border hover:border-primary/50'
+                                      }`}
+                                      title={isSelected ? `Remover tamanho ${sz}` : `Adicionar tamanho ${sz}`}
+                                    >
+                                      {sz}
+                                    </button>
+                                  );
+                                })}
                               </div>
                             </div>
                           </div>

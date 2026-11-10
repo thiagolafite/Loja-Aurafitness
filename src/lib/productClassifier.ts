@@ -1226,6 +1226,101 @@ export function productMatchesSize(
   return getProductSizes(product).includes(target);
 }
 
+export const STANDARD_STORE_SIZES = ['PP', 'P', 'M', 'G', 'GG', 'XG', 'ÚNICO'] as const;
+
+/**
+ * Identifica e extrai automaticamente os tamanhos informados em um texto (ex: descrição do produto, título, etiqueta, pasta)
+ * Reconhece formatos comuns no mercado de moda fitness:
+ * - "Tamanho M", "Tam: P", "Tamanho: G", "Tamanhos: P, M e G"
+ * - "Veste do P ao GG", "Do P ao G", "P/M/G", "P e M"
+ * - "Tamanho Único", "Tam único", "Veste único", "Único"
+ * - "(P)", "- M", "Tam. GG"
+ */
+export function extractSizesFromText(text?: string): string[] {
+  if (!text || typeof text !== 'string') return [];
+  const normalized = text.toLowerCase();
+  const detected = new Set<string>();
+
+  // 1. Checa tamanho único
+  if (
+    normalized.includes('tamanho único') ||
+    normalized.includes('tamanho unico') ||
+    normalized.includes('tam único') ||
+    normalized.includes('tam unico') ||
+    normalized.includes('tam. único') ||
+    normalized.includes('tam. unico') ||
+    normalized.includes('veste único') ||
+    normalized.includes('veste unico') ||
+    /\b(tam|tamanho|veste)\s*[:=-]?\s*(?:u|único|unico)\b/i.test(normalized)
+  ) {
+    detected.add('ÚNICO');
+  }
+
+  // 2. Checa faixas de grade contínua: "do P ao GG", "do P ao G", "do PP ao GG", etc.
+  if (/do\s+pp\s+ao\s+gg/i.test(normalized) || /pp\s*a\s*gg/i.test(normalized)) {
+    return ['PP', 'P', 'M', 'G', 'GG'];
+  }
+  if (/do\s+p\s+ao\s+gg/i.test(normalized) || /p\s*a\s*gg/i.test(normalized)) {
+    return ['P', 'M', 'G', 'GG'];
+  }
+  if (/do\s+pp\s+ao\s+g\b/i.test(normalized)) {
+    return ['PP', 'P', 'M', 'G'];
+  }
+  if (/do\s+p\s+ao\s+g\b/i.test(normalized) || /p\s*a\s*g\b/i.test(normalized)) {
+    return ['P', 'M', 'G'];
+  }
+
+  // 3. Checa contexto explícito de tamanho: ex "tamanho: P", "tam: P, M, G", "grade: P/M/G", "tamanhos P, M e G"
+  const explicitMatches = text.matchAll(
+    /(?:tamanhos?|tam\.?|veste|grade)\s*(?:dispon[ií]veis?)?\s*[:=-]?\s*([A-Za-z0-9\s,\/e\-+]+)(?:[.\n;]|$)/gi
+  );
+  for (const match of explicitMatches) {
+    const chunk = match[1].toUpperCase();
+    const tokens = chunk.split(/[\s,\/e\-+]+/);
+    for (const t of tokens) {
+      const clean = t.trim();
+      if (['PP', 'P', 'M', 'G', 'GG', 'XG', 'XGG', 'XXG', 'U', 'UNICO', 'ÚNICO'].includes(clean)) {
+        detected.add(clean === 'U' || clean === 'UNICO' ? 'ÚNICO' : clean);
+      }
+    }
+  }
+
+  // 4. Procura marcadores diretos de tamanho no texto (ex: "Tam P", "Tamanho M", "Tam. G", "Tam GG")
+  const directMatches = text.matchAll(
+    /\b(?:tam\.?|tamanho)\s*[:=-]?\s*(PP|P|M|G|GG|XG|XGG|U|ÚNICO|UNICO)\b/gi
+  );
+  for (const m of directMatches) {
+    const val = m[1].toUpperCase();
+    detected.add(val === 'U' || val === 'UNICO' ? 'ÚNICO' : val);
+  }
+
+  // 5. Procura barras de tamanho: "P/M/G", "P/M", "M/G", "G/GG"
+  const slashMatches = text.matchAll(/\b(PP|P|M|G|GG)\s*\/\s*(PP|P|M|G|GG)(?:\s*\/\s*(PP|P|M|G|GG))?\b/gi);
+  for (const sm of slashMatches) {
+    if (sm[1]) detected.add(sm[1].toUpperCase());
+    if (sm[2]) detected.add(sm[2].toUpperCase());
+    if (sm[3]) detected.add(sm[3].toUpperCase());
+  }
+
+  // 6. Procura indicação entre parênteses ou traço: ex "Top Serena (M)" ou "Conjunto Style - G"
+  if (detected.size === 0) {
+    const bracketMatches = text.matchAll(/[(-]\s*(PP|P|M|G|GG|XG|XGG)\s*[)]/gi);
+    for (const bm of bracketMatches) {
+      detected.add(bm[1].toUpperCase());
+    }
+  }
+
+  const VALID_ORDER = ['PP', 'P', 'M', 'G', 'GG', 'XG', 'ÚNICO'];
+  return Array.from(detected).sort((a, b) => {
+    const idxA = VALID_ORDER.indexOf(a);
+    const idxB = VALID_ORDER.indexOf(b);
+    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+    if (idxA !== -1) return -1;
+    if (idxB !== -1) return 1;
+    return a.localeCompare(b);
+  });
+}
+
 /**
  * Detecta se uma string de busca corresponde a uma cor (ex: "Rosa", "Preto", "Vinho", "Marrom", etc.)
  */
@@ -1431,6 +1526,7 @@ export interface ParsedItemInfo {
   category: string;
   price: number;
   size?: string;
+  sizes?: string[];
   colors: { name: string; hex: string }[];
   isSet: boolean;
   groupKey: string;
@@ -1611,12 +1707,16 @@ export function parseProductFromFolderOrFile(
     }
   }
 
-  // 2. Extração de Tamanho (ex: "PP", "P", "M", "G", "GG", "XG")
-  let size: string | undefined = undefined;
-  const sizeMatch = rawTextForExtraction.match(/\b(PP|P|M|G|GG|XG|XGG)\b/i);
-  if (sizeMatch) {
-    size = sizeMatch[1].toUpperCase();
+  // 2. Extração Automática de Tamanhos (ex: "PP", "P", "M", "G", "GG", "XG", "ÚNICO" e faixas)
+  const detectedSizes = extractSizesFromText(rawTextForExtraction);
+  let size: string | undefined = detectedSizes.length > 0 ? detectedSizes[0] : undefined;
+  if (!size) {
+    const sizeMatch = rawTextForExtraction.match(/\b(PP|P|M|G|GG|XG|XGG)\b/i);
+    if (sizeMatch) {
+      size = sizeMatch[1].toUpperCase();
+    }
   }
+  const sizes: string[] = detectedSizes.length > 0 ? detectedSizes : size ? [size] : ['P', 'M', 'G', 'GG'];
 
   // 3. Limpeza Inteligente e Canônica do Nome do Produto
   let { cleanName, groupKey } = cleanModelName(candidateName);
@@ -1662,6 +1762,7 @@ export function parseProductFromFolderOrFile(
     category: finalCategory,
     price,
     size,
+    sizes,
     colors: classification.colors,
     isSet: classification.isSet,
     groupKey,

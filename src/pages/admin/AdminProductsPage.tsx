@@ -68,6 +68,8 @@ import {
   resizeImageFile,
   isVideoMedia,
   getProductMediaSlides,
+  STANDARD_STORE_SIZES,
+  extractSizesFromText,
 } from '../../lib/productClassifier';
 import { useLightbox } from '../../contexts/LightboxContext';
 
@@ -467,6 +469,10 @@ export const AdminProductsPage: React.FC = () => {
   const handleEdit = (prod: Product) => {
     setEditingProduct({
       ...prod,
+      sizes:
+        Array.isArray(prod.sizes) && prod.sizes.length > 0
+          ? [...prod.sizes]
+          : ['P', 'M', 'G', 'GG'],
       images:
         Array.isArray(prod.images) && prod.images.length > 0
           ? [...prod.images]
@@ -550,21 +556,27 @@ export const AdminProductsPage: React.FC = () => {
       );
 
       const seoRes = await aiGenerateSeoMeta(editingProduct.name, res.shortDescription);
+      const descSizes = extractSizesFromText(`${res.shortDescription} ${res.fullDescription}`);
 
-      setEditingProduct((prev) =>
-        prev
-          ? {
-              ...prev,
-              description: res.shortDescription,
-              fullDescription: res.fullDescription,
-              seo: {
-                title: seoRes.seoTitle,
-                description: seoRes.seoDescription,
-                keywords: seoRes.keywords,
-              },
-            }
-          : null
-      );
+      setEditingProduct((prev) => {
+        if (!prev) return null;
+        const currentSizes = prev.sizes || [];
+        const nextSizes =
+          descSizes.length > 0
+            ? Array.from(new Set([...currentSizes, ...descSizes]))
+            : currentSizes;
+        return {
+          ...prev,
+          description: res.shortDescription,
+          fullDescription: res.fullDescription,
+          sizes: nextSizes,
+          seo: {
+            title: seoRes.seoTitle,
+            description: seoRes.seoDescription,
+            keywords: seoRes.keywords,
+          },
+        };
+      });
     } catch (err) {
       console.error(err);
     } finally {
@@ -1892,6 +1904,103 @@ export const AdminProductsPage: React.FC = () => {
                     </div>
                   </div>
 
+                  {/* Seletor Rápido de Grade de Tamanhos */}
+                  <div className="p-3 bg-muted/20 border border-border rounded-2xl space-y-2">
+                    <div className="flex items-center justify-between flex-wrap gap-1">
+                      <label className="block font-semibold text-foreground text-xs">
+                        Tamanhos Disponíveis (P, M, G, GG...)
+                      </label>
+                      <div className="flex items-center gap-1.5 text-[10px]">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditingProduct({
+                              ...editingProduct,
+                              sizes: ['P', 'M', 'G', 'GG'],
+                            })
+                          }
+                          className="px-2 py-0.5 rounded bg-muted hover:bg-muted/80 text-foreground font-medium transition-colors"
+                        >
+                          Padrão (P ao GG)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditingProduct({
+                              ...editingProduct,
+                              sizes: ['PP', 'P', 'M', 'G', 'GG', 'XG'],
+                            })
+                          }
+                          className="px-2 py-0.5 rounded bg-muted hover:bg-muted/80 text-foreground font-medium transition-colors"
+                        >
+                          Grade Completa
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditingProduct({
+                              ...editingProduct,
+                              sizes: ['ÚNICO'],
+                            })
+                          }
+                          className="px-2 py-0.5 rounded bg-muted hover:bg-muted/80 text-foreground font-medium transition-colors"
+                        >
+                          Tam. Único
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {STANDARD_STORE_SIZES.map((sz) => {
+                        const isSelected = (editingProduct.sizes || []).includes(sz);
+                        return (
+                          <button
+                            key={sz}
+                            type="button"
+                            onClick={() => {
+                              const cur = editingProduct.sizes || [];
+                              const next = isSelected
+                                ? cur.filter((s) => s !== sz)
+                                : [...cur, sz];
+                              setEditingProduct({
+                                ...editingProduct,
+                                sizes: next.length > 0 ? next : [sz],
+                              });
+                            }}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                              isSelected
+                                ? 'bg-primary text-white border-primary shadow-xs'
+                                : 'bg-background hover:bg-muted text-muted-foreground border-border'
+                            }`}
+                          >
+                            {sz}
+                          </button>
+                        );
+                      })}
+
+                      {/* Tamanhos personalizados se existirem */}
+                      {(editingProduct.sizes || [])
+                        .filter((sz) => !STANDARD_STORE_SIZES.includes(sz as any))
+                        .map((extraSz) => (
+                          <button
+                            key={extraSz}
+                            type="button"
+                            onClick={() => {
+                              setEditingProduct({
+                                ...editingProduct,
+                                sizes: (editingProduct.sizes || []).filter((s) => s !== extraSz),
+                              });
+                            }}
+                            className="px-2.5 py-1 rounded-xl text-xs font-bold border bg-primary text-white border-primary flex items-center gap-1 shadow-xs"
+                            title="Remover tamanho"
+                          >
+                            <span>{extraSz}</span>
+                            <X className="w-3 h-3 opacity-70 hover:opacity-100" />
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+
                   {/* Descrições */}
                   <div>
                     <label className="block font-semibold text-foreground mb-1">
@@ -1905,6 +2014,59 @@ export const AdminProductsPage: React.FC = () => {
                       }
                       className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs outline-none resize-none"
                     />
+
+                    {/* Identificação Automática de Tamanho na Descrição */}
+                    {(() => {
+                      const detected = extractSizesFromText(editingProduct.description || '');
+                      if (detected.length === 0) return null;
+                      const currentSizes = editingProduct.sizes || [];
+                      const hasAll = detected.every((s) => currentSizes.includes(s));
+
+                      return (
+                        <div className="mt-2 p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center justify-between gap-2">
+                          <div className="text-[11px] text-amber-900 dark:text-amber-200">
+                            <span className="font-bold flex items-center gap-1">
+                              <Sparkles className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                              Tamanho(s) identificado(s) na descrição:
+                            </span>
+                            <div className="flex items-center gap-1 mt-1">
+                              {detected.map((sz) => (
+                                <span
+                                  key={sz}
+                                  className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-900 dark:text-amber-100 font-bold text-[10px]"
+                                >
+                                  {sz}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const merged = Array.from(new Set([...currentSizes, ...detected]));
+                              setEditingProduct({ ...editingProduct, sizes: merged });
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold shadow-xs whitespace-nowrap transition-all flex items-center gap-1 ${
+                              hasAll
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-amber-600 hover:bg-amber-700 text-white'
+                            }`}
+                          >
+                            {hasAll ? (
+                              <>
+                                <Check className="w-3 h-3" />
+                                <span>Tamanhos Aplicados</span>
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="w-3 h-3" />
+                                <span>Aplicar ao Produto</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Assistente IA */}
