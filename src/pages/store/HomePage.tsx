@@ -4,6 +4,7 @@ import { ArrowRight, ChevronLeft, ChevronRight, Heart, Sparkles, Copy, Check } f
 import { motion } from 'framer-motion';
 import { ProductCard } from '../../components/store/ProductCard';
 import { TrustBar } from '../../components/store/TrustBar';
+import { HomeVideoStoriesSection } from '../../components/store/HomeVideoStoriesSection';
 import {
   getProducts,
   fetchProductsAsync,
@@ -130,15 +131,40 @@ export const HomePage: React.FC = () => {
               <div className="absolute inset-0 bg-gradient-to-r from-[#ecefe9] via-transparent to-[#ecefe9] pointer-events-none opacity-80" />
 
               <div className="max-w-7xl mx-auto w-full h-full flex flex-col md:flex-row items-center justify-between px-4 sm:px-8 lg:px-12 relative z-10">
-                {/* Foto da Modelo / Esquerda */}
-                <div className="relative w-full md:w-4/12 h-52 sm:h-64 md:h-full flex items-end justify-center overflow-hidden shrink-0">
+                {/* Mobile: Modelos em proporção exata 3:4 portrait sem cortes */}
+                <div className="flex md:hidden items-center justify-center gap-2.5 w-full max-w-sm mx-auto pt-4 pb-2 px-3">
+                  <div className={`relative ${slide.rightImage ? 'w-1/2' : 'w-48 sm:w-56'} aspect-[3/4] rounded-2xl overflow-hidden shadow-lg border border-neutral-300/70 bg-neutral-100 shrink-0`}>
+                    <img
+                      src={slide.leftImage}
+                      alt={slide.title}
+                      className="w-full h-full object-cover object-top filter brightness-100 contrast-[1.02]"
+                    />
+                    <div className="absolute bottom-2 left-2 z-10">
+                      <div className="w-9 h-9 rounded-full border border-neutral-700/30 flex flex-col items-center justify-center text-center p-0.5 backdrop-blur-xs select-none bg-white/40">
+                        <span className="text-[6px] font-black tracking-widest text-neutral-800 uppercase">AURA</span>
+                        <span className="text-[5px] tracking-tighter text-neutral-600 uppercase">FITNESS</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {slide.rightImage && (
+                    <div className="relative w-1/2 aspect-[3/4] rounded-2xl overflow-hidden shadow-lg border border-neutral-300/70 bg-neutral-100 shrink-0">
+                      <img
+                        src={slide.rightImage}
+                        alt="Detalhes da peça"
+                        className="w-full h-full object-cover object-top opacity-90 filter contrast-[1.03]"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Desktop: Foto da Modelo / Esquerda */}
+                <div className="hidden md:flex relative w-4/12 h-full items-end justify-center overflow-hidden shrink-0">
                   <img
                     src={slide.leftImage}
                     alt={slide.title}
                     className="h-full w-full object-cover object-top filter brightness-100 contrast-[1.02] group-hover:scale-105 transition-transform duration-700"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent md:hidden" />
-
                   {/* Selo Redondo Watermark no Canto Inferior Esquerdo */}
                   <div className="absolute bottom-3 left-3 sm:bottom-6 sm:left-6 z-10">
                     <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-2 border-neutral-700/30 flex flex-col items-center justify-center text-center p-1 backdrop-blur-xs select-none bg-white/20">
@@ -277,14 +303,32 @@ export const HomePage: React.FC = () => {
               <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
 
               <div className="max-w-7xl mx-auto w-full h-full flex flex-col md:flex-row items-center justify-between px-4 sm:px-8 lg:px-12 relative z-10">
-                {/* Foto da Modelo / Esquerda */}
-                <div className="relative w-full md:w-5/12 h-52 sm:h-64 md:h-full flex items-end justify-center overflow-hidden shrink-0">
+                {/* Mobile: Modelo em proporção exata 3:4 portrait sem cortes */}
+                <div className="flex md:hidden items-center justify-center w-full px-4 pt-4 pb-2">
+                  <div className="relative w-52 sm:w-60 aspect-[3/4] rounded-2xl overflow-hidden shadow-2xl border border-white/20 bg-neutral-900">
+                    <img
+                      src={slide.leftImage}
+                      alt={slide.title}
+                      className="w-full h-full object-cover object-top filter brightness-95 contrast-105"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+                    <div className="absolute bottom-2.5 left-2.5 z-10">
+                      <div className="w-10 h-10 rounded-full border border-white/30 flex flex-col items-center justify-center text-center p-0.5 backdrop-blur-xs select-none bg-black/40">
+                        <span className="text-[6px] font-black tracking-widest text-white uppercase">AURA</span>
+                        <span className="text-[5px] tracking-tighter text-white/70 uppercase">FITNESS</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Desktop: Foto da Modelo / Esquerda */}
+                <div className="hidden md:flex relative md:w-5/12 h-full items-end justify-center overflow-hidden shrink-0">
                   <img
                     src={slide.leftImage}
                     alt={slide.title}
                     className="h-full w-full object-cover object-top filter brightness-95 contrast-105"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-[#0b1610] hidden md:block" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-[#0b1610]" />
 
                   {/* Selo Redondo Watermark */}
                   <div className="absolute bottom-3 left-3 sm:bottom-6 sm:left-6 z-10">
@@ -373,27 +417,45 @@ export const HomePage: React.FC = () => {
               style={{ backgroundColor: slide.centerBgColor || '#123922' }}
               className="w-full min-h-[500px] lg:h-[560px] relative overflow-hidden flex items-center justify-center text-white py-6 px-4 sm:px-8"
             >
-              <div className="max-w-7xl mx-auto w-full flex items-center justify-center gap-3 sm:gap-5 h-full">
-              {/* Foto Modelo Esquerda */}
-              <div className="hidden md:block w-1/4 h-[450px] lg:h-[510px] rounded-3xl overflow-hidden shadow-2xl relative group border border-white/15 shrink-0">
-                <img
-                  src={slide.leftImage}
-                  alt="Model Aura 1"
-                  className="w-full h-full object-cover object-top filter brightness-95 group-hover:scale-108 transition-transform duration-700"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
-                <div className="absolute bottom-4 left-4 right-4 text-center">
-                  <span className="text-[10px] uppercase font-bold tracking-widest text-amber-200 bg-black/50 px-3 py-1 rounded-full backdrop-blur-sm border border-white/15">
-                    Alta Compressão
-                  </span>
+              <div className="max-w-7xl mx-auto w-full flex flex-col md:flex-row items-center justify-center gap-3 sm:gap-5 h-full">
+                {/* Mobile: Modelos em proporção 3:4 portrait lado a lado */}
+                <div className="flex md:hidden items-center justify-center gap-2.5 w-full max-w-xs mx-auto pt-2 pb-2">
+                  <div className="w-1/2 aspect-[3/4] rounded-2xl overflow-hidden shadow-xl border border-white/20 relative bg-neutral-900 shrink-0">
+                    <img src={slide.leftImage} alt="Model Aura 1" className="w-full h-full object-cover object-top filter brightness-95" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                    <span className="absolute bottom-1.5 inset-x-1 text-center text-[8px] uppercase font-bold tracking-wider text-amber-200 bg-black/60 px-1 py-0.5 rounded-full">
+                      Alta Compressão
+                    </span>
+                  </div>
+                  <div className="w-1/2 aspect-[3/4] rounded-2xl overflow-hidden shadow-xl border border-white/20 relative bg-neutral-900 shrink-0">
+                    <img src={slide.rightImage} alt="Model Aura 2" className="w-full h-full object-cover object-top filter brightness-95" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                    <span className="absolute bottom-1.5 inset-x-1 text-center text-[8px] uppercase font-bold tracking-wider text-amber-200 bg-black/60 px-1 py-0.5 rounded-full">
+                      Zero Transparência
+                    </span>
+                  </div>
                 </div>
-              </div>
 
-              {/* Card Central */}
-              <div
-                style={{ backgroundColor: slide.centerBgColor || '#123922' }}
-                className="w-full md:w-2/4 h-[450px] lg:h-[510px] rounded-3xl p-8 lg:p-12 flex flex-col items-center justify-center text-center text-white relative shadow-2xl overflow-hidden border border-emerald-400/30"
-              >
+                {/* Foto Modelo Esquerda */}
+                <div className="hidden md:block w-1/4 h-[450px] lg:h-[510px] rounded-3xl overflow-hidden shadow-2xl relative group border border-white/15 shrink-0">
+                  <img
+                    src={slide.leftImage}
+                    alt="Model Aura 1"
+                    className="w-full h-full object-cover object-top filter brightness-95 group-hover:scale-108 transition-transform duration-700"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
+                  <div className="absolute bottom-4 left-4 right-4 text-center">
+                    <span className="text-[10px] uppercase font-bold tracking-widest text-amber-200 bg-black/50 px-3 py-1 rounded-full backdrop-blur-sm border border-white/15">
+                      Alta Compressão
+                    </span>
+                  </div>
+                </div>
+
+                {/* Card Central */}
+                <div
+                  style={{ backgroundColor: slide.centerBgColor || '#123922' }}
+                  className="w-full md:w-2/4 min-h-[360px] md:h-[450px] lg:h-[510px] rounded-3xl p-6 sm:p-8 lg:p-12 flex flex-col items-center justify-center text-center text-white relative shadow-2xl overflow-hidden border border-emerald-400/30"
+                >
                 <div className="absolute -top-24 -right-24 w-64 h-64 bg-amber-400/10 rounded-full blur-3xl pointer-events-none" />
                 <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-rose-500/15 rounded-full blur-3xl pointer-events-none" />
 
@@ -474,6 +536,9 @@ export const HomePage: React.FC = () => {
 
       {/* Trust Ticker Bar (Matching Image 2) */}
       <TrustBar />
+
+      {/* Provador Virtual - Looks em Vídeo */}
+      <HomeVideoStoriesSection />
 
       {/* Navegue por Categoria Showcase com Ordem Personalizada */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">

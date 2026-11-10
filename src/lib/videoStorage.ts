@@ -461,26 +461,46 @@ export function syncFloatingVideoConfigFromCloud(cloudConfig?: FloatingVideoConf
     if (typeof window !== 'undefined') {
       const currentRaw = localStorage.getItem(FLOATING_VIDEO_STORAGE_KEY);
       const current = currentRaw ? JSON.parse(currentRaw) : null;
-      // Atualiza se não houver configuração local customizada ou se a nuvem tiver vídeo HTTPS válido
-      const cloudHasHttpVideo = cloudConfig.items.some(
-        (i) => i.videoUrl && i.videoUrl.startsWith('http') && !i.videoUrl.includes('assets.mixkit.co')
-      );
-      const localHasOnlyDefault =
-        !current ||
-        !Array.isArray(current.items) ||
-        current.items.every(
-          (i: FloatingVideoItem) =>
-            !i.videoUrl || i.videoUrl.includes('assets.mixkit.co') || i.id === 'fvid-default-1'
-        );
 
-      if (cloudHasHttpVideo || localHasOnlyDefault) {
-        localStorage.setItem(FLOATING_VIDEO_STORAGE_KEY, JSON.stringify(cloudConfig));
-        window.dispatchEvent(
-          new CustomEvent('aura_floating_video_updated', { detail: cloudConfig })
-        );
+      // Mescla itens da nuvem com os itens locais preservando todos os vídeos adicionados
+      const mergedItemsMap = new Map<string, FloatingVideoItem>();
+
+      // 1. Carrega itens atuais do navegador
+      if (current && Array.isArray(current.items)) {
+        current.items.forEach((it: FloatingVideoItem) => {
+          if (it && it.id) mergedItemsMap.set(it.id, it);
+        });
       }
+
+      // 2. Mescla com itens da nuvem (atualizando URLs públicas HTTPS do Supabase)
+      cloudConfig.items.forEach((it: FloatingVideoItem) => {
+        if (it && it.id) {
+          const existing = mergedItemsMap.get(it.id);
+          const preferCloudUrl = it.videoUrl && it.videoUrl.startsWith('http') && !it.videoUrl.includes('assets.mixkit.co');
+          mergedItemsMap.set(it.id, {
+            ...existing,
+            ...it,
+            videoUrl: preferCloudUrl ? it.videoUrl : (existing?.videoUrl || it.videoUrl),
+          });
+        }
+      });
+
+      const mergedItems = Array.from(mergedItemsMap.values());
+      const updatedConfig: FloatingVideoConfig = {
+        ...getDefaultFloatingVideoConfig(),
+        ...cloudConfig,
+        ...(current || {}),
+        items: mergedItems.length > 0 ? mergedItems : cloudConfig.items,
+      };
+
+      localStorage.setItem(FLOATING_VIDEO_STORAGE_KEY, JSON.stringify(updatedConfig));
+      window.dispatchEvent(
+        new CustomEvent('aura_floating_video_updated', { detail: updatedConfig })
+      );
     }
-  } catch {}
+  } catch (err) {
+    console.warn('Erro ao mesclar configuração do mini-vídeo com a nuvem:', err);
+  }
 }
 
 export function saveFloatingVideoConfig(config: FloatingVideoConfig): FloatingVideoConfig {

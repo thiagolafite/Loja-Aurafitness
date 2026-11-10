@@ -402,7 +402,7 @@ export const FloatingVideoManager: React.FC = () => {
                 Nenhum vídeo cadastrado
               </h4>
               <p className="text-xs text-muted-foreground max-w-md mx-auto">
-                Adicione um vídeo curto mostrando o caimento das peças para aparecer no canto inferior esquerdo do site.
+                Adicione vídeos curtos mostrando o caimento das peças para aparecer na página principal da loja e no mini-player flutuante.
               </p>
               <button
                 type="button"
@@ -521,6 +521,21 @@ export const FloatingVideoManager: React.FC = () => {
                   </div>
                 );
               })}
+
+              {/* Botão Card para Adicionar Mais Vídeos sem limite */}
+              <button
+                type="button"
+                onClick={handleOpenCreateModal}
+                className="border-2 border-dashed border-primary/40 hover:border-primary bg-primary/5 hover:bg-primary/10 rounded-2xl p-6 flex flex-col items-center justify-center gap-2 text-primary font-bold text-xs transition-all min-h-[140px] cursor-pointer"
+              >
+                <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                  <Plus className="w-5 h-5 text-primary" />
+                </div>
+                <span>+ Adicionar Outro Vídeo</span>
+                <span className="text-[10px] text-muted-foreground font-normal">
+                  Sem limite: cadastre quantos vídeos desejar para a loja
+                </span>
+              </button>
             </div>
           )}
         </div>
