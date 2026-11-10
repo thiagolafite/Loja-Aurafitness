@@ -414,3 +414,11 @@ export interface FloatingVideoConfig {
   showProductBadge: boolean;
   items: FloatingVideoItem[];
 }
+
+export interface TrustBarItem {
+  id: string;
+  iconName: 'Star' | 'ShieldCheck' | 'Truck' | 'Heart' | 'RefreshCw' | 'Sparkles' | 'Flame' | 'Zap' | 'Award' | 'Tag' | 'ThumbsUp';
+  text: string;
+  active: boolean;
+  order: number;
+}

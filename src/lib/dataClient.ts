@@ -13,6 +13,7 @@ import {
   NotificationItem,
   StoreSection,
   HeroBannerSlide,
+  TrustBarItem,
 } from '../types';
 import {
   initialProducts,
@@ -77,7 +78,17 @@ const STORAGE_KEYS = {
   NOTIFICATIONS: 'aura_notifications_v1',
   SECTIONS: 'aura_store_sections_v1',
   HERO_BANNERS: 'aura_hero_banners_v1',
+  TRUST_BAR: 'aura_trust_bar_items_v1',
 };
+
+export const initialTrustBarItems: TrustBarItem[] = [
+  { id: 'tb-1', iconName: 'RefreshCw', text: 'Primeira troca 100% grátis', active: true, order: 1 },
+  { id: 'tb-2', iconName: 'Sparkles', text: 'Modelagem Anatômica Efeito Lipo', active: true, order: 2 },
+  { id: 'tb-3', iconName: 'Star', text: '4.9 de avaliação das nossas clientes', active: true, order: 3 },
+  { id: 'tb-4', iconName: 'ShieldCheck', text: 'Zero transparência + compressão ideal', active: true, order: 4 },
+  { id: 'tb-5', iconName: 'Truck', text: '99,5% das entregas antes do prazo', active: true, order: 5 },
+  { id: 'tb-6', iconName: 'Heart', text: '+230 mil seguidoras no Instagram', active: true, order: 6 },
+];
 
 export const initialStoreSections: StoreSection[] = [
   {
@@ -701,6 +712,17 @@ export async function syncWithSupabase(): Promise<void> {
       // 5. Restaura configuração do Mini-Vídeo Flutuante no Smartphone
       if (seoObj.floatingVideoConfig) {
         syncFloatingVideoConfigFromCloud(seoObj.floatingVideoConfig);
+      }
+
+      // 6. Sincroniza Itens do Letreiro de Destaques (TrustBar Ticker) entre PC e Smartphone
+      if (Array.isArray(seoObj.trustBarItems) && seoObj.trustBarItems.length > 0) {
+        cachedTrustBarItems = seoObj.trustBarItems;
+        setStorageItem(STORAGE_KEYS.TRUST_BAR, seoObj.trustBarItems);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('aura_trustbar_updated', { detail: seoObj.trustBarItems }));
+        }
+      } else if (cachedTrustBarItems && cachedTrustBarItems.length > 0) {
+        syncStoreExtraToSupabase({ trustBarItems: cachedTrustBarItems });
       }
     }
 
@@ -2731,5 +2753,82 @@ export function reorderHeroBanners(newBanners: HeroBannerSlide[]): void {
   syncStoreExtraToSupabase({ heroBanners: reordered });
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('aura_banners_updated', { detail: reordered }));
+  }
+}
+
+// ==========================================
+// LETREIRO DE DESTAQUES (TRUSTBAR TICKER)
+// ==========================================
+let cachedTrustBarItems: TrustBarItem[] | null = null;
+
+export function getTrustBarItems(): TrustBarItem[] {
+  if (cachedTrustBarItems && cachedTrustBarItems.length > 0) {
+    return cachedTrustBarItems;
+  }
+  const items = getStorageItem<TrustBarItem[]>(STORAGE_KEYS.TRUST_BAR, initialTrustBarItems);
+  if (!items || items.length === 0) {
+    cachedTrustBarItems = initialTrustBarItems;
+    return initialTrustBarItems;
+  }
+  cachedTrustBarItems = items.sort((a, b) => a.order - b.order);
+  return cachedTrustBarItems;
+}
+
+export function saveTrustBarItem(itemData: Partial<TrustBarItem>): TrustBarItem {
+  const current = [...getTrustBarItems()];
+  let updatedItem: TrustBarItem;
+
+  if (itemData.id) {
+    const idx = current.findIndex((it) => it.id === itemData.id);
+    if (idx !== -1) {
+      updatedItem = { ...current[idx], ...itemData };
+      current[idx] = updatedItem;
+    } else {
+      updatedItem = itemData as TrustBarItem;
+      current.push(updatedItem);
+    }
+  } else {
+    updatedItem = {
+      id: `tb-${Date.now()}`,
+      iconName: itemData.iconName || 'Sparkles',
+      text: itemData.text || 'Novo Destaque Aura',
+      active: itemData.active ?? true,
+      order: itemData.order ?? current.length + 1,
+    };
+    current.push(updatedItem);
+  }
+
+  cachedTrustBarItems = current;
+  try {
+    setStorageItem(STORAGE_KEYS.TRUST_BAR, current);
+  } catch {}
+  syncStoreExtraToSupabase({ trustBarItems: current });
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('aura_trustbar_updated', { detail: current }));
+  }
+  return updatedItem;
+}
+
+export function deleteTrustBarItem(id: string): void {
+  const current = getTrustBarItems().filter((it) => it.id !== id);
+  cachedTrustBarItems = current;
+  try {
+    setStorageItem(STORAGE_KEYS.TRUST_BAR, current);
+  } catch {}
+  syncStoreExtraToSupabase({ trustBarItems: current });
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('aura_trustbar_updated', { detail: current }));
+  }
+}
+
+export function reorderTrustBarItems(newItems: TrustBarItem[]): void {
+  const reordered = newItems.map((it, idx) => ({ ...it, order: idx + 1 }));
+  cachedTrustBarItems = reordered;
+  try {
+    setStorageItem(STORAGE_KEYS.TRUST_BAR, reordered);
+  } catch {}
+  syncStoreExtraToSupabase({ trustBarItems: reordered });
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('aura_trustbar_updated', { detail: reordered }));
   }
 }

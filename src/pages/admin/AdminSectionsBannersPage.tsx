@@ -43,6 +43,11 @@ import {
   RotateCcw,
   ZoomIn,
   Maximize2,
+  Award,
+  Truck,
+  ShieldCheck,
+  ThumbsUp,
+  Heart,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -64,14 +69,34 @@ import {
   saveHeroBanner,
   deleteHeroBanner,
   reorderHeroBanners,
+  getTrustBarItems,
+  saveTrustBarItem,
+  deleteTrustBarItem,
+  reorderTrustBarItems,
+  initialTrustBarItems,
   getProducts,
   aiGenerateHeroBanner,
   AiGeneratedBannerResult,
 } from '../../lib/dataClient';
 import { getStoredCategories, resizeImageFile, normalizeCategoryName } from '../../lib/productClassifier';
-import { Product, StoreSection, HeroBannerSlide } from '../../types';
+import { Product, StoreSection, HeroBannerSlide, TrustBarItem } from '../../types';
 import { formatCurrency } from '../../lib/utils';
 import { FloatingVideoManager } from '../../components/admin/FloatingVideoManager';
+import { TrustBar, TRUST_BAR_ICONS } from '../../components/store/TrustBar';
+
+const TRUST_BAR_AVAILABLE_ICONS = [
+  { name: 'Sparkles', label: 'Brilho (Efeito Lipo)', icon: Sparkles },
+  { name: 'RefreshCw', label: 'Primeira Troca Grátis', icon: RefreshCw },
+  { name: 'Star', label: 'Avaliação das Clientes', icon: Star },
+  { name: 'ShieldCheck', label: 'Zero Transparência', icon: ShieldCheck },
+  { name: 'Truck', label: 'Entrega Rápida / Frete', icon: Truck },
+  { name: 'Heart', label: 'Seguidoras no Insta', icon: Heart },
+  { name: 'Flame', label: 'Mais Desejados', icon: Flame },
+  { name: 'Zap', label: 'Envio Imediato', icon: Zap },
+  { name: 'Award', label: 'Qualidade Premium', icon: Award },
+  { name: 'Tag', label: 'Desconto & Cupons', icon: Tag },
+  { name: 'ThumbsUp', label: 'Satisfação Garantida', icon: ThumbsUp },
+];
 
 export const AdminSectionsBannersPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -80,15 +105,32 @@ export const AdminSectionsBannersPage: React.FC = () => {
       ? 'video'
       : searchParams.get('tab') === 'sections'
       ? 'sections'
+      : searchParams.get('tab') === 'letreiro'
+      ? 'letreiro'
       : 'banners';
-  const [activeTab, setActiveTab] = useState<'sections' | 'banners' | 'video'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'sections' | 'banners' | 'video' | 'letreiro'>(initialTab);
 
   useEffect(() => {
     const t = searchParams.get('tab');
-    if (t === 'video' || t === 'banners' || t === 'sections') {
-      setActiveTab(t);
+    if (t === 'video' || t === 'banners' || t === 'sections' || t === 'letreiro') {
+      setActiveTab(t as any);
     }
   }, [searchParams]);
+
+  // TrustBar (Letreiro de Destaques) State
+  const [trustBarItems, setTrustBarItems] = useState<TrustBarItem[]>(() => getTrustBarItems());
+  const [isTrustBarModalOpen, setIsTrustBarModalOpen] = useState(false);
+  const [editingTrustBarItem, setEditingTrustBarItem] = useState<Partial<TrustBarItem> | null>(null);
+
+  useEffect(() => {
+    const handleSync = () => setTrustBarItems(getTrustBarItems());
+    window.addEventListener('aura_trustbar_updated', handleSync);
+    window.addEventListener('storage', handleSync);
+    return () => {
+      window.removeEventListener('aura_trustbar_updated', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
+  }, []);
 
   // Products & Categories
   const [products, setProducts] = useState<Product[]>(() => getProducts());
@@ -277,6 +319,67 @@ export const AdminSectionsBannersPage: React.FC = () => {
         setSelectedSectionId(remaining[0]?.id || '');
       }
       showToast(`Seção "${name}" excluída.`);
+    }
+  };
+
+  // ==========================================
+  // LETREIRO DE DESTAQUES (TRUSTBAR) HANDLERS
+  // ==========================================
+  const handleOpenNewTrustBarModal = () => {
+    setEditingTrustBarItem({
+      iconName: 'Sparkles',
+      text: '',
+      active: true,
+      order: trustBarItems.length + 1,
+    });
+    setIsTrustBarModalOpen(true);
+  };
+
+  const handleOpenEditTrustBarModal = (item: TrustBarItem) => {
+    setEditingTrustBarItem({ ...item });
+    setIsTrustBarModalOpen(true);
+  };
+
+  const handleSaveTrustBarItem = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTrustBarItem || !editingTrustBarItem.text?.trim()) return;
+
+    saveTrustBarItem(editingTrustBarItem);
+    setTrustBarItems(getTrustBarItems());
+    setIsTrustBarModalOpen(false);
+    setEditingTrustBarItem(null);
+    showToast('✓ Frase do letreiro salva com sucesso!');
+  };
+
+  const handleDeleteTrustBarItem = (id: string) => {
+    if (window.confirm('Deseja realmente excluir esta frase do letreiro?')) {
+      deleteTrustBarItem(id);
+      setTrustBarItems(getTrustBarItems());
+      showToast('Frase removida do letreiro.');
+    }
+  };
+
+  const handleToggleTrustBarActive = (item: TrustBarItem) => {
+    const updated = saveTrustBarItem({ ...item, active: !item.active });
+    setTrustBarItems(getTrustBarItems());
+    showToast(updated.active ? '✓ Frase ativada no letreiro' : 'Frase ocultada no letreiro');
+  };
+
+  const handleMoveTrustBarItem = (index: number, direction: -1 | 1) => {
+    const newIdx = index + direction;
+    if (newIdx < 0 || newIdx >= trustBarItems.length) return;
+    const reordered = [...trustBarItems];
+    const [moved] = reordered.splice(index, 1);
+    reordered.splice(newIdx, 0, moved);
+    reorderTrustBarItems(reordered);
+    setTrustBarItems(reordered);
+  };
+
+  const handleResetTrustBarDefaults = () => {
+    if (window.confirm('Deseja restaurar as frases e destaques originais de fábrica do letreiro?')) {
+      reorderTrustBarItems(initialTrustBarItems);
+      setTrustBarItems(initialTrustBarItems);
+      showToast('✓ Letreiro restaurado para as frases originais!');
     }
   };
 
@@ -636,6 +739,34 @@ export const AdminSectionsBannersPage: React.FC = () => {
           <div className="flex items-center gap-1.5 p-1 bg-muted/60 border border-border rounded-2xl flex-wrap">
             <button
               onClick={() => {
+                setActiveTab('banners');
+                setSearchParams({ tab: 'banners' });
+              }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                activeTab === 'banners'
+                  ? 'bg-primary text-white shadow-md'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <ImageIcon className="w-4 h-4" />
+              <span>Banners do Carrossel</span>
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('letreiro');
+                setSearchParams({ tab: 'letreiro' });
+              }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                activeTab === 'letreiro'
+                  ? 'bg-primary text-white shadow-md'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Award className="w-4 h-4" />
+              <span>Letreiro de Destaques (TrustBar)</span>
+            </button>
+            <button
+              onClick={() => {
                 setActiveTab('sections');
                 setSearchParams({ tab: 'sections' });
               }}
@@ -647,20 +778,6 @@ export const AdminSectionsBannersPage: React.FC = () => {
             >
               <Layers className="w-4 h-4" />
               <span>Seções da Loja & Menus</span>
-            </button>
-            <button
-              onClick={() => {
-                setActiveTab('banners');
-                setSearchParams({ tab: 'banners' });
-              }}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                activeTab === 'banners'
-                  ? 'bg-primary text-white shadow-md'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <ImageIcon className="w-4 h-4" />
-              <span>Banners do Carrossel Principal</span>
             </button>
             <button
               onClick={() => {
@@ -1396,6 +1513,172 @@ export const AdminSectionsBannersPage: React.FC = () => {
                 )}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* ABA: LETREIRO DE DESTAQUES (TRUSTBAR TICKER)                          */}
+      {/* ===================================================================== */}
+      {activeTab === 'letreiro' && (
+        <div className="space-y-6">
+          {/* Header Card com Ações */}
+          <div className="bg-card border border-border rounded-3xl p-5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="font-serif font-bold text-base text-foreground flex items-center gap-2">
+                <Award className="w-5 h-5 text-primary" />
+                <span>Letreiro de Destaques da Loja (Barra de Benefícios)</span>
+                <span className="bg-primary/10 text-primary text-[10px] font-extrabold px-2.5 py-0.5 rounded-full">
+                  {trustBarItems.filter((it) => it.active).length} ativas
+                </span>
+              </h3>
+              <p className="text-xs text-muted-foreground mt-1 max-w-2xl">
+                Altere os textos que passam no letreiro contínuo animado da página inicial (trocas, avaliações, zero transparência, frete, seguidores). Adicione, edite ou alterne ícones com 1 clique.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+              <button
+                type="button"
+                onClick={handleResetTrustBarDefaults}
+                className="bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold px-3 py-2.5 rounded-xl border border-border transition-all flex items-center gap-1.5 cursor-pointer"
+                title="Restaura as frases de fábrica"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-muted-foreground" />
+                <span>Restaurar Padrão</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleOpenNewTrustBarModal}
+                className="bg-primary hover:bg-primary-hover text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>+ Adicionar Destaque</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Pré-visualização Ao Vivo do Letreiro Animado */}
+          <div className="bg-card border border-border rounded-3xl p-5 shadow-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-foreground flex items-center gap-1.5 uppercase tracking-wider">
+                <Eye className="w-4 h-4 text-primary" />
+                Pré-visualização Ao Vivo na Loja:
+              </span>
+              <span className="text-[11px] text-muted-foreground">
+                Atualização em tempo real conforme você edita
+              </span>
+            </div>
+            <div className="rounded-2xl overflow-hidden border border-border shadow-inner">
+              <TrustBar />
+            </div>
+          </div>
+
+          {/* Lista de Frases Cadastradas */}
+          <div className="bg-card border border-border rounded-3xl p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-border/60 pb-3">
+              <h4 className="font-bold text-sm text-foreground flex items-center gap-2">
+                <span>Frases e Benefícios em Exibição ({trustBarItems.length})</span>
+              </h4>
+              <span className="text-xs text-muted-foreground">
+                Use as setas ↑ ↓ para reordenar a sequência de exibição
+              </span>
+            </div>
+
+            <div className="space-y-2.5">
+              {trustBarItems.map((item, idx) => {
+                const IconComponent = TRUST_BAR_ICONS[item.iconName] || Sparkles;
+
+                return (
+                  <div
+                    key={item.id}
+                    className={`flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-2xl border transition-all gap-3 ${
+                      item.active
+                        ? 'bg-muted/30 border-border hover:border-primary/50'
+                        : 'bg-muted/10 border-dashed border-border/60 opacity-60'
+                    }`}
+                  >
+                    {/* Lado Esquerdo: Posição, Ícone e Texto */}
+                    <div className="flex items-center gap-3 min-w-0">
+                      {/* Botoes de Ordenacao */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleMoveTrustBarItem(idx, -1)}
+                          disabled={idx === 0}
+                          className="p-1.5 rounded-lg bg-background hover:bg-muted text-foreground disabled:opacity-30 border border-border transition-colors cursor-pointer"
+                          title="Mover para cima"
+                        >
+                          <ArrowUp className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleMoveTrustBarItem(idx, 1)}
+                          disabled={idx === trustBarItems.length - 1}
+                          className="p-1.5 rounded-lg bg-background hover:bg-muted text-foreground disabled:opacity-30 border border-border transition-colors cursor-pointer"
+                          title="Mover para baixo"
+                        >
+                          <ArrowDown className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {/* Badge do Ícone */}
+                      <div className="w-9 h-9 rounded-xl bg-amber-400/15 text-amber-500 border border-amber-400/30 flex items-center justify-center shrink-0 shadow-xs">
+                        <IconComponent className="w-4 h-4 fill-amber-400/20" />
+                      </div>
+
+                      {/* Texto do Destaque */}
+                      <div className="min-w-0">
+                        <p className="font-bold text-sm text-foreground uppercase tracking-wide truncate">
+                          {item.text}
+                        </p>
+                        <span className="text-[10px] text-muted-foreground font-mono">
+                          Posição #{idx + 1} • Ícone: {item.iconName}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Lado Direito: Toggle Ativo / Editar / Excluir */}
+                    <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                      {/* Toggle Ativo / Inativo */}
+                      <button
+                        type="button"
+                        onClick={() => handleToggleTrustBarActive(item)}
+                        className={`text-xs font-bold px-3 py-1.5 rounded-xl border transition-all cursor-pointer ${
+                          item.active
+                            ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                            : 'bg-muted text-muted-foreground border-border'
+                        }`}
+                      >
+                        {item.active ? '● Ativo no Letreiro' : '○ Oculto'}
+                      </button>
+
+                      {/* Editar */}
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditTrustBarModal(item)}
+                        className="bg-primary/10 hover:bg-primary text-primary hover:text-white p-2 rounded-xl transition-all border border-primary/20 cursor-pointer"
+                        title="Editar frase ou ícone"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+
+                      {/* Excluir */}
+                      {trustBarItems.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteTrustBarItem(item.id)}
+                          className="p-2 text-destructive hover:bg-destructive/10 rounded-xl transition-colors border border-destructive/20 cursor-pointer"
+                          title="Excluir frase"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
@@ -4453,6 +4736,124 @@ export const AdminSectionsBannersPage: React.FC = () => {
                   );
                 })}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* MODAL: CRIAR OU EDITAR FRASE DO LETREIRO (TRUSTBAR ITEM)              */}
+      {/* ===================================================================== */}
+      {isTrustBarModalOpen && editingTrustBarItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            onClick={() => setIsTrustBarModalOpen(false)}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm"
+          />
+
+          <div className="relative bg-card text-card-foreground border border-border w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden z-10 p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="font-serif font-bold text-lg text-foreground flex items-center gap-2">
+                <Award className="w-5 h-5 text-primary" />
+                <span>
+                  {editingTrustBarItem.id ? 'Editar Frase do Letreiro' : 'Novo Destaque no Letreiro'}
+                </span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsTrustBarModalOpen(false)}
+                className="text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveTrustBarItem} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-foreground mb-1">
+                  Texto do Destaque (Frase da Barra):
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Primeira troca 100% grátis"
+                  value={editingTrustBarItem.text || ''}
+                  onChange={(e) =>
+                    setEditingTrustBarItem({ ...editingTrustBarItem, text: e.target.value })
+                  }
+                  className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm outline-none focus:border-primary font-medium"
+                />
+                <span className="text-[10px] text-muted-foreground mt-0.5 block">
+                  Recomendado frases curtas e diretas para leitura fluida no letreiro animado.
+                </span>
+              </div>
+
+              {/* Seletor Visual de Ícone */}
+              <div>
+                <label className="block text-xs font-bold text-foreground mb-2">
+                  Escolha o Ícone do Destaque:
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto pr-1">
+                  {TRUST_BAR_AVAILABLE_ICONS.map((ico) => {
+                    const IconComp = ico.icon;
+                    const isSelected = (editingTrustBarItem.iconName || 'Sparkles') === ico.name;
+                    return (
+                      <button
+                        key={ico.name}
+                        type="button"
+                        onClick={() =>
+                          setEditingTrustBarItem({ ...editingTrustBarItem, iconName: ico.name as any })
+                        }
+                        className={`p-2.5 rounded-xl border flex items-center gap-2 text-xs font-medium transition-all text-left cursor-pointer ${
+                          isSelected
+                            ? 'bg-primary text-white border-primary shadow-sm font-bold scale-[1.02]'
+                            : 'bg-muted/40 hover:bg-muted text-foreground border-border'
+                        }`}
+                      >
+                        <IconComp
+                          className={`w-4 h-4 shrink-0 ${
+                            isSelected ? 'text-white' : 'text-amber-500 fill-amber-400/20'
+                          }`}
+                        />
+                        <span className="truncate text-[11px]">{ico.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Status Ativo */}
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="trustbar-item-active"
+                  checked={editingTrustBarItem.active ?? true}
+                  onChange={(e) =>
+                    setEditingTrustBarItem({ ...editingTrustBarItem, active: e.target.checked })
+                  }
+                  className="rounded text-primary focus:ring-primary w-4 h-4 cursor-pointer"
+                />
+                <label htmlFor="trustbar-item-active" className="text-xs font-semibold text-foreground cursor-pointer">
+                  Exibir esta frase no letreiro animado da loja
+                </label>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-4 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => setIsTrustBarModalOpen(false)}
+                  className="bg-secondary text-foreground px-4 py-2.5 rounded-xl font-semibold hover:bg-secondary/80 text-xs cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="bg-primary hover:bg-primary-hover text-white px-5 py-2.5 rounded-xl font-bold shadow-md transition-all text-xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Salvar Destaque</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

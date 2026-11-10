@@ -25,6 +25,7 @@ import {
   KeyRound,
   Image as ImageIcon,
   Video,
+  Award,
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -85,6 +86,7 @@ export const AdminLayout: React.FC = () => {
     { name: 'Categorias', path: '/admin/categorias', icon: FolderTree },
     { name: 'Fotos dos Catálogos', path: '/admin/fotos-catalogos', icon: ImageIcon },
     { name: 'Banners do Carrossel', path: '/admin/secoes-banners?tab=banners', icon: Sparkles },
+    { name: 'Letreiro de Destaques', path: '/admin/secoes-banners?tab=letreiro', icon: Award },
     { name: 'Seções & Menus', path: '/admin/secoes-banners?tab=sections', icon: Layers },
     { name: 'Mini-Vídeo (Story)', path: '/admin/secoes-banners?tab=video', icon: Video },
     { name: 'Pedidos', path: '/admin/pedidos', icon: ShoppingBag },
