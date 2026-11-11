@@ -476,10 +476,10 @@ export const CatalogPage: React.FC = () => {
   }, [selectedCategory, categories]);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-      {/* Active Section Banner (ex: Moda Verão, Black Friday) */}
+    <div className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 py-3 sm:py-8">
+      {/* Active Section Banner (ex: Moda Verão, Black Friday) - Oculto no celular (hidden sm:block) para tela 100% clean */}
       {activeSection && (
-        <div className="bg-gradient-to-r from-[#17381d] via-[#234d2b] to-[#15341a] text-white p-6 sm:p-8 rounded-3xl mb-8 shadow-xl relative overflow-hidden border border-[#3e6f4e]">
+        <div className="hidden sm:block bg-gradient-to-r from-[#17381d] via-[#234d2b] to-[#15341a] text-white p-6 sm:p-8 rounded-3xl mb-8 shadow-xl relative overflow-hidden border border-[#3e6f4e]">
           <div className="relative z-10 space-y-2">
             <div className="flex items-center gap-2">
               <span className="bg-amber-400 text-slate-950 font-extrabold text-[10px] uppercase px-3 py-1 rounded-full shadow-sm">
@@ -514,34 +514,55 @@ export const CatalogPage: React.FC = () => {
         </div>
       )}
 
-      {/* Header & Title */}
-      <div className="border-b border-border pb-6 mb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
+      {/* Header Minimalista no Smartphone (Estilo Lê Rose - Limpo e Direto aos Produtos) */}
+      <div className="sm:hidden flex items-center justify-between pb-3 pt-1 border-b border-border/40 mb-3">
+        <div>
+          <h1 className="font-serif font-bold text-lg text-foreground">
+            {activeSection
+              ? activeSection.name
+              : selectedCategory
+              ? `${currentCategoryObj?.icon || '🏷️'} ${selectedCategory}`
+              : 'Catálogo'}
+          </h1>
+          <p className="text-[11px] text-muted-foreground">
+            {filteredProducts.length} {filteredProducts.length === 1 ? 'peça' : 'peças'}
+          </p>
+        </div>
+        {(activeSection || selectedCategory) && (
+          <button
+            onClick={handleResetFilters}
+            className="text-xs text-primary font-semibold hover:underline"
+          >
+            Ver catálogo completo
+          </button>
+        )}
+      </div>
+
+      {/* Header Completo no Desktop */}
+      <div className="hidden sm:flex border-b border-border pb-6 mb-6 flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <span className="text-xs text-primary font-bold uppercase tracking-wider flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-amber-500" />
             <span>Moda Fitness Premium</span>
           </span>
           <h1 className="font-serif font-bold text-3xl sm:text-4xl text-foreground mt-1">
-            {selectedCategory ? `${currentCategoryObj?.icon || '🏷️'} ${selectedCategory}` : 'Catálogo Completo'}
+            {activeSection
+              ? activeSection.name
+              : selectedCategory
+              ? `${currentCategoryObj?.icon || '🏷️'} ${selectedCategory}`
+              : 'Catálogo Completo'}
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
-            {selectedCategory
+            {activeSection
+              ? activeSection.description || `Coleção especial com ${filteredProducts.length} peças selecionadas.`
+              : selectedCategory
               ? currentCategoryObj?.description
               : `Organizado por categorias com ${filteredProducts.length} de ${allProducts.length} peças disponíveis`}
           </p>
         </div>
 
-        {/* Controls Bar */}
+        {/* Controls Bar Desktop */}
         <div className="flex items-center gap-3 flex-wrap">
-          {/* Mobile Filter Toggle */}
-          <button
-            onClick={() => setIsMobileFilterOpen(!isMobileFilterOpen)}
-            className="lg:hidden bg-secondary text-secondary-foreground border border-border px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2"
-          >
-            <Filter className="w-4 h-4 text-primary" />
-            Filtros
-          </button>
-
           {/* Sort Dropdown */}
           <div className="flex items-center gap-2 bg-card border border-border px-3 py-2 rounded-xl text-xs">
             <ListFilter className="w-4 h-4 text-muted-foreground" />
@@ -562,8 +583,8 @@ export const CatalogPage: React.FC = () => {
         </div>
       </div>
 
-      {/* HORIZONTAL CATEGORY MENU BAR */}
-      <div className="mb-8">
+      {/* HORIZONTAL CATEGORY MENU BAR - Oculto no Smartphone (hidden sm:block) */}
+      <div className="hidden sm:block mb-8">
         <div className="flex items-center justify-between mb-2">
           <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
             Navegar por Categoria
@@ -924,19 +945,28 @@ export const CatalogPage: React.FC = () => {
                 Limpar Todos os Filtros
               </button>
             </div>
+          ) : activeSection && !selectedCategory && !isColorSearch ? (
+            /* Active Section Direct Grid View (Moda Verão, Black Friday, etc. - Sem divisores para visual limpo) */
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
+                {filteredProducts.map((product) => (
+                  <ProductCard key={product.id} product={product} />
+                ))}
+              </div>
+            </div>
           ) : selectedCategory && !isColorSearch ? (
             /* Single Category Grid View */
             <div className="space-y-6">
-              <div className="bg-primary/5 border border-primary/20 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <span className="text-3xl p-2.5 rounded-xl bg-card border border-border shadow-sm">
+              <div className="bg-primary/5 border border-primary/20 rounded-2xl p-3.5 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+                <div className="flex items-center gap-2.5 sm:gap-3">
+                  <span className="text-2xl sm:text-3xl p-2 sm:p-2.5 rounded-xl bg-card border border-border shadow-sm">
                     {currentCategoryObj?.icon}
                   </span>
                   <div>
-                    <h2 className="font-serif font-bold text-xl text-foreground">
+                    <h2 className="font-serif font-bold text-lg sm:text-xl text-foreground">
                       {selectedCategory}
                     </h2>
-                    <p className="text-xs text-muted-foreground mt-0.5">
+                    <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5 line-clamp-1 sm:line-clamp-none">
                       {currentCategoryObj?.description}
                     </p>
                   </div>
@@ -963,7 +993,7 @@ export const CatalogPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
                 {filteredProducts.map((product) => (
                   <ProductCard key={product.id} product={product} />
                 ))}
@@ -971,23 +1001,23 @@ export const CatalogPage: React.FC = () => {
             </div>
           ) : !searchQuery.trim() && selectedSizes.length === 0 && selectedColors.length === 0 && !onlyPromotions ? (
             /* ALL PRODUCTS ORGANIZED BY CATEGORY SECTIONS */
-            <div className="space-y-12">
+            <div className="space-y-8 sm:space-y-12">
               {groupedByCategory.map(({ category, items }) => (
                 <section
                   key={category.name}
                   id={`cat-${category.slug}`}
-                  className="space-y-4 border-b border-border pb-10 last:border-b-0 last:pb-0"
+                  className="space-y-3 sm:space-y-4 border-b border-border pb-8 sm:pb-10 last:border-b-0 last:pb-0"
                 >
                   {/* Category Section Header */}
                   <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 border-l-4 border-primary pl-3">
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xl">{category.icon}</span>
-                        <h2 className="font-serif font-bold text-2xl text-foreground">
+                        <span className="text-lg sm:text-xl">{category.icon}</span>
+                        <h2 className="font-serif font-bold text-xl sm:text-2xl text-foreground">
                           {category.name}
                         </h2>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1 sm:line-clamp-none">
                         {category.description}
                       </p>
                     </div>
@@ -1017,7 +1047,7 @@ export const CatalogPage: React.FC = () => {
                   </div>
 
                   {/* Category Products Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
+                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 pt-2">
                     {items.map((product) => (
                       <ProductCard key={product.id} product={product} />
                     ))}
@@ -1031,7 +1061,7 @@ export const CatalogPage: React.FC = () => {
               <div className="text-xs text-muted-foreground">
                 Exibindo <strong>{filteredProducts.length}</strong> peças correspondentes aos filtros aplicados:
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
                 {filteredProducts.map((product) => (
                   <ProductCard key={product.id} product={product} />
                 ))}
