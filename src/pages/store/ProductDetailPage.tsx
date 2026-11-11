@@ -51,8 +51,10 @@ export const ProductDetailPage: React.FC = () => {
   const coverPoster = mediaSlides.find((m) => !isVideoMedia(m));
 
   const [activeImage, setActiveImage] = useState(mediaSlides[0] || '');
-  const [selectedColor, setSelectedColor] = useState(product.colors[0] || { name: 'Verde Oliva', hex: '#5F6F3A' });
-  const [selectedSize, setSelectedSize] = useState(product.sizes[0] || 'M');
+  const [selectedColor, setSelectedColor] = useState(
+    product.colors?.[0] || { name: 'Verde Oliva', hex: '#5F6F3A' }
+  );
+  const [selectedSize, setSelectedSize] = useState(product.sizes?.[0] || 'M');
   const [quantity, setQuantity] = useState(1);
   const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -76,7 +78,14 @@ export const ProductDetailPage: React.FC = () => {
   };
 
   React.useEffect(() => {
-    setActiveImage(mediaSlides[0] || '');
+    const slides = getProductMediaSlides(product);
+    setActiveImage(slides[0] || '');
+    setSelectedColor(product.colors?.[0] || { name: 'Verde Oliva', hex: '#5F6F3A' });
+    setSelectedSize(product.sizes?.[0] || 'M');
+    setQuantity(1);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   }, [product.id]);
 
   const isLiked = isInWishlist(product.id);
@@ -270,7 +279,7 @@ export const ProductDetailPage: React.FC = () => {
               <span className="font-medium text-primary">{selectedColor.name}</span>
             </div>
             <div className="flex items-center gap-3">
-              {product.colors.map((color, idx) => (
+              {(product.colors || []).map((color, idx) => (
                 <button
                   key={idx}
                   onClick={() => setSelectedColor(color)}
@@ -332,7 +341,7 @@ export const ProductDetailPage: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-5 gap-2">
-              {product.sizes.map((sz) => (
+              {(product.sizes || []).map((sz) => (
                 <button
                   key={sz}
                   onClick={() => setSelectedSize(sz)}

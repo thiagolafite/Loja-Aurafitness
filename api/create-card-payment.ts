@@ -7,7 +7,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const { orderId, orderNumber, token, transaction_amount, installments, payment_method_id, payer } = req.body || {};
 
-  const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN;
+  const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN || process.env.MERCADO_PAGO_ACCESS_TOKEN;
   const appUrl = process.env.VITE_APP_URL || 'https://aurafitness.vercel.app';
 
   if (!accessToken || accessToken.includes('xxxx')) {

@@ -417,7 +417,14 @@ export const OrderConfirmationPage: React.FC = () => {
           {order.items.map((item: OrderItem, idx: number) => (
             <div key={idx} className="flex items-center justify-between p-3 rounded-2xl bg-muted/40 text-xs">
               <div className="flex items-center gap-3">
-                <img src={item.productImage} alt={item.productName} className="w-12 h-14 object-cover rounded-lg" />
+                <img
+                  src={item.productImage || '/images/look-3103.png'}
+                  alt={item.productName}
+                  onError={(e) => {
+                    e.currentTarget.src = '/images/look-3103.png';
+                  }}
+                  className="w-12 h-14 object-cover rounded-lg"
+                />
                 <div>
                   <h4 className="font-semibold text-foreground">{item.productName}</h4>
                   <span className="text-[11px] text-muted-foreground">

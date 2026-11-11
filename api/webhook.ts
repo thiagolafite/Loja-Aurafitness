@@ -17,7 +17,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const topic = type || req.query.topic || req.query.type;
   const paymentId = data?.id || req.query['data.id'] || req.query.id;
 
-  const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN;
+  const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN || process.env.MERCADO_PAGO_ACCESS_TOKEN;
 
   if (!paymentId) {
     return res.status(200).json({ received: true, message: 'No payment ID found in webhook payload.' });

@@ -289,7 +289,7 @@ export const CheckoutPage: React.FC = () => {
       items: items.map((item) => ({
         productId: item.product.id,
         productName: item.product.name,
-        productImage: item.product.images[0],
+        productImage: item.product.images?.[0] || '/images/look-3103.png',
         sku: item.product.sku,
         size: item.selectedSize,
         colorName: item.selectedColor.name,

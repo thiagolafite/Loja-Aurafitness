@@ -233,7 +233,7 @@ export const AdminOrdersPage: React.FC = () => {
             {/* Items */}
             <div className="space-y-2 text-xs">
               <h4 className="font-semibold text-foreground">Itens Comprados:</h4>
-              {viewingOrder.items.map((it, idx) => (
+              {(viewingOrder.items || []).map((it, idx) => (
                 <div key={idx} className="flex justify-between items-center bg-muted/40 p-2.5 rounded-xl">
                   <span>{it.quantity}x {it.productName} ({it.size} / {it.colorName})</span>
                   <span className="font-bold">{formatCurrency(it.total)}</span>

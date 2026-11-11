@@ -12,7 +12,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'Dados incompletos para geração de pagamento PIX.' });
   }
 
-  const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN;
+  const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN || process.env.MERCADO_PAGO_ACCESS_TOKEN;
   const appUrl = process.env.VITE_APP_URL || 'https://aurafitness.vercel.app';
 
   if (!accessToken || accessToken.includes('xxxx')) {

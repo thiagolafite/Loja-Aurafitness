@@ -298,8 +298,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
             e.stopPropagation();
             addToCart(
               product,
-              product.sizes[0] || 'M',
-              product.colors[0] || { name: 'Padrão', hex: '#2b5022' },
+              product.sizes?.[0] || 'M',
+              product.colors?.[0] || { name: 'Padrão', hex: '#2b5022' },
               1
             );
           }}
