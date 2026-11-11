@@ -267,8 +267,8 @@ export const Navbar: React.FC = () => {
           </div>
         </div>
 
-        {/* Sub-Navigation Row (Lower Header Bar) with #ECF2E9, Neon Green Glow and Horizontal Scroll on Mobile */}
-        <nav className="bg-[#ECF2E9] text-[#164024] flex items-center justify-start lg:justify-center overflow-x-auto no-scrollbar gap-5 sm:gap-7 py-2.5 px-4 text-[11px] sm:text-xs font-semibold uppercase tracking-wider relative z-20 border border-[#39ff88]/70 shadow-[0_0_8px_1px_rgba(57,255,136,0.7),0_0_22px_4px_rgba(57,255,136,0.35),inset_0_0_12px_rgba(57,255,136,0.3)] whitespace-nowrap">
+        {/* Sub-Navigation Row (Lower Header Bar) - Oculto no celular (hidden lg:flex), exibido apenas no Desktop */}
+        <nav className="hidden lg:flex bg-[#ECF2E9] text-[#164024] items-center justify-center overflow-x-auto no-scrollbar gap-7 py-2.5 px-4 text-xs font-semibold uppercase tracking-wider relative z-20 border border-[#39ff88]/70 shadow-[0_0_8px_1px_rgba(57,255,136,0.7),0_0_22px_4px_rgba(57,255,136,0.35),inset_0_0_12px_rgba(57,255,136,0.3)] whitespace-nowrap">
           <Link
             to="/"
             className="hover:text-emerald-700 transition-colors py-0.5 relative shrink-0 hover:after:w-full after:w-0 after:h-0.5 after:bg-emerald-700 after:absolute after:bottom-0 after:left-0 after:transition-all"
