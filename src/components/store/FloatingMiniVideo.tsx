@@ -255,13 +255,13 @@ export const FloatingMiniVideo: React.FC = () => {
 
   const positionClass =
     config.position === 'bottom-right'
-      ? 'bottom-24 right-3.5 sm:right-5'
-      : 'bottom-4 left-3.5 sm:bottom-5 sm:left-5';
+      ? 'bottom-20 right-2.5 sm:bottom-24 sm:right-5'
+      : 'bottom-3 left-2.5 sm:bottom-5 sm:left-5';
 
   const sizeClasses = {
-    sm: 'w-[96px] h-[162px] sm:w-[100px] sm:h-[170px]',
-    md: 'w-[110px] h-[186px] sm:w-[132px] sm:h-[220px]',
-    lg: 'w-[132px] h-[222px] sm:w-[160px] sm:h-[268px]',
+    sm: 'w-[64px] h-[106px] sm:w-[100px] sm:h-[170px]',
+    md: 'w-[72px] h-[120px] sm:w-[132px] sm:h-[220px]',
+    lg: 'w-[84px] h-[140px] sm:w-[160px] sm:h-[268px]',
   }[config.size || 'md'];
 
   const borderColor = config.borderColor || '#F27474';
@@ -321,14 +321,14 @@ export const FloatingMiniVideo: React.FC = () => {
         type="button"
         onClick={() => setIsDismissed(false)}
         style={{ borderColor }}
-        className={`fixed ${positionClass} z-40 bg-card/95 backdrop-blur-md text-foreground px-3 py-2 rounded-full shadow-xl border-2 flex items-center gap-2 text-xs font-bold hover:scale-105 active:scale-95 transition-all`}
+        className={`fixed ${positionClass} z-40 bg-card/95 backdrop-blur-md text-foreground px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-full shadow-xl border-2 flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs font-bold hover:scale-105 active:scale-95 transition-all`}
         title="Abrir Vídeo em Destaque"
       >
         <span
           style={{ backgroundColor: borderColor }}
-          className="w-5 h-5 rounded-full text-white flex items-center justify-center"
+          className="w-4 h-4 sm:w-5 sm:h-5 rounded-full text-white flex items-center justify-center"
         >
-          <Play className="w-2.5 h-2.5 fill-current ml-0.5" />
+          <Play className="w-2 h-2 sm:w-2.5 sm:h-2.5 fill-current ml-0.5" />
         </span>
         <span>Ver Vídeo</span>
       </button>
@@ -353,14 +353,14 @@ export const FloatingMiniVideo: React.FC = () => {
             <div
               style={{
                 borderColor,
-                boxShadow: '0 12px 32px -6px rgba(0, 0, 0, 0.4)',
+                boxShadow: '0 8px 24px -4px rgba(0, 0, 0, 0.35)',
               }}
-              className="rounded-[20px] border-[2.5px] bg-white p-[2.5px] transition-transform duration-300 sm:group-hover:scale-[1.03] relative"
+              className="rounded-[14px] sm:rounded-[20px] border-[2px] sm:border-[2.5px] bg-white p-[2px] sm:p-[2.5px] transition-transform duration-300 sm:group-hover:scale-[1.03] relative"
             >
               {/* Inner Container */}
               <div
                 style={{ borderColor }}
-                className={`${sizeClasses} rounded-[15px] border-[1.5px] overflow-hidden relative bg-neutral-900`}
+                className={`${sizeClasses} rounded-[10px] sm:rounded-[15px] border sm:border-[1.5px] overflow-hidden relative bg-neutral-900`}
               >
                 {/* Close / Minimize Button (Top Right - Always visible on smartphone) */}
                 {config.showCloseButton && (
@@ -371,10 +371,10 @@ export const FloatingMiniVideo: React.FC = () => {
                       e.stopPropagation();
                       setIsDismissed(true);
                     }}
-                    className="absolute top-1.5 right-1.5 z-30 w-6 h-6 sm:w-5 sm:h-5 rounded-full bg-black/65 hover:bg-black/85 text-white flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shadow"
+                    className="absolute top-1 right-1 z-30 w-5 h-5 sm:w-5 sm:h-5 rounded-full bg-black/70 hover:bg-black/90 text-white flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shadow"
                     title="Minimizar vídeo"
                   >
-                    <X className="w-3.5 h-3.5 sm:w-3 sm:h-3" />
+                    <X className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                   </button>
                 )}
 
@@ -387,10 +387,10 @@ export const FloatingMiniVideo: React.FC = () => {
                     setIsExpanded(true);
                     setIsMuted(false);
                   }}
-                  className="absolute top-1.5 left-1.5 z-30 w-6 h-6 sm:w-5 sm:h-5 rounded-full bg-black/65 hover:bg-black/85 text-white flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shadow"
+                  className="absolute top-1 left-1 z-30 w-5 h-5 sm:w-5 sm:h-5 rounded-full bg-black/70 hover:bg-black/90 text-white flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shadow"
                   title="Expandir vídeo em tela cheia"
                 >
-                  <Maximize2 className="w-3 h-3 sm:w-2.5 sm:h-2.5" />
+                  <Maximize2 className="w-2.5 h-2.5 sm:w-2.5 sm:h-2.5" />
                 </button>
 
                 {/* Story / Reels Progress Bars */}
@@ -484,17 +484,17 @@ export const FloatingMiniVideo: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Bottom Product Badge (Always visible on smartphone so user knows it's interactive) */}
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/45 to-transparent p-2 pt-6 opacity-100 sm:opacity-90 sm:group-hover:opacity-100 transition-opacity flex items-end justify-between pointer-events-none">
-                    <span className="text-[10px] font-bold text-white leading-tight line-clamp-2 drop-shadow">
+                  {/* Bottom Product Badge (Scaled down on mobile) */}
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/45 to-transparent p-1 sm:p-2 pt-3 sm:pt-6 opacity-100 sm:opacity-90 sm:group-hover:opacity-100 transition-opacity flex items-end justify-between pointer-events-none">
+                    <span className="text-[8px] sm:text-[10px] font-bold text-white leading-tight line-clamp-1 sm:line-clamp-2 drop-shadow">
                       {linkedProduct
                         ? linkedProduct.name
                         : currentItem.buttonText || currentItem.badgeText || 'Ver Look'}
                     </span>
                     {config.clickAction === 'direct-link' ? (
-                      <ExternalLink className="w-3 h-3 text-white shrink-0 ml-1" />
+                      <ExternalLink className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white shrink-0 ml-0.5" />
                     ) : (
-                      <Play className="w-3 h-3 text-white fill-white shrink-0 ml-1" />
+                      <Play className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white fill-white shrink-0 ml-0.5" />
                     )}
                   </div>
                 </div>
