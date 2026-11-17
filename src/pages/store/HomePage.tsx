@@ -470,16 +470,10 @@ export const HomePage: React.FC = () => {
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3.5 lg:gap-4.5">
           {categories
-            .filter((cat) => {
-              const nonEmptyCount = categories.filter(
-                (c) => products.filter((p) => isProductMatchingCategory(p, c.name)).length > 0
-              ).length;
-              if (nonEmptyCount === 0) return true;
-              return products.filter((p) => isProductMatchingCategory(p, cat.name)).length > 0;
-            })
             .slice(0, 5)
             .map((cat) => {
               const photo = getCategoryPhoto(cat.name, products);
+              const count = products.filter((p) => isProductMatchingCategory(p, cat.name)).length;
 
               return (
                 <Link
@@ -495,13 +489,18 @@ export const HomePage: React.FC = () => {
                   />
 
                   {/* Gradiente Suave de Fundo para Leitura Cristalina do Texto */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent pointer-events-none" />
 
                   {/* Nome da Categoria Centralizado na Base */}
-                  <div className="absolute inset-x-0 bottom-0 p-3 sm:p-4 text-center z-10">
+                  <div className="absolute inset-x-0 bottom-0 p-3 sm:p-4 text-center z-10 flex flex-col items-center justify-center">
                     <h3 className="font-semibold text-sm sm:text-base lg:text-lg text-white tracking-wide drop-shadow-md group-hover:text-amber-200 transition-colors">
                       {cat.name}
                     </h3>
+                    {count === 0 && (
+                      <span className="mt-1 bg-amber-400 text-slate-950 text-[9px] sm:text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full shadow-md">
+                        Em breve
+                      </span>
+                    )}
                   </div>
                 </Link>
               );

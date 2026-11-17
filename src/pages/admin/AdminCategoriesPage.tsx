@@ -740,9 +740,18 @@ export const AdminCategoriesPage: React.FC = () => {
                         <div className="font-bold text-xs text-foreground truncate">
                           {cat.name}
                         </div>
-                        <div className="text-[10px] text-muted-foreground">
-                          {count} {count === 1 ? 'produto' : 'produtos'}
-                        </div>
+                        {count > 0 ? (
+                          <div className="text-[10px] text-muted-foreground">
+                            {count} {count === 1 ? 'produto' : 'produtos'}
+                          </div>
+                        ) : (
+                          <div className="text-[10px] font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                            <span>0 produtos</span>
+                            <span className="bg-amber-400/20 text-amber-700 dark:text-amber-300 text-[9px] px-1.5 py-0.2 rounded-full uppercase">
+                              Em breve
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -866,7 +875,7 @@ export const AdminCategoriesPage: React.FC = () => {
                   className="w-4 h-4 rounded-full object-cover shrink-0 border border-white/20"
                 />
                 <span>{cat.name}</span>
-                {count > 0 && (
+                {count > 0 ? (
                   <span
                     className={`text-[10px] px-1.5 py-0.2 rounded-full ${
                       isSelected
@@ -875,6 +884,16 @@ export const AdminCategoriesPage: React.FC = () => {
                     }`}
                   >
                     {count}
+                  </span>
+                ) : (
+                  <span
+                    className={`text-[9px] px-1.5 py-0.2 rounded-full uppercase font-extrabold ${
+                      isSelected
+                        ? 'bg-amber-300 text-slate-950'
+                        : 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
+                    }`}
+                  >
+                    Em breve
                   </span>
                 )}
               </button>
@@ -928,9 +947,15 @@ export const AdminCategoriesPage: React.FC = () => {
                       <h2 className="font-serif font-bold text-xl text-foreground">
                         {category.name}
                       </h2>
-                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-primary/10 text-primary border border-primary/20">
-                        {items.length} {items.length === 1 ? 'produto' : 'produtos'}
-                      </span>
+                      {items.length > 0 ? (
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-primary/10 text-primary border border-primary/20">
+                          {items.length} {items.length === 1 ? 'produto' : 'produtos'}
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-amber-400 text-slate-950 uppercase tracking-wider shadow-xs">
+                          Em breve na loja
+                        </span>
+                      )}
                       {totalStock > 0 && (
                         <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
                           {totalStock} un. em estoque
@@ -1060,6 +1085,10 @@ export const AdminCategoriesPage: React.FC = () => {
               <div className="p-4 sm:p-5">
                 {matchingItems.length === 0 ? (
                   <div className="py-10 text-center bg-muted/20 border border-dashed border-border rounded-xl p-6 space-y-3">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black bg-amber-400 text-slate-950 uppercase tracking-wider shadow-sm">
+                      <span>✨</span>
+                      <span>Exibida como "Em breve" na loja</span>
+                    </div>
                     <Package className="w-10 h-10 text-muted-foreground mx-auto opacity-50" />
                     <h3 className="font-serif font-bold text-sm text-foreground">
                       Nenhum produto associado à categoria "{category.name}"

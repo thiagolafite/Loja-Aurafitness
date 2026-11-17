@@ -356,9 +356,13 @@ export const Navbar: React.FC = () => {
                               <span className="font-bold text-xs text-white group-hover/item:text-amber-200 transition-colors truncate">
                                 {cat.name}
                               </span>
-                              {count > 0 && (
+                              {count > 0 ? (
                                 <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
                                   {count} {count === 1 ? 'peça' : 'peças'}
+                                </span>
+                              ) : (
+                                <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 uppercase tracking-wider shrink-0 shadow-xs">
+                                  Em breve
                                 </span>
                               )}
                             </div>
@@ -501,9 +505,13 @@ export const Navbar: React.FC = () => {
                                 />
                                 <span className="font-medium">{cat.name}</span>
                               </span>
-                              {count > 0 && (
+                              {count > 0 ? (
                                 <span className="text-[10px] text-emerald-300 font-bold bg-emerald-950/60 px-1.5 py-0.5 rounded-full border border-emerald-500/30">
                                   {count}
+                                </span>
+                              ) : (
+                                <span className="text-[9px] text-slate-950 font-extrabold bg-amber-400 px-2 py-0.5 rounded-full uppercase tracking-wider shadow-xs">
+                                  Em breve
                                 </span>
                               )}
                             </Link>

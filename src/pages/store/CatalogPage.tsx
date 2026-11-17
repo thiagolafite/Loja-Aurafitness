@@ -525,7 +525,11 @@ export const CatalogPage: React.FC = () => {
               : 'Catálogo'}
           </h1>
           <p className="text-[11px] text-muted-foreground">
-            {filteredProducts.length} {filteredProducts.length === 1 ? 'peça' : 'peças'}
+            {filteredProducts.length > 0
+              ? `${filteredProducts.length} ${filteredProducts.length === 1 ? 'peça' : 'peças'}`
+              : selectedCategory
+              ? 'Em breve'
+              : '0 peças'}
           </p>
         </div>
         {(activeSection || selectedCategory) && (
@@ -644,13 +648,15 @@ export const CatalogPage: React.FC = () => {
                 />
                 <span>{cat.name}</span>
                 <span
-                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                  className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
                     isSelected
                       ? 'bg-white/20 text-white'
+                      : count === 0
+                      ? 'bg-amber-400 text-slate-950 font-extrabold uppercase text-[9px] shadow-xs'
                       : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
                   }`}
                 >
-                  {count}
+                  {count > 0 ? count : 'Em breve'}
                 </span>
               </button>
             );
@@ -734,7 +740,13 @@ export const CatalogPage: React.FC = () => {
                       />
                       <span>{cat.name}</span>
                     </span>
-                    <span className="text-[10px] font-semibold opacity-75">{count}</span>
+                    {count > 0 ? (
+                      <span className="text-[10px] font-semibold opacity-75">{count}</span>
+                    ) : (
+                      <span className="text-[9px] font-extrabold uppercase tracking-wider bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full shadow-xs">
+                        Em breve
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -932,19 +944,54 @@ export const CatalogPage: React.FC = () => {
           )}
 
           {filteredProducts.length === 0 ? (
-            <div className="py-16 text-center bg-card border border-border rounded-2xl p-8 space-y-4">
-              <Grid className="w-12 h-12 text-muted-foreground mx-auto" />
-              <h3 className="font-serif font-bold text-lg text-foreground">Nenhuma peça encontrada</h3>
-              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                Tente ajustar seus filtros ou selecionar outra categoria para visualizar mais opções.
-              </p>
-              <button
-                onClick={handleResetFilters}
-                className="bg-primary hover:bg-primary-hover text-white font-semibold text-xs py-2.5 px-6 rounded-xl shadow-md transition-colors"
-              >
-                Limpar Todos os Filtros
-              </button>
-            </div>
+            selectedCategory && !searchQuery.trim() && selectedSizes.length === 0 && selectedColors.length === 0 && !onlyPromotions ? (
+              /* Categoria sem produtos - Banner de "Em Breve" Elegante */
+              <div className="py-14 sm:py-20 text-center bg-card border border-border rounded-3xl p-6 sm:p-12 space-y-4 shadow-sm relative overflow-hidden">
+                <div className="inline-flex items-center gap-1.5 bg-amber-400 text-slate-950 text-[11px] font-black uppercase px-3.5 py-1 rounded-full shadow-sm tracking-wider">
+                  <span>✨</span>
+                  <span>Coleção em Breve</span>
+                </div>
+                <div className="text-4xl sm:text-5xl my-2">{currentCategoryObj?.icon || '🏷️'}</div>
+                <h3 className="font-serif font-bold text-2xl sm:text-3xl text-foreground">
+                  {selectedCategory}
+                </h3>
+                <p className="text-xs sm:text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
+                  {currentCategoryObj?.description || 'Novos modelos e peças exclusivas desta categoria estão sendo preparados para você.'}
+                  <br />
+                  <strong className="text-foreground">Fique atenta aos nossos próximos lançamentos!</strong>
+                </p>
+                <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+                  <button
+                    onClick={handleSelectAllCategories}
+                    className="w-full sm:w-auto bg-primary hover:bg-primary-hover text-white font-bold text-xs py-3 px-6 rounded-xl shadow-md transition-all active:scale-98"
+                  >
+                    Ver Todas as Peças Disponíveis
+                  </button>
+                  <a
+                    href="https://www.instagram.com/adoro.aura/"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="w-full sm:w-auto bg-secondary hover:bg-secondary/80 text-foreground border border-border font-bold text-xs py-3 px-6 rounded-xl transition-all flex items-center justify-center gap-2"
+                  >
+                    <span>Acompanhar no Instagram</span>
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <div className="py-16 text-center bg-card border border-border rounded-2xl p-8 space-y-4">
+                <Grid className="w-12 h-12 text-muted-foreground mx-auto" />
+                <h3 className="font-serif font-bold text-lg text-foreground">Nenhuma peça encontrada</h3>
+                <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                  Tente ajustar seus filtros ou selecionar outra categoria para visualizar mais opções.
+                </p>
+                <button
+                  onClick={handleResetFilters}
+                  className="bg-primary hover:bg-primary-hover text-white font-semibold text-xs py-2.5 px-6 rounded-xl shadow-md transition-colors"
+                >
+                  Limpar Todos os Filtros
+                </button>
+              </div>
+            )
           ) : activeSection && !selectedCategory && !isColorSearch ? (
             /* Active Section Direct Grid View (Moda Verão, Black Friday, etc. - Sem divisores para visual limpo) */
             <div className="space-y-4">
