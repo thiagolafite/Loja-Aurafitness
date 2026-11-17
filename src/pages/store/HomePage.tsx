@@ -468,43 +468,77 @@ export const HomePage: React.FC = () => {
           </h2>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3.5 lg:gap-4.5">
-          {categories
-            .slice(0, 5)
-            .map((cat) => {
-              const photo = getCategoryPhoto(cat.name, products);
-              const count = products.filter((p) => isProductMatchingCategory(p, cat.name)).length;
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5 sm:gap-3.5 lg:gap-4.5">
+          {categories.map((cat) => {
+            const photo = getCategoryPhoto(cat.name, products);
+            const count = products.filter((p) => isProductMatchingCategory(p, cat.name)).length;
 
-              return (
-                <Link
-                  key={cat.name}
-                  to={`/catalogo?categoria=${encodeURIComponent(cat.name)}`}
-                  className="group relative h-[250px] sm:h-[300px] lg:h-[350px] xl:h-[380px] rounded-xl sm:rounded-2xl overflow-hidden shadow-sm hover:shadow-2xl transition-all duration-500 border border-black/5 dark:border-white/10"
-                >
-                  {/* Foto de Destaque da Categoria em Alta Resolução */}
-                  <img
-                    src={photo}
-                    alt={cat.name}
-                    className="absolute inset-0 w-full h-full object-cover object-top filter brightness-[0.96] group-hover:scale-105 group-hover:brightness-100 transition-all duration-700 ease-out"
-                  />
+            return (
+              <Link
+                key={cat.name}
+                to={`/catalogo?categoria=${encodeURIComponent(cat.name)}`}
+                className="group relative h-[250px] sm:h-[300px] lg:h-[350px] xl:h-[380px] rounded-xl sm:rounded-2xl overflow-hidden shadow-sm hover:shadow-2xl transition-all duration-500 border border-black/5 dark:border-white/10"
+              >
+                {/* Foto de Destaque da Categoria em Alta Resolução */}
+                <img
+                  src={photo}
+                  alt={cat.name}
+                  className={`absolute inset-0 w-full h-full object-cover object-top transition-all duration-700 ease-out ${
+                    count === 0
+                      ? 'filter brightness-[0.75] contrast-[1.05] group-hover:scale-105'
+                      : 'filter brightness-[0.96] group-hover:scale-105 group-hover:brightness-100'
+                  }`}
+                />
 
-                  {/* Gradiente Suave de Fundo para Leitura Cristalina do Texto */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent pointer-events-none" />
+                {/* Gradiente Suave de Fundo para Leitura Cristalina do Texto */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent pointer-events-none" />
 
-                  {/* Nome da Categoria Centralizado na Base */}
-                  <div className="absolute inset-x-0 bottom-0 p-3 sm:p-4 text-center z-10 flex flex-col items-center justify-center">
-                    <h3 className="font-semibold text-sm sm:text-base lg:text-lg text-white tracking-wide drop-shadow-md group-hover:text-amber-200 transition-colors">
-                      {cat.name}
-                    </h3>
-                    {count === 0 && (
-                      <span className="mt-1 bg-amber-400 text-slate-950 text-[9px] sm:text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full shadow-md">
-                        Em breve
-                      </span>
-                    )}
+                {/* Placa "EM BREVE" no Topo da Imagem */}
+                {count === 0 && (
+                  <div className="absolute top-2.5 left-2.5 sm:top-3 sm:left-3 z-20">
+                    <span className="inline-flex items-center gap-1.5 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 text-slate-950 font-black text-[10px] sm:text-xs uppercase tracking-wider px-3 py-1 rounded-full shadow-lg border border-amber-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-950 animate-ping" />
+                      <span>EM BREVE</span>
+                    </span>
                   </div>
-                </Link>
-              );
-            })}
+                )}
+
+                {/* Placa Centralizada "EM BREVE" com Efeito de Vidro Luxo */}
+                {count === 0 && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center p-3 text-center z-10 pointer-events-none">
+                    <div className="bg-[#112d19]/90 backdrop-blur-md border-2 border-amber-400 text-white px-3.5 py-2 rounded-2xl shadow-2xl flex flex-col items-center gap-1 max-w-[88%] group-hover:scale-105 transition-transform duration-300">
+                      <span className="text-amber-400 font-extrabold text-[10px] sm:text-xs tracking-widest uppercase flex items-center gap-1">
+                        <span>✨</span>
+                        <span>LANÇAMENTO</span>
+                      </span>
+                      <span className="text-white font-serif font-bold text-xs sm:text-sm tracking-wide">
+                        EM BREVE
+                      </span>
+                    </div>
+                    <span className="text-amber-200/95 text-[10px] sm:text-xs font-semibold mt-2 drop-shadow">
+                      Novos modelos a caminho
+                    </span>
+                  </div>
+                )}
+
+                {/* Nome da Categoria Centralizado na Base */}
+                <div className="absolute inset-x-0 bottom-0 p-3 sm:p-4 text-center z-20 flex flex-col items-center justify-center">
+                  <h3 className="font-semibold text-sm sm:text-base lg:text-lg text-white tracking-wide drop-shadow-md group-hover:text-amber-200 transition-colors">
+                    {cat.name}
+                  </h3>
+                  {count === 0 ? (
+                    <span className="mt-1 bg-amber-400 text-slate-950 text-[10px] sm:text-xs font-black uppercase tracking-wider px-3 py-0.5 rounded-full shadow-md">
+                      Em breve
+                    </span>
+                  ) : (
+                    <span className="mt-0.5 text-[11px] text-white/80 font-medium">
+                      {count} {count === 1 ? 'peça' : 'peças'}
+                    </span>
+                  )}
+                </div>
+              </Link>
+            );
+          })}
         </div>
       </section>
 

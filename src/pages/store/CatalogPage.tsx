@@ -945,36 +945,49 @@ export const CatalogPage: React.FC = () => {
 
           {filteredProducts.length === 0 ? (
             selectedCategory && !searchQuery.trim() && selectedSizes.length === 0 && selectedColors.length === 0 && !onlyPromotions ? (
-              /* Categoria sem produtos - Banner de "Em Breve" Elegante */
-              <div className="py-14 sm:py-20 text-center bg-card border border-border rounded-3xl p-6 sm:p-12 space-y-4 shadow-sm relative overflow-hidden">
-                <div className="inline-flex items-center gap-1.5 bg-amber-400 text-slate-950 text-[11px] font-black uppercase px-3.5 py-1 rounded-full shadow-sm tracking-wider">
-                  <span>✨</span>
-                  <span>Coleção em Breve</span>
-                </div>
-                <div className="text-4xl sm:text-5xl my-2">{currentCategoryObj?.icon || '🏷️'}</div>
-                <h3 className="font-serif font-bold text-2xl sm:text-3xl text-foreground">
-                  {selectedCategory}
-                </h3>
-                <p className="text-xs sm:text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
-                  {currentCategoryObj?.description || 'Novos modelos e peças exclusivas desta categoria estão sendo preparados para você.'}
-                  <br />
-                  <strong className="text-foreground">Fique atenta aos nossos próximos lançamentos!</strong>
-                </p>
-                <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
-                  <button
-                    onClick={handleSelectAllCategories}
-                    className="w-full sm:w-auto bg-primary hover:bg-primary-hover text-white font-bold text-xs py-3 px-6 rounded-xl shadow-md transition-all active:scale-98"
-                  >
-                    Ver Todas as Peças Disponíveis
-                  </button>
-                  <a
-                    href="https://www.instagram.com/adoro.aura/"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="w-full sm:w-auto bg-secondary hover:bg-secondary/80 text-foreground border border-border font-bold text-xs py-3 px-6 rounded-xl transition-all flex items-center justify-center gap-2"
-                  >
-                    <span>Acompanhar no Instagram</span>
-                  </a>
+              /* Categoria sem produtos - Placa de "Em Breve" Elegante e de Alto Destaque */
+              <div className="py-14 sm:py-20 text-center bg-gradient-to-b from-[#14331b] via-[#1a4023] to-[#0f2814] text-white border-2 border-amber-400/80 rounded-3xl p-6 sm:p-12 space-y-5 shadow-2xl relative overflow-hidden">
+                {/* Glow decorativo de fundo */}
+                <div className="absolute top-0 right-1/4 w-72 h-72 bg-amber-400/10 rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute bottom-0 left-1/4 w-72 h-72 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+
+                <div className="relative z-10 space-y-4">
+                  {/* Placa Badge */}
+                  <div className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 text-slate-950 text-xs sm:text-sm font-black uppercase px-4 py-1.5 rounded-full shadow-xl border border-amber-200 tracking-wider">
+                    <span className="w-2 h-2 rounded-full bg-slate-950 animate-ping" />
+                    <span>PLACA OFICIAL • COLEÇÃO EM BREVE</span>
+                  </div>
+
+                  <div className="text-5xl sm:text-6xl my-2 drop-shadow-lg">{currentCategoryObj?.icon || '🏷️'}</div>
+
+                  <h3 className="font-serif font-bold text-3xl sm:text-4xl text-white tracking-wide">
+                    {selectedCategory}
+                  </h3>
+
+                  <p className="text-xs sm:text-sm text-emerald-100/90 max-w-lg mx-auto leading-relaxed">
+                    {currentCategoryObj?.description || 'Novos modelos e peças exclusivas desta categoria estão sendo preparados para você.'}
+                    <br />
+                    <span className="text-amber-300 font-bold block mt-1.5 text-sm sm:text-base">
+                      ⏳ Fique atenta aos nossos próximos lançamentos no catálogo!
+                    </span>
+                  </p>
+
+                  <div className="pt-3 flex flex-col sm:flex-row items-center justify-center gap-3">
+                    <button
+                      onClick={handleSelectAllCategories}
+                      className="w-full sm:w-auto bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs py-3.5 px-7 rounded-xl shadow-lg transition-all active:scale-98 uppercase tracking-wider"
+                    >
+                      Ver Peças Disponíveis no Catálogo
+                    </button>
+                    <a
+                      href="https://www.instagram.com/adoro.aura/"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="w-full sm:w-auto bg-white/10 hover:bg-white/20 text-white border border-white/20 font-bold text-xs py-3.5 px-7 rounded-xl transition-all flex items-center justify-center gap-2"
+                    >
+                      <span>Acompanhar Lançamentos no Instagram</span>
+                    </a>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -1101,6 +1114,60 @@ export const CatalogPage: React.FC = () => {
                   </div>
                 </section>
               ))}
+
+              {/* Seção Próximos Lançamentos (Categorias em Breve) com Placa Visível */}
+              {(() => {
+                const emptyCats = categoriesWithCounts.filter((item) => item.count === 0);
+                if (emptyCats.length === 0) return null;
+
+                return (
+                  <section className="space-y-4 pt-8 border-t border-border">
+                    <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 border-l-4 border-amber-400 pl-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="bg-amber-400 text-slate-950 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full shadow-sm">
+                            ✨ EM BREVE
+                          </span>
+                          <h2 className="font-serif font-bold text-xl sm:text-2xl text-foreground">
+                            Próximos Lançamentos
+                          </h2>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Coleções exclusivas que chegam em breve na Aura Fitness.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4.5 pt-2">
+                      {emptyCats.map(({ category: cat }) => (
+                        <div
+                          key={cat.name}
+                          onClick={() => handleSelectCategory(cat.name)}
+                          className="group relative h-48 sm:h-56 rounded-2xl overflow-hidden shadow-sm border border-border cursor-pointer hover:shadow-xl transition-all"
+                        >
+                          <img
+                            src={getCategoryPhoto(cat.name, allProducts)}
+                            alt={cat.name}
+                            className="w-full h-full object-cover object-top filter brightness-[0.75] group-hover:scale-105 transition-all duration-500"
+                          />
+                          <div className="absolute inset-0 bg-black/45 backdrop-blur-[0.5px] flex flex-col items-center justify-center p-3 text-center">
+                            <span className="bg-amber-400 text-slate-950 text-[10px] sm:text-xs font-black uppercase px-3 py-1 rounded-xl shadow-lg border border-slate-950 flex items-center gap-1 transform group-hover:scale-105 transition-transform">
+                              <span>⏳</span>
+                              <span>EM BREVE</span>
+                            </span>
+                            <h3 className="font-serif font-bold text-sm sm:text-base text-white mt-2 drop-shadow">
+                              {cat.name}
+                            </h3>
+                            <span className="text-[11px] text-amber-200 font-medium mt-0.5">
+                              Novos modelos a caminho
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                );
+              })()}
             </div>
           ) : (
             /* Filtered Search Results Grid */
