@@ -784,6 +784,55 @@ export async function syncWithSupabase(): Promise<void> {
       }));
       setStorageItem(STORAGE_KEYS.REVIEWS, cachedReviews);
     }
+
+    // 6. Clientes / Profiles & Pedidos para Sincronização Total do CRM
+    await fetchOrdersAsync();
+    const { data: profs } = await supabase.from('profiles').select('*, addresses(*)');
+    if (profs && profs.length > 0) {
+      const localCusts = getCustomers();
+      profs.forEach((p: any) => {
+        const existing = localCusts.find(
+          (lc) => lc.id === p.id || (lc.email && p.email && lc.email.toLowerCase() === p.email.toLowerCase())
+        );
+        const mappedAddresses = Array.isArray(p.addresses)
+          ? p.addresses.map((a: any) => ({
+              recipientName: a.recipient_name || p.name,
+              cep: a.cep,
+              street: a.street,
+              number: a.number,
+              complement: a.complement || '',
+              neighborhood: a.neighborhood,
+              city: a.city,
+              state: a.state,
+              isDefault: Boolean(a.is_default),
+            }))
+          : existing?.addresses || [];
+
+        saveCustomerProfile({
+          id: p.id,
+          name: p.name,
+          email: p.email,
+          cpf: p.cpf || existing?.cpf || '',
+          phone: p.phone || existing?.phone || '',
+          birthDate: p.birth_date || existing?.birthDate,
+          addresses: mappedAddresses,
+          totalOrders: Number(p.total_orders) || existing?.totalOrders || 0,
+          totalSpent: Number(p.total_spent) || existing?.totalSpent || 0,
+          averageTicket: Number(p.average_ticket) || existing?.averageTicket || 0,
+          lastOrderDate: p.last_purchase_at || existing?.lastOrderDate,
+          firstOrderDate: p.first_purchase_at || existing?.firstOrderDate,
+          lastAccess: p.last_access || existing?.lastAccess || new Date().toISOString(),
+          createdAt: p.created_at || existing?.createdAt,
+          preferredSizes: p.preferred_sizes || existing?.preferredSizes,
+          preferredColors: p.preferred_colors || existing?.preferredColors,
+          tags: p.tags || existing?.tags,
+          origin: p.origin || existing?.origin || 'site',
+          optinWhatsapp: p.optin_whatsapp ?? existing?.optinWhatsapp ?? true,
+          optinEmail: p.optin_email ?? existing?.optinEmail ?? true,
+          needsManualAttention: p.needs_manual_attention ?? existing?.needsManualAttention ?? false,
+        });
+      });
+    }
   } catch (err) {
     console.error('Supabase background sync error:', err);
   }
@@ -1674,31 +1723,60 @@ export function getCustomers(): CustomerProfile[] {
 
 export function saveCustomerProfile(profile: Partial<CustomerProfile>): CustomerProfile {
   const customers = getCustomers();
-  const index = customers.findIndex((c) => c.id === profile.id || c.email === profile.email);
+  const cleanEmail = (profile.email || '').toLowerCase().trim();
+  const index = customers.findIndex(
+    (c) =>
+      (profile.id && c.id === profile.id) ||
+      (cleanEmail && (c.email || '').toLowerCase().trim() === cleanEmail)
+  );
   let updated: CustomerProfile;
 
   if (index !== -1) {
-    updated = { ...customers[index], ...profile };
+    updated = {
+      ...customers[index],
+      ...profile,
+      birthDate: profile.birthDate ?? customers[index].birthDate,
+      addresses:
+        profile.addresses && profile.addresses.length > 0
+          ? profile.addresses
+          : customers[index].addresses,
+    };
     customers[index] = updated;
   } else {
     updated = {
-      id: `cust-${Date.now()}`,
+      id: profile.id || `cust-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       name: profile.name || 'Cliente Aura',
       email: profile.email || '',
       cpf: profile.cpf || '',
       phone: profile.phone || '',
+      birthDate: profile.birthDate,
       addresses: profile.addresses || [],
-      totalOrders: 0,
-      totalSpent: 0,
-      averageTicket: 0,
-      lastAccess: new Date().toISOString(),
-      wishlist: [],
+      totalOrders: profile.totalOrders || 0,
+      totalSpent: profile.totalSpent || 0,
+      averageTicket: profile.averageTicket || 0,
+      lastAccess: profile.lastAccess || new Date().toISOString(),
+      lastOrderDate: profile.lastOrderDate,
+      firstOrderDate: profile.firstOrderDate,
+      wishlist: profile.wishlist || [],
+      preferredSizes: profile.preferredSizes || [],
+      preferredColors: profile.preferredColors || [],
+      tags: profile.tags || [],
+      origin: profile.origin || 'site',
+      optinWhatsapp: profile.optinWhatsapp ?? true,
+      optinEmail: profile.optinEmail ?? true,
+      needsManualAttention: profile.needsManualAttention ?? false,
+      assignedTo: profile.assignedTo,
+      lastContactedAt: profile.lastContactedAt,
+      createdAt: profile.createdAt || new Date().toISOString(),
     };
     customers.push(updated);
   }
 
   cachedCustomers = customers;
   setStorageItem(STORAGE_KEYS.CUSTOMERS, customers);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('aura_crm_updated'));
+  }
   return updated;
 }
 

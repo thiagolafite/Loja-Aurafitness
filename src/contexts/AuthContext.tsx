@@ -23,7 +23,9 @@ interface AuthContextType {
       neighborhood: string;
       city: string;
       state: string;
-    }
+    },
+    birthDate?: string,
+    optinWhatsapp?: boolean
   ) => Promise<{ success: boolean; error?: string }>;
   signInAdmin: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
@@ -60,13 +62,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: data.email || email,
           cpf: data.cpf || '',
           phone: data.phone || '',
+          birthDate: data.birth_date || undefined,
           addresses: [],
           savedPaymentMethods: data.saved_payment_methods || [],
           totalOrders: data.total_orders || 0,
           totalSpent: Number(data.total_spent) || 0,
           averageTicket: Number(data.average_ticket) || 0,
           lastAccess: data.last_access || new Date().toISOString(),
+          lastOrderDate: data.last_purchase_at || undefined,
           wishlist: data.wishlist || [],
+          crmStatus: data.crm_status || undefined,
+          attentionScore: data.attention_score ?? undefined,
+          optinWhatsapp: data.optin_whatsapp ?? true,
+          optinEmail: data.optin_email ?? true,
         });
       } else {
         // Create basic profile if none exists
@@ -268,21 +276,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       neighborhood: string;
       city: string;
       state: string;
-    }
+    },
+    birthDate?: string,
+    optinWhatsapp = true
   ): Promise<{ success: boolean; error?: string }> => {
+    const addresses =
+      address && address.cep && address.street
+        ? [
+            {
+              recipientName: name,
+              cep: address.cep,
+              street: address.street,
+              number: address.number,
+              complement: address.complement,
+              neighborhood: address.neighborhood,
+              city: address.city,
+              state: address.state,
+              isDefault: true,
+            },
+          ]
+        : [];
+
+    // Sempre sincroniza o perfil no dataClient local para alimentar imediatamente o CRM
+    saveCustomerProfile({
+      email: email.trim(),
+      name,
+      phone,
+      cpf,
+      birthDate: birthDate || undefined,
+      optinWhatsapp,
+      optinEmail: true,
+      origin: 'site',
+      addresses,
+      createdAt: new Date().toISOString(),
+    });
+
     if (!isSupabaseConfigured()) {
-      const addresses = address && address.cep && address.street ? [{
-        recipientName: name,
-        cep: address.cep,
-        street: address.street,
-        number: address.number,
-        complement: address.complement,
-        neighborhood: address.neighborhood,
-        city: address.city,
-        state: address.state,
-        isDefault: true,
-      }] : [];
-      const created = registerCustomer({ email, name, phone, cpf, addresses });
+      const created = registerCustomer({
+        email,
+        name,
+        phone,
+        cpf,
+        birthDate: birthDate || undefined,
+        optinWhatsapp,
+        addresses,
+      });
       return { success: Boolean(created) };
     }
 
@@ -294,6 +332,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           name,
           phone: phone || '',
           cpf: cpf || '',
+          birth_date: birthDate || '',
+          optin_whatsapp: optinWhatsapp,
         },
       },
     });
@@ -443,6 +483,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateProfile = async (data: Partial<CustomerProfile>) => {
     if (!user) return;
 
+    saveCustomerProfile({ ...user, ...data });
+
     if (isSupabaseConfigured()) {
       await supabase
         .from('profiles')
@@ -450,6 +492,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           name: data.name ?? user.name,
           phone: data.phone ?? user.phone,
           cpf: data.cpf ?? user.cpf,
+          birth_date: data.birthDate !== undefined ? data.birthDate || null : user.birthDate || null,
+          optin_whatsapp: data.optinWhatsapp ?? user.optinWhatsapp ?? true,
+          optin_email: data.optinEmail ?? user.optinEmail ?? true,
           wishlist: data.wishlist ?? user.wishlist,
           saved_payment_methods: data.savedPaymentMethods ?? user.savedPaymentMethods,
           updated_at: new Date().toISOString(),

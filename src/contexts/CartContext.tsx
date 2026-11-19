@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { CartItem, Product, ProductColor, Coupon } from '../types';
 import { validateCoupon } from '../lib/dataClient';
+import { syncActiveCartToCrm } from '../crm/services/crmService';
+import { useAuth } from './AuthContext';
 
 interface CartContextType {
   items: CartItem[];
@@ -27,6 +29,7 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user } = useAuth();
   const [items, setItems] = useState<CartItem[]>(() => {
     try {
       const saved = localStorage.getItem('aura_cart_v1');
@@ -150,6 +153,33 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const shippingFee = appliedCoupon?.discountType === 'free_shipping' ? 0 : estimatedShipping;
   const totalAmount = Math.max(0, subtotal - discountAmount + shippingFee);
   const totalItemCount = items.reduce((sum, item) => sum + item.quantity, 0);
+
+  // Sincronização automática do carrinho com o CRM (captura de carrinhos ativos/abandonados)
+  useEffect(() => {
+    try {
+      syncActiveCartToCrm({
+        userId: user?.id,
+        customerName: user?.name,
+        customerEmail: user?.email,
+        customerPhone: user?.phone,
+        items: items.map((it) => ({
+          productId: it.product.id,
+          productName: it.product.name,
+          productImage: it.product.images?.[0] || '/images/look-3103.png',
+          sku: it.product.sku,
+          size: it.selectedSize,
+          colorName: it.selectedColor.name,
+          price: it.product.promotionalPrice || it.product.price,
+          quantity: it.quantity,
+        })),
+        subtotal,
+        total: totalAmount,
+        couponCode: appliedCoupon?.code,
+      });
+    } catch {
+      // silent sync
+    }
+  }, [items, user, subtotal, totalAmount, appliedCoupon]);
 
   return (
     <CartContext.Provider

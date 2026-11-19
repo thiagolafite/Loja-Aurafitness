@@ -138,6 +138,7 @@ export interface CustomerProfile {
   email: string;
   cpf: string;
   phone: string;
+  birthDate?: string; // YYYY-MM-DD
   password?: string;
   addresses: ShippingAddress[];
   savedPaymentMethods?: SavedPaymentMethod[];
@@ -146,7 +147,22 @@ export interface CustomerProfile {
   averageTicket: number;
   lastAccess: string;
   lastOrderDate?: string;
+  firstOrderDate?: string;
   wishlist: string[]; // Product IDs
+  // CRM Extensions
+  crmStatus?: 'novo' | 'carrinho_abandonado' | 'pagamento_pendente' | 'ativo' | 'vip' | 'em_risco' | 'inativo' | 'aniversariante';
+  attentionScore?: number;
+  attentionReason?: string;
+  needsManualAttention?: boolean;
+  preferredSizes?: string[];
+  preferredColors?: string[];
+  tags?: string[];
+  origin?: 'site' | 'instagram' | 'whatsapp' | 'indicacao' | 'google';
+  optinWhatsapp?: boolean;
+  optinEmail?: boolean;
+  assignedTo?: string;
+  lastContactedAt?: string;
+  createdAt?: string;
 }
 
 export interface StoreSettings {

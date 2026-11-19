@@ -17,7 +17,8 @@ import {
 import { useCart } from '../../contexts/CartContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useViaCep } from '../../hooks/useViaCep';
-import { createOrder, getStoreSettings } from '../../lib/dataClient';
+import { createOrder, getStoreSettings, saveCustomerProfile } from '../../lib/dataClient';
+import { syncActiveCartToCrm, markCartConvertedOnOrder } from '../../crm/services/crmService';
 import { formatCurrency, formatCPF, formatCEP, formatPhone } from '../../lib/utils';
 import { generateWhatsAppOrderMessage } from '../../lib/whatsapp';
 import { generatePixBrCode } from '../../lib/pix';
@@ -38,6 +39,7 @@ export const CheckoutPage: React.FC = () => {
   const [email, setEmail] = useState(user?.email || '');
   const [cpf, setCpf] = useState(user?.cpf || '');
   const [phone, setPhone] = useState(user?.phone || '');
+  const [birthDate, setBirthDate] = useState(user?.birthDate || '');
 
   // Address State
   const [cep, setCep] = useState(user?.addresses[0]?.cep || '');
@@ -85,6 +87,37 @@ export const CheckoutPage: React.FC = () => {
       setStep1Error(`Atenção: Preencha os campos obrigatórios para continuar: ${missing.join(', ')}.`);
       return;
     }
+
+    // Sincroniza imediatamente o lead/cliente e o carrinho no Passo 1 do Checkout (para capturar abandono)
+    saveCustomerProfile({
+      name: name.trim(),
+      email: email.trim(),
+      cpf: formatCPF(cpf),
+      phone: formatPhone(phone),
+      birthDate: birthDate || undefined,
+    });
+
+    syncActiveCartToCrm({
+      userId: user?.id,
+      customerName: name.trim(),
+      customerEmail: email.trim(),
+      customerPhone: formatPhone(phone),
+      items: items.map((it) => ({
+        productId: it.product.id,
+        productName: it.product.name,
+        productImage: it.product.images?.[0] || '/images/look-3103.png',
+        sku: it.product.sku,
+        size: it.selectedSize,
+        colorName: it.selectedColor.name,
+        price: it.product.promotionalPrice || it.product.price,
+        quantity: it.quantity,
+      })),
+      subtotal,
+      total: totalAmount,
+      couponCode: appliedCoupon?.code,
+      checkoutStep: 2,
+    });
+
     setStep(2);
   };
 
@@ -320,6 +353,29 @@ export const CheckoutPage: React.FC = () => {
       couponCode: appliedCoupon?.code,
     });
 
+    // Marca o carrinho como convertido no CRM e sincroniza a ficha do cliente
+    markCartConvertedOnOrder(email.trim(), newOrder.id);
+    saveCustomerProfile({
+      name: name.trim(),
+      email: email.trim(),
+      cpf: formatCPF(cpf),
+      phone: formatPhone(phone),
+      birthDate: birthDate || undefined,
+      addresses: [
+        {
+          recipientName: name.trim(),
+          cep: formatCEP(cep),
+          street,
+          number,
+          complement,
+          neighborhood,
+          city,
+          state,
+          isDefault: true,
+        },
+      ],
+    });
+
     // Trigger celebration confetti only if already approved/paid
     if (initialStatus === 'pago') {
       try {
@@ -446,6 +502,18 @@ export const CheckoutPage: React.FC = () => {
                     className={`w-full bg-background border rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-primary outline-none ${
                       step1Error && !phone.trim() ? 'border-rose-500 bg-rose-500/5 ring-1 ring-rose-500' : 'border-border'
                     }`}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-foreground mb-1">
+                    Data de Aniversário <span className="text-primary font-normal">(Presente VIP no mês 🎂)</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={birthDate}
+                    onChange={(e) => setBirthDate(e.target.value)}
+                    className="w-full bg-background border border-border rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-primary outline-none"
                   />
                 </div>
 

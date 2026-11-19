@@ -10,6 +10,8 @@ export const AccountPage: React.FC = () => {
   const [email, setEmail] = useState(user?.email || '');
   const [cpf, setCpf] = useState(user?.cpf || '');
   const [phone, setPhone] = useState(user?.phone || '');
+  const [birthDate, setBirthDate] = useState(user?.birthDate || '');
+  const [optinWhatsapp, setOptinWhatsapp] = useState(user?.optinWhatsapp ?? true);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   // Default address fields
@@ -38,6 +40,8 @@ export const AccountPage: React.FC = () => {
       email,
       cpf: formatCPF(cpf),
       phone: formatPhone(phone),
+      birthDate: birthDate || undefined,
+      optinWhatsapp,
       addresses: [
         {
           recipientName: name,
@@ -117,6 +121,30 @@ export const AccountPage: React.FC = () => {
                 onChange={(e) => setPhone(e.target.value)}
                 className="w-full bg-background border border-border rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-primary outline-none"
               />
+            </div>
+
+            <div>
+              <label className="block font-semibold text-foreground mb-1">
+                Data de Aniversário <span className="text-primary font-normal">(Cupom VIP no mês 🎂)</span>
+              </label>
+              <input
+                type="date"
+                value={birthDate}
+                onChange={(e) => setBirthDate(e.target.value)}
+                className="w-full bg-background border border-border rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-primary outline-none"
+              />
+            </div>
+
+            <div className="flex items-center pt-5">
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={optinWhatsapp}
+                  onChange={(e) => setOptinWhatsapp(e.target.checked)}
+                  className="accent-primary w-4 h-4 rounded"
+                />
+                <span>Aceito receber novidades, rastreio e mimo de aniversário via WhatsApp</span>
+              </label>
             </div>
           </div>
         </div>

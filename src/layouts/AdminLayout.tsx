@@ -26,6 +26,8 @@ import {
   Image as ImageIcon,
   Video,
   Award,
+  HeartHandshake,
+  ExternalLink,
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -82,6 +84,7 @@ export const AdminLayout: React.FC = () => {
 
   const adminMenu = [
     { name: 'Dashboard', path: '/admin', icon: LayoutDashboard },
+    { name: 'CRM 360° & Automações', path: '/admin/crm', icon: HeartHandshake },
     { name: 'Produtos', path: '/admin/produtos', icon: Package },
     { name: 'Categorias', path: '/admin/categorias', icon: FolderTree },
     { name: 'Fotos dos Catálogos', path: '/admin/fotos-catalogos', icon: ImageIcon },
@@ -90,7 +93,7 @@ export const AdminLayout: React.FC = () => {
     { name: 'Seções & Menus', path: '/admin/secoes-banners?tab=sections', icon: Layers },
     { name: 'Mini-Vídeo (Story)', path: '/admin/secoes-banners?tab=video', icon: Video },
     { name: 'Pedidos', path: '/admin/pedidos', icon: ShoppingBag },
-    { name: 'Clientes', path: '/admin/clientes', icon: Users },
+    { name: 'Clientes (CRM)', path: '/admin/clientes', icon: Users },
     { name: 'Avaliações', path: '/admin/avaliacoes', icon: MessageSquare },
     { name: 'Promoções', path: '/admin/promocoes', icon: Sparkles },
     { name: 'Conjuntos (Looks)', path: '/admin/conjuntos', icon: Layers },
@@ -248,6 +251,16 @@ export const AdminLayout: React.FC = () => {
 
         {/* Footer Quick Switch */}
         <div className="p-3 border-t border-border space-y-2">
+          <a
+            href="/crm"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full bg-primary/10 hover:bg-primary/20 text-primary font-bold text-xs py-2.5 px-3 rounded-xl border border-primary/20 flex items-center justify-center gap-2 transition-colors"
+            title="Abrir Portal CRM Externo (Independente da Loja)"
+          >
+            <ExternalLink className="w-4 h-4 shrink-0" />
+            {isSidebarOpen && <span>Abrir CRM Externo (/crm)</span>}
+          </a>
           <button
             onClick={() => {
               logoutAdmin();
@@ -278,6 +291,17 @@ export const AdminLayout: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Botão de Acesso Rápido ao CRM */}
+            <button
+              type="button"
+              onClick={() => navigate('/admin/crm')}
+              className="px-3.5 py-2 rounded-xl bg-primary hover:bg-primary-hover text-white font-bold text-xs flex items-center gap-2 shadow-sm transition-colors"
+              title="Acessar CRM 360° e Automações"
+            >
+              <HeartHandshake className="w-4 h-4" />
+              <span className="hidden sm:inline">Acessar CRM</span>
+            </button>
+
             {/* Theme Toggle */}
             <button
               onClick={toggleTheme}

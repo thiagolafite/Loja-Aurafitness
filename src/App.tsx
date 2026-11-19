@@ -10,6 +10,7 @@ import { LightboxProvider } from './contexts/LightboxContext';
 // Layouts
 import { StoreLayout } from './layouts/StoreLayout';
 import { AdminLayout } from './layouts/AdminLayout';
+import { CrmStandaloneLayout } from './crm/layouts/CrmStandaloneLayout';
 
 // Storefront Pages
 import { HomePage } from './pages/store/HomePage';
@@ -45,6 +46,10 @@ import { AdminLogsPage } from './pages/admin/AdminLogsPage';
 const queryClient = new QueryClient();
 
 export const App: React.FC = () => {
+  const isCrmSubdomain =
+    typeof window !== 'undefined' &&
+    window.location.hostname.toLowerCase().startsWith('crm.');
+
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
@@ -53,52 +58,62 @@ export const App: React.FC = () => {
             <CartProvider>
               <LightboxProvider>
                 <BrowserRouter>
-                  <Routes>
-                    {/* Storefront Routes */}
-                  <Route path="/" element={<StoreLayout />}>
-                    <Route index element={<HomePage />} />
-                    <Route path="catalogo" element={<CatalogPage />} />
-                    <Route path="produto/:id" element={<ProductDetailPage />} />
-                    <Route path="carrinho" element={<CartPage />} />
-                    <Route path="checkout" element={<CheckoutPage />} />
-                    <Route path="confirmacao-pedido/:id" element={<OrderConfirmationPage />} />
-                    <Route path="minha-conta" element={<AccountPage />} />
-                    <Route path="login" element={<CustomerAuthPage />} />
-                    <Route path="cadastro" element={<CustomerAuthPage />} />
-                    <Route path="meus-pedidos" element={<MyOrdersPage />} />
-                    <Route path="favoritos" element={<WishlistPage />} />
-                    <Route path="blog" element={<BlogPage />} />
-                    <Route path="blog/:slug" element={<BlogPostPage />} />
-                  </Route>
+                  {isCrmSubdomain ? (
+                    <Routes>
+                      <Route path="*" element={<CrmStandaloneLayout />} />
+                    </Routes>
+                  ) : (
+                    <Routes>
+                      {/* Link Externo Dedicado do CRM (Independente da Loja / Mobile Ready) */}
+                      <Route path="/crm/*" element={<CrmStandaloneLayout />} />
 
-                  {/* Admin Routes */}
-                  <Route path="/admin" element={<AdminLayout />}>
-                    <Route index element={<AdminDashboardPage />} />
-                    <Route path="produtos" element={<AdminProductsPage />} />
-                    <Route path="categorias" element={<AdminCategoriesPage />} />
-                    <Route path="fotos-catalogos" element={<AdminCategoryPhotosPage />} />
-                    <Route path="secoes-banners" element={<AdminSectionsBannersPage />} />
-                    <Route path="pedidos" element={<AdminOrdersPage />} />
-                    <Route path="clientes" element={<AdminCustomersPage />} />
-                    <Route path="avaliacoes" element={<AdminReviewsPage />} />
-                    <Route path="promocoes" element={<AdminPromotionsPage />} />
-                    <Route path="conjuntos" element={<AdminSetsPage />} />
-                    <Route path="cupons" element={<AdminCouponsPage />} />
-                    <Route path="blog" element={<AdminBlogPage />} />
-                    <Route path="configuracoes" element={<AdminSettingsPage />} />
-                    <Route path="usuarios" element={<AdminUsersPage />} />
-                    <Route path="logs" element={<AdminLogsPage />} />
-                  </Route>
+                      {/* Storefront Routes */}
+                      <Route path="/" element={<StoreLayout />}>
+                        <Route index element={<HomePage />} />
+                        <Route path="catalogo" element={<CatalogPage />} />
+                        <Route path="produto/:id" element={<ProductDetailPage />} />
+                        <Route path="carrinho" element={<CartPage />} />
+                        <Route path="checkout" element={<CheckoutPage />} />
+                        <Route path="confirmacao-pedido/:id" element={<OrderConfirmationPage />} />
+                        <Route path="minha-conta" element={<AccountPage />} />
+                        <Route path="login" element={<CustomerAuthPage />} />
+                        <Route path="cadastro" element={<CustomerAuthPage />} />
+                        <Route path="meus-pedidos" element={<MyOrdersPage />} />
+                        <Route path="favoritos" element={<WishlistPage />} />
+                        <Route path="blog" element={<BlogPage />} />
+                        <Route path="blog/:slug" element={<BlogPostPage />} />
+                      </Route>
 
-                  {/* Fallback */}
-                  <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
-              </BrowserRouter>
-            </LightboxProvider>
-          </CartProvider>
-        </WishlistProvider>
-      </AuthProvider>
-    </ThemeProvider>
+                      {/* Admin Routes */}
+                      <Route path="/admin" element={<AdminLayout />}>
+                        <Route index element={<AdminDashboardPage />} />
+                        <Route path="crm" element={<AdminCustomersPage />} />
+                        <Route path="produtos" element={<AdminProductsPage />} />
+                        <Route path="categorias" element={<AdminCategoriesPage />} />
+                        <Route path="fotos-catalogos" element={<AdminCategoryPhotosPage />} />
+                        <Route path="secoes-banners" element={<AdminSectionsBannersPage />} />
+                        <Route path="pedidos" element={<AdminOrdersPage />} />
+                        <Route path="clientes" element={<AdminCustomersPage />} />
+                        <Route path="avaliacoes" element={<AdminReviewsPage />} />
+                        <Route path="promocoes" element={<AdminPromotionsPage />} />
+                        <Route path="conjuntos" element={<AdminSetsPage />} />
+                        <Route path="cupons" element={<AdminCouponsPage />} />
+                        <Route path="blog" element={<AdminBlogPage />} />
+                        <Route path="configuracoes" element={<AdminSettingsPage />} />
+                        <Route path="usuarios" element={<AdminUsersPage />} />
+                        <Route path="logs" element={<AdminLogsPage />} />
+                      </Route>
+
+                      {/* Fallback */}
+                      <Route path="*" element={<Navigate to="/" replace />} />
+                    </Routes>
+                  )}
+                </BrowserRouter>
+              </LightboxProvider>
+            </CartProvider>
+          </WishlistProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 };

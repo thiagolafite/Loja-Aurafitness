@@ -51,6 +51,8 @@ export const CustomerAuthPage: React.FC = () => {
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
   const [regCpf, setRegCpf] = useState('');
   const [regPhone, setRegPhone] = useState('');
+  const [regBirthDate, setRegBirthDate] = useState('');
+  const [regOptinWhatsapp, setRegOptinWhatsapp] = useState(true);
   const [regError, setRegError] = useState('');
   const [isRegLoading, setIsRegLoading] = useState(false);
 
@@ -183,7 +185,9 @@ export const CustomerAuthPage: React.FC = () => {
         regName,
         formatPhone(regPhone),
         formatCPF(regCpf),
-        addressObj
+        addressObj,
+        regBirthDate || undefined,
+        regOptinWhatsapp
       );
 
       if (res.success) {
@@ -523,6 +527,30 @@ export const CustomerAuthPage: React.FC = () => {
                     onChange={(e) => setRegPhone(formatPhone(e.target.value))}
                     className="w-full bg-background border border-border rounded-xl px-3.5 py-2.5 text-xs focus:ring-2 focus:ring-primary outline-none"
                   />
+                </div>
+
+                <div>
+                  <label className="block font-semibold mb-1">
+                    Data de Aniversário <span className="text-primary font-normal">(Presente VIP 🎂)</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={regBirthDate}
+                    onChange={(e) => setRegBirthDate(e.target.value)}
+                    className="w-full bg-background border border-border rounded-xl px-3.5 py-2.5 text-xs focus:ring-2 focus:ring-primary outline-none"
+                  />
+                </div>
+
+                <div className="flex items-center pt-5">
+                  <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      checked={regOptinWhatsapp}
+                      onChange={(e) => setRegOptinWhatsapp(e.target.checked)}
+                      className="accent-primary w-4 h-4 rounded"
+                    />
+                    <span>Quero receber cupons VIP e avisos do pedido no WhatsApp</span>
+                  </label>
                 </div>
 
                 <div>

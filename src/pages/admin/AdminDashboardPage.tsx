@@ -9,6 +9,8 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Eye,
+  HeartHandshake,
+  ExternalLink,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -71,10 +73,33 @@ export const AdminDashboardPage: React.FC = () => {
   return (
     <div className="space-y-8">
       {/* Header Title */}
-      <div>
-        <span className="text-xs text-primary font-bold uppercase tracking-wider">Visão Geral do Negócio</span>
-        <h1 className="font-serif font-bold text-3xl text-foreground mt-1">Dashboard Executivo</h1>
-        <p className="text-xs text-muted-foreground mt-1">Métricas de vendas e desempenho operacional da Aura Fitness em tempo real.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <span className="text-xs text-primary font-bold uppercase tracking-wider">Visão Geral do Negócio</span>
+          <h1 className="font-serif font-bold text-3xl text-foreground mt-1">Dashboard Executivo</h1>
+          <p className="text-xs text-muted-foreground mt-1">Métricas de vendas e desempenho operacional da Aura Fitness em tempo real.</p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => navigate('/admin/crm')}
+            className="px-4 py-2.5 rounded-xl bg-primary hover:bg-primary-hover text-white font-bold text-xs flex items-center gap-2 shadow-md transition-colors"
+          >
+            <HeartHandshake className="w-4 h-4" />
+            <span>Acessar CRM 360°</span>
+          </button>
+          <a
+            href="/crm"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3.5 py-2.5 rounded-xl bg-card border border-border hover:border-primary text-foreground font-semibold text-xs flex items-center gap-1.5 transition-colors"
+            title="Abrir CRM em nova aba (link externo)"
+          >
+            <ExternalLink className="w-3.5 h-3.5 text-primary" />
+            <span>CRM Externo</span>
+          </a>
+        </div>
       </div>
 
       {/* KPI Cards Grid */}
