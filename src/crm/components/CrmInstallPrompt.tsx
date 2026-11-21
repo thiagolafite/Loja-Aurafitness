@@ -1,5 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { Download, Smartphone, Share, PlusSquare, X, CheckCircle2 } from 'lucide-react';
+import {
+  Download,
+  Smartphone,
+  Share,
+  PlusSquare,
+  X,
+  CheckCircle2,
+  Copy,
+  Check,
+  ExternalLink,
+} from 'lucide-react';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -14,21 +24,28 @@ function isRunningStandalone(): boolean {
   );
 }
 
-function isIosDevice(): boolean {
-  if (typeof window === 'undefined') return false;
-  return /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+function detectPlatform() {
+  if (typeof window === 'undefined') {
+    return { isIos: false, isAndroid: false, isInAppBrowser: false, isIosNonSafari: false };
+  }
+  const ua = window.navigator.userAgent || '';
+  const isIos = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isAndroid = /android/i.test(ua);
+  const isInAppBrowser = /FBAN|FBAV|Instagram|WhatsApp|Line\/|MicroMessenger/i.test(ua);
+  const isIosNonSafari = isIos && (/CriOS|FxiOS|EdgiOS|OPiOS/i.test(ua) || isInAppBrowser);
+  return { isIos, isAndroid, isInAppBrowser, isIosNonSafari };
 }
 
 export function useCrmPwaInstall() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState<boolean>(() => isRunningStandalone());
-  const [isIos, setIsIos] = useState<boolean>(() => isIosDevice());
-  const [showIosGuide, setShowIosGuide] = useState(false);
+  const [platform, setPlatform] = useState(() => detectPlatform());
+  const [showGuide, setShowGuide] = useState(false);
   const [justInstalled, setJustInstalled] = useState(false);
 
   useEffect(() => {
     setIsInstalled(isRunningStandalone());
-    setIsIos(isIosDevice());
+    setPlatform(detectPlatform());
 
     // Registra o Service Worker dedicado do CRM para habilitar a instalação nativa no Android/Chrome
     if ('serviceWorker' in navigator) {
@@ -70,17 +87,20 @@ export function useCrmPwaInstall() {
       return;
     }
 
-    // No iOS Safari ou navegadores sem beforeinstallprompt nativo, abre o passo a passo visual
-    setShowIosGuide(true);
+    // No iOS ou quando o navegador não dispara beforeinstallprompt, abre o guia visual
+    setShowGuide(true);
   };
 
   return {
     canInstallNative: Boolean(deferredPrompt),
     isInstalled,
-    isIos,
+    isIos: platform.isIos,
+    isAndroid: platform.isAndroid,
+    isInAppBrowser: platform.isInAppBrowser,
+    isIosNonSafari: platform.isIosNonSafari,
     justInstalled,
-    showIosGuide,
-    setShowIosGuide,
+    showIosGuide: showGuide,
+    setShowIosGuide: setShowGuide,
     triggerInstall,
   };
 }
@@ -92,6 +112,9 @@ export const CrmInstallBanner: React.FC<{ variant?: 'dark' | 'card' }> = ({
     canInstallNative,
     isInstalled,
     isIos,
+    isAndroid,
+    isInAppBrowser,
+    isIosNonSafari,
     justInstalled,
     showIosGuide,
     setShowIosGuide,
@@ -99,6 +122,17 @@ export const CrmInstallBanner: React.FC<{ variant?: 'dark' | 'card' }> = ({
   } = useCrmPwaInstall();
 
   const [dismissed, setDismissed] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // ignore
+    }
+  };
 
   if (justInstalled) {
     return (
@@ -124,18 +158,22 @@ export const CrmInstallBanner: React.FC<{ variant?: 'dark' | 'card' }> = ({
             <Smartphone className="w-5 h-5" />
           </div>
           <div className="space-y-0.5">
-            <h4 className="font-serif font-bold text-sm text-white flex items-center gap-2">
+            <h4 className="font-serif font-bold text-sm text-white flex flex-wrap items-center gap-2">
               Instalar Aura CRM no Celular
               <span className="px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 text-[10px] font-bold uppercase">
-                App
+                {isIos ? 'iOS / iPhone' : isAndroid ? 'Android' : 'App'}
               </span>
             </h4>
             <p className="text-[11px] text-white/75">
               {canInstallNative
-                ? 'Adicione o CRM à tela inicial para abrir em tela cheia como aplicativo.'
-                : isIos
-                  ? 'Adicione o Aura CRM na tela inicial do seu iPhone/iPad em 2 toques.'
-                  : 'Instale como aplicativo no seu celular ou computador para acesso rápido.'}
+                ? 'Toque no botão ao lado para instalar o Aura CRM na tela inicial do seu celular.'
+                : isIosNonSafari
+                  ? 'Para instalar no iPhone, abra este link no Safari e adicione à Tela de Início.'
+                  : isIos
+                    ? 'Adicione o Aura CRM à Tela de Início do iPhone em 2 toques (Compartilhar → Adicionar à Tela de Início).'
+                    : isInAppBrowser
+                      ? 'Abra este link no Chrome/Safari para instalar o aplicativo no seu celular.'
+                      : 'Instale como aplicativo no Android, iPhone ou computador para abrir direto sem navegador.'}
             </p>
           </div>
         </div>
@@ -147,7 +185,7 @@ export const CrmInstallBanner: React.FC<{ variant?: 'dark' | 'card' }> = ({
             className="px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md transition-colors"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>{canInstallNative ? 'Instalar Aplicativo' : 'Como Instalar'}</span>
+            <span>{canInstallNative ? 'Instalar Aplicativo' : isIos ? 'Instalar no iPhone' : 'Instalar App'}</span>
           </button>
           <button
             type="button"
@@ -160,7 +198,7 @@ export const CrmInstallBanner: React.FC<{ variant?: 'dark' | 'card' }> = ({
         </div>
       </div>
 
-      {/* Modal com instruções passo-a-passo para iPhone (Safari) ou navegadores sem prompt automático */}
+      {/* Modal com instruções passo-a-passo para iPhone/iPad (Safari) e Android */}
       {showIosGuide && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="bg-card border border-border rounded-3xl max-w-md w-full p-6 space-y-4 text-xs shadow-2xl">
@@ -168,7 +206,7 @@ export const CrmInstallBanner: React.FC<{ variant?: 'dark' | 'card' }> = ({
               <div className="flex items-center gap-2">
                 <Smartphone className="w-5 h-5 text-primary" />
                 <h3 className="font-serif font-bold text-base text-foreground">
-                  Instalar Aura CRM como App
+                  {isIos ? 'Instalar Aura CRM no iPhone / iPad' : 'Instalar Aura CRM como App'}
                 </h3>
               </div>
               <button
@@ -182,27 +220,63 @@ export const CrmInstallBanner: React.FC<{ variant?: 'dark' | 'card' }> = ({
 
             {isIos ? (
               <div className="space-y-3 text-foreground">
+                {isIosNonSafari && (
+                  <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300 space-y-2">
+                    <p className="font-bold flex items-center gap-1.5">
+                      <ExternalLink className="w-4 h-4 shrink-0" />
+                      Você abriu fora do Safari (ex.: WhatsApp, Instagram ou Chrome).
+                    </p>
+                    <p>
+                      No iPhone, a Apple só libera a instalação de aplicativos pelo navegador{' '}
+                      <strong>Safari</strong>. Copie o link abaixo e cole no Safari:
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleCopyLink}
+                      className="w-full py-2 rounded-lg bg-amber-500 text-slate-950 font-bold flex items-center justify-center gap-1.5"
+                    >
+                      {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copied ? 'Link Copiado! Cole no Safari' : 'Copiar Link do CRM'}</span>
+                    </button>
+                  </div>
+                )}
+
                 <p className="text-muted-foreground">
-                  No iPhone / iPad (Safari), siga estes 2 passos rápidos:
+                  No <strong>Safari</strong>, siga estes 2 passos rápidos:
                 </p>
                 <div className="p-3 rounded-xl bg-muted/40 border border-border flex items-center gap-3">
                   <Share className="w-5 h-5 text-primary shrink-0" />
                   <span>
-                    <strong>1.</strong> Toque no botão <strong>Compartilhar</strong> na barra inferior do Safari.
+                    <strong>1.</strong> Toque no botão <strong>Compartilhar</strong> (quadrado com seta pra cima) na barra do Safari.
                   </span>
                 </div>
                 <div className="p-3 rounded-xl bg-muted/40 border border-border flex items-center gap-3">
                   <PlusSquare className="w-5 h-5 text-primary shrink-0" />
                   <span>
                     <strong>2.</strong> Role para baixo e toque em{' '}
-                    <strong>"Adicionar à Tela de Início"</strong>, depois em <strong>Adicionar</strong>.
+                    <strong>"Adicionar à Tela de Início"</strong>, depois confirme em{' '}
+                    <strong>Adicionar</strong>.
                   </span>
                 </div>
               </div>
             ) : (
               <div className="space-y-3 text-foreground">
+                {isInAppBrowser && (
+                  <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300 space-y-2">
+                    <p className="font-bold">Você abriu dentro de outro app (ex.: WhatsApp/Instagram).</p>
+                    <p>Toque nos 3 pontinhos e escolha <strong>"Abrir no navegador (Chrome)"</strong>, ou copie o link:</p>
+                    <button
+                      type="button"
+                      onClick={handleCopyLink}
+                      className="w-full py-2 rounded-lg bg-amber-500 text-slate-950 font-bold flex items-center justify-center gap-1.5"
+                    >
+                      {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copied ? 'Link Copiado!' : 'Copiar Link do CRM'}</span>
+                    </button>
+                  </div>
+                )}
                 <p className="text-muted-foreground">
-                  Para instalar no Android (Chrome) ou Desktop:
+                  No <strong>Android (Chrome / Edge / Samsung)</strong> ou computador:
                 </p>
                 <div className="p-3 rounded-xl bg-muted/40 border border-border">
                   Toque no menu <strong>⋮</strong> (três pontinhos) no canto superior direito do navegador e selecione{' '}
