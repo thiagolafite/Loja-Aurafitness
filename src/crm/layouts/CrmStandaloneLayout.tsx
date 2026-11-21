@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Sparkles,
@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   Smartphone,
   LayoutDashboard,
+  Download,
 } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -20,6 +21,7 @@ import {
 } from '../services/crmService';
 import { CrmUser } from '../types';
 import { CrmWorkspace } from '../pages/CrmWorkspace';
+import { CrmInstallBanner, useCrmPwaInstall } from '../components/CrmInstallPrompt';
 
 export const CrmStandaloneLayout: React.FC = () => {
   const navigate = useNavigate();
@@ -30,6 +32,19 @@ export const CrmStandaloneLayout: React.FC = () => {
   const [email, setEmail] = useState('admin@aurafitness.com.br');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const { isInstalled, canInstallNative, triggerInstall } = useCrmPwaInstall();
+
+  // Garante manifesto e título do App CRM mesmo quando acessado via navegação interna
+  useEffect(() => {
+    document.title = 'Aura CRM 360°';
+    let manifestEl = document.querySelector('link[rel="manifest"]') as HTMLLinkElement | null;
+    if (!manifestEl) {
+      manifestEl = document.createElement('link');
+      manifestEl.rel = 'manifest';
+      document.head.appendChild(manifestEl);
+    }
+    manifestEl.href = '/crm-manifest.webmanifest';
+  }, []);
 
   // Se já estiver logado como Admin da loja ou na sessão standalone do CRM, libera o acesso direto
   const isAuthenticated = Boolean(crmUser) || isAdmin;
@@ -56,7 +71,7 @@ export const CrmStandaloneLayout: React.FC = () => {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-[#142318] text-white flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[#142318] text-white flex flex-col items-center justify-center p-4 gap-4">
         <div className="bg-[#1c3022] border border-[#2d4d38] p-8 rounded-3xl max-w-md w-full shadow-2xl space-y-6">
           <div className="text-center space-y-2">
             <div className="w-16 h-16 rounded-2xl bg-amber-400/20 border border-amber-400/40 text-amber-300 mx-auto flex items-center justify-center font-serif font-bold text-2xl">
@@ -128,6 +143,10 @@ export const CrmStandaloneLayout: React.FC = () => {
             </div>
           </form>
         </div>
+
+        <div className="max-w-md w-full">
+          <CrmInstallBanner variant="dark" />
+        </div>
       </div>
     );
   }
@@ -156,6 +175,18 @@ export const CrmStandaloneLayout: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2.5">
+          {!isInstalled && (
+            <button
+              type="button"
+              onClick={triggerInstall}
+              className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors"
+              title="Instalar Aura CRM no celular ou computador"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>{canInstallNative ? 'Instalar App' : 'App Celular'}</span>
+            </button>
+          )}
+
           <Link
             to="/admin/crm"
             className="px-3 py-1.5 rounded-xl bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold hidden md:flex items-center gap-1.5"
@@ -207,7 +238,8 @@ export const CrmStandaloneLayout: React.FC = () => {
       </header>
 
       {/* Main Standalone CRM Content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
+        <CrmInstallBanner variant="card" />
         <CrmWorkspace isStandalone={true} currentUserRole={activeRole} />
       </main>
     </div>

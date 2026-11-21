@@ -1,0 +1,28 @@
+{
+  "id": "/crm",
+  "name": "Aura Fitness CRM 360°",
+  "short_name": "Aura CRM",
+  "description": "Central de Clientes, Carrinhos Abandonados, Aniversariantes e Automações da Aura Fitness.",
+  "start_url": "/crm",
+  "scope": "/crm",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#142318",
+  "theme_color": "#142318",
+  "lang": "pt-BR",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/crm-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/crm-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
