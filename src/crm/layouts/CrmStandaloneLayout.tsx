@@ -43,7 +43,7 @@ export const CrmStandaloneLayout: React.FC = () => {
       manifestEl.rel = 'manifest';
       document.head.appendChild(manifestEl);
     }
-    manifestEl.href = '/crm-manifest.webmanifest';
+    manifestEl.href = '/crm-manifest.json';
   }, []);
 
   // Se já estiver logado como Admin da loja ou na sessão standalone do CRM, libera o acesso direto

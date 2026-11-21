@@ -29,15 +29,41 @@ function detectPlatform() {
     return { isIos: false, isAndroid: false, isInAppBrowser: false, isIosNonSafari: false };
   }
   const ua = window.navigator.userAgent || '';
-  const isIos = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isIos =
+    /iphone|ipad|ipod/i.test(ua) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const isAndroid = /android/i.test(ua);
   const isInAppBrowser = /FBAN|FBAV|Instagram|WhatsApp|Line\/|MicroMessenger/i.test(ua);
   const isIosNonSafari = isIos && (/CriOS|FxiOS|EdgiOS|OPiOS/i.test(ua) || isInAppBrowser);
   return { isIos, isAndroid, isInAppBrowser, isIosNonSafari };
 }
 
+// Estado global singleton para não registrar o Service Worker várias vezes nem perder o evento beforeinstallprompt
+let sharedDeferredPrompt: BeforeInstallPromptEvent | null = null;
+let swRegistered = false;
+const listeners = new Set<() => void>();
+
+function notifyListeners() {
+  listeners.forEach((fn) => fn());
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeinstallprompt', (e: Event) => {
+    e.preventDefault();
+    sharedDeferredPrompt = e as BeforeInstallPromptEvent;
+    notifyListeners();
+  });
+
+  window.addEventListener('appinstalled', () => {
+    sharedDeferredPrompt = null;
+    notifyListeners();
+  });
+}
+
 export function useCrmPwaInstall() {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(
+    sharedDeferredPrompt
+  );
   const [isInstalled, setIsInstalled] = useState<boolean>(() => isRunningStandalone());
   const [platform, setPlatform] = useState(() => detectPlatform());
   const [showGuide, setShowGuide] = useState(false);
@@ -47,47 +73,57 @@ export function useCrmPwaInstall() {
     setIsInstalled(isRunningStandalone());
     setPlatform(detectPlatform());
 
-    // Registra o Service Worker dedicado do CRM para habilitar a instalação nativa no Android/Chrome
-    if ('serviceWorker' in navigator) {
-      const scope = window.location.hostname.toLowerCase().startsWith('crm.') ? '/' : '/crm';
+    if ('serviceWorker' in navigator && !swRegistered) {
+      swRegistered = true;
       navigator.serviceWorker
-        .register('/crm-sw.js', { scope })
-        .catch((err) => console.warn('CRM SW registration warning:', err));
+        .register('/crm-sw.js', { scope: '/' })
+        .catch((err) => {
+          swRegistered = false;
+          console.warn('CRM SW registration warning:', err);
+        });
     }
 
-    const handleBeforeInstall = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
+    const syncState = () => {
+      setDeferredPrompt(sharedDeferredPrompt);
+      if (isRunningStandalone()) {
+        setIsInstalled(true);
+      }
     };
 
     const handleAppInstalled = () => {
+      sharedDeferredPrompt = null;
       setDeferredPrompt(null);
       setIsInstalled(true);
       setJustInstalled(true);
       setTimeout(() => setJustInstalled(false), 5000);
     };
 
-    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    listeners.add(syncState);
     window.addEventListener('appinstalled', handleAppInstalled);
 
     return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      listeners.delete(syncState);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []);
 
   const triggerInstall = async () => {
-    if (deferredPrompt) {
-      await deferredPrompt.prompt();
-      const choice = await deferredPrompt.userChoice;
-      if (choice.outcome === 'accepted') {
-        setDeferredPrompt(null);
-        setIsInstalled(true);
+    const promptEvt = sharedDeferredPrompt || deferredPrompt;
+    if (promptEvt) {
+      try {
+        await promptEvt.prompt();
+        const choice = await promptEvt.userChoice;
+        if (choice.outcome === 'accepted') {
+          sharedDeferredPrompt = null;
+          setDeferredPrompt(null);
+          notifyListeners();
+        }
+        return;
+      } catch {
+        // Fallback para guia rápido se o prompt nativo falhar
       }
-      return;
     }
 
-    // No iOS ou quando o navegador não dispara beforeinstallprompt, abre o guia visual
     setShowGuide(true);
   };
 
@@ -276,11 +312,11 @@ export const CrmInstallBanner: React.FC<{ variant?: 'dark' | 'card' }> = ({
                   </div>
                 )}
                 <p className="text-muted-foreground">
-                  No <strong>Android (Chrome / Edge / Samsung)</strong> ou computador:
+                  No <strong>Android (Chrome / Edge / Samsung)</strong>:
                 </p>
                 <div className="p-3 rounded-xl bg-muted/40 border border-border">
                   Toque no menu <strong>⋮</strong> (três pontinhos) no canto superior direito do navegador e selecione{' '}
-                  <strong>"Instalar aplicativo"</strong> ou <strong>"Adicionar à tela inicial"</strong>.
+                  <strong>"Adicionar à tela inicial"</strong> → <strong>"Criar atalho"</strong> (ou <strong>"Instalar aplicativo"</strong>). A instalação é instantânea.
                 </div>
               </div>
             )}
