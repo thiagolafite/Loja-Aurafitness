@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Save, Check, Settings, Phone, QrCode, Truck, Globe } from 'lucide-react';
+import { Save, Check, Settings, Phone, QrCode, Truck, Globe, CreditCard } from 'lucide-react';
 import { getStoreSettings, updateStoreSettings } from '../../lib/dataClient';
 import { StoreSettings } from '../../types';
 
@@ -54,6 +54,53 @@ export const AdminSettingsPage: React.FC = () => {
                 onChange={(e) => setSettings({ ...settings, pixKey: e.target.value })}
                 className="w-full bg-background border border-border rounded-xl px-3 py-2 outline-none font-mono"
               />
+            </div>
+          </div>
+        </div>
+
+        {/* Mercado Pago Gateway (Cartão de Crédito e Débito) */}
+        <div className="bg-card border border-border p-6 rounded-2xl space-y-4 shadow-sm">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <h3 className="font-serif font-bold text-base text-foreground flex items-center gap-2">
+              <CreditCard className="w-4 h-4 text-primary" /> Gateway de Pagamento Mercado Pago
+            </h3>
+            <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold text-[11px] rounded-full border border-emerald-500/20 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              API Conectada & Ativa
+            </span>
+          </div>
+
+          <p className="text-[11px] text-muted-foreground">
+            Credenciais oficiais para processamento de pagamentos com <strong>Cartão de Crédito</strong> (em até 12x) e <strong>Cartão de Débito</strong> direto na conta da loja.
+          </p>
+
+          <div className="space-y-3">
+            <div>
+              <label className="block font-semibold mb-1">Chave Pública (Public Key)</label>
+              <input
+                type="text"
+                value={settings.mercadopagoPublicKey || ''}
+                onChange={(e) => setSettings({ ...settings, mercadopagoPublicKey: e.target.value })}
+                placeholder="APP_USR-..."
+                className="w-full bg-background border border-border rounded-xl px-3 py-2 outline-none font-mono text-xs"
+              />
+              <span className="text-[10px] text-muted-foreground mt-0.5 block">
+                Usada pelo checkout do site para criptografar com segurança os cartões dos clientes.
+              </span>
+            </div>
+
+            <div>
+              <label className="block font-semibold mb-1">Token de Acesso (Access Token Privado)</label>
+              <input
+                type="password"
+                value={settings.mercadopagoAccessToken || ''}
+                onChange={(e) => setSettings({ ...settings, mercadopagoAccessToken: e.target.value })}
+                placeholder="APP_USR-..."
+                className="w-full bg-background border border-border rounded-xl px-3 py-2 outline-none font-mono text-xs"
+              />
+              <span className="text-[10px] text-muted-foreground mt-0.5 block">
+                Chave secreta que autoriza os pagamentos e credita o valor na conta Mercado Pago da loja.
+              </span>
             </div>
           </div>
         </div>

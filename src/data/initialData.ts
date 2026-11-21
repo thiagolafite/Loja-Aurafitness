@@ -244,7 +244,9 @@ export const initialStoreSettings: StoreSettings = {
   seo: {
     defaultTitle: 'Aura Fitness | Boutique de Moda Fitness Feminina',
     defaultDescription: 'Uma boutique de moda fitness feminina com peças exclusivas, unindo performance, conforto e elegância.'
-  }
+  },
+  mercadopagoPublicKey: 'APP_USR-3cc73d63-6a42-49d6-829f-ef0afc75cea1',
+  mercadopagoAccessToken: 'APP_USR-3857928305717666-112020-50053476beb481750955a32b88bb763c-58126419'
 };
 
 export const initialOrders: Order[] = [];

@@ -198,6 +198,8 @@ export interface StoreSettings {
     defaultTitle: string;
     defaultDescription: string;
   };
+  mercadopagoPublicKey?: string;
+  mercadopagoAccessToken?: string;
 }
 
 export interface Review {

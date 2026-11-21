@@ -192,6 +192,60 @@ export const CheckoutPage: React.FC = () => {
     let initialStatus: 'pendente' | 'pago' = 'pendente';
 
     try {
+      let cardToken = '';
+      let cardPaymentMethodId = 'master';
+
+      if (paymentMethod === 'credit_card' || paymentMethod === 'debit_card') {
+        const cleanCard = cardNumber.replace(/\D/g, '');
+        if (cleanCard.startsWith('4')) cardPaymentMethodId = 'visa';
+        else if (cleanCard.startsWith('5') || cleanCard.startsWith('2')) cardPaymentMethodId = 'master';
+        else if (cleanCard.startsWith('34') || cleanCard.startsWith('37')) cardPaymentMethodId = 'amex';
+        else if (cleanCard.startsWith('6062') || cleanCard.startsWith('50')) cardPaymentMethodId = 'elo';
+        else if (cleanCard.startsWith('38') || cleanCard.startsWith('60')) cardPaymentMethodId = 'hipercard';
+
+        const parts = cardExpiry.split('/');
+        const expMonth = parseInt(parts[0], 10) || 12;
+        let expYear = parseInt(parts[1], 10) || 2028;
+        if (expYear < 100) expYear += 2000;
+
+        try {
+          const mpPublicKey =
+            (import.meta as any).env?.VITE_MERCADOPAGO_PUBLIC_KEY ||
+            settings.mercadopagoPublicKey ||
+            'APP_USR-3cc73d63-6a42-49d6-829f-ef0afc75cea1';
+
+          if (cleanCard.length >= 13 && cardCvc.length >= 3) {
+            const tokenRes = await fetch(
+              `https://api.mercadopago.com/v1/card_tokens?public_key=${mpPublicKey}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  card_number: cleanCard,
+                  cardholder: {
+                    name: cardName.trim() || name.trim(),
+                    identification: {
+                      type: 'CPF',
+                      number: cpf.replace(/\D/g, ''),
+                    },
+                  },
+                  expiration_month: expMonth,
+                  expiration_year: expYear,
+                  security_code: cardCvc.trim(),
+                }),
+              }
+            );
+
+            if (tokenRes.ok) {
+              const tokenData = await tokenRes.json();
+              cardToken = tokenData.id;
+            }
+          }
+        } catch (tokErr) {
+          console.warn('Erro ao gerar token do cartão:', tokErr);
+        }
+      }
+
       const payRes = await fetch('/api/payments/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -199,6 +253,8 @@ export const CheckoutPage: React.FC = () => {
           amount: finalTotal,
           orderNumber: `AURA-${Date.now().toString().slice(-5)}`,
           paymentMethod,
+          token: cardToken || undefined,
+          paymentMethodId: cardPaymentMethodId,
           installments: Number(cardInstallments) || 1,
           customer: {
             name,
