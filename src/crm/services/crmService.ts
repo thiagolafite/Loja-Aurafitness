@@ -56,6 +56,287 @@ function writeStorage<T>(key: string, value: T): void {
 }
 
 // ============================================================================
+// SINCRONIZAÇÃO BIDIRECIONAL COM SUPABASE (/api/crm/sync)
+// ============================================================================
+export interface CrmCloudStatus {
+  synced: boolean;
+  tablesReady: boolean;
+  lastSyncedAt?: string;
+}
+
+let cloudStatusState: CrmCloudStatus = {
+  synced: false,
+  tablesReady: false,
+};
+
+export function getCrmCloudStatus(): CrmCloudStatus {
+  return cloudStatusState;
+}
+
+function postCrmSync(action: string, payload: any): void {
+  if (typeof window === 'undefined') return;
+  fetch('/api/crm/sync', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, payload }),
+  }).catch(() => {});
+}
+
+export async function syncCrmFromSupabase(): Promise<CrmCloudStatus> {
+  if (typeof window === 'undefined') return cloudStatusState;
+  try {
+    const res = await fetch('/api/crm/sync');
+    if (!res.ok) return cloudStatusState;
+    const json = await res.json();
+    if (!json?.success || !json?.data) return cloudStatusState;
+
+    const d = json.data;
+
+    // 1. Hidrata pedidos no cache local da loja se houver pedidos no Supabase
+    if (Array.isArray(d.orders) && d.orders.length > 0) {
+      const mappedOrders = d.orders.map((o: any) => ({
+        id: o.id,
+        orderNumber: o.order_number,
+        createdAt: o.created_at,
+        updatedAt: o.updated_at,
+        customer: o.customer,
+        items: (o.order_items || []).map((it: any) => ({
+          productId: it.product_id,
+          productName: it.product_name,
+          productImage: it.product_image,
+          sku: it.sku,
+          size: it.size,
+          colorName: it.color_name,
+          price: Number(it.price),
+          quantity: Number(it.quantity),
+          total: Number(it.total),
+        })),
+        shippingAddress: o.shipping_address,
+        shippingMethod: o.shipping_method,
+        paymentMethod: o.payment_method,
+        paymentDetails: o.payment_details,
+        totals: o.totals,
+        status: o.status,
+        trackingCode: o.tracking_code,
+        couponCode: o.coupon_code,
+        notes: o.notes,
+      }));
+      localStorage.setItem('aura_orders_v1', JSON.stringify(mappedOrders));
+    }
+
+    // 2. Hidrata clientes (profiles)
+    if (Array.isArray(d.profiles) && d.profiles.length > 0) {
+      d.profiles.forEach((p: any) => {
+        const mappedAddresses = Array.isArray(p.addresses)
+          ? p.addresses.map((a: any) => ({
+              recipientName: a.recipient_name || p.name,
+              cep: a.cep,
+              street: a.street,
+              number: a.number,
+              complement: a.complement || '',
+              neighborhood: a.neighborhood,
+              city: a.city,
+              state: a.state,
+              isDefault: Boolean(a.is_default),
+            }))
+          : [];
+
+        saveCustomerProfile({
+          id: p.id,
+          name: p.name,
+          email: p.email,
+          cpf: p.cpf || '',
+          phone: p.phone || '',
+          birthDate: p.birth_date || undefined,
+          addresses: mappedAddresses,
+          totalOrders: Number(p.total_orders) || 0,
+          totalSpent: Number(p.total_spent) || 0,
+          averageTicket: Number(p.average_ticket) || 0,
+          lastOrderDate: p.last_purchase_at || undefined,
+          firstOrderDate: p.first_purchase_at || undefined,
+          lastAccess: p.last_access || new Date().toISOString(),
+          createdAt: p.created_at,
+          preferredSizes: p.preferred_sizes || [],
+          preferredColors: p.preferred_colors || [],
+          tags: p.tags || [],
+          origin: p.origin || 'site',
+          optinWhatsapp: p.optin_whatsapp ?? true,
+          optinEmail: p.optin_email ?? true,
+          needsManualAttention: Boolean(p.needs_manual_attention),
+          lastContactedAt: p.last_contacted_at || undefined,
+        });
+      });
+    }
+
+    // 3. Hidrata tabelas específicas do CRM quando crm.sql já tiver sido executado
+    if (json.tablesReady) {
+      if (Array.isArray(d.carts) && d.carts.length > 0) {
+        const mappedCarts: CrmCartRecord[] = d.carts.map((c: any) => ({
+          id: c.id,
+          sessionId: c.session_id,
+          userId: c.user_id || undefined,
+          customerName: c.customer_name || undefined,
+          customerEmail: c.customer_email || undefined,
+          customerPhone: c.customer_phone || undefined,
+          items: Array.isArray(c.items) ? c.items : [],
+          subtotal: Number(c.subtotal) || 0,
+          total: Number(c.total) || 0,
+          couponCode: c.coupon_code || undefined,
+          checkoutStep: Number(c.checkout_step) || 0,
+          status: c.status || 'active',
+          recoveryContactedAt: c.recovery_contacted_at || undefined,
+          convertedOrderId: c.converted_order_id || undefined,
+          updatedAt: c.updated_at,
+          createdAt: c.created_at,
+        }));
+        localStorage.setItem(CRM_KEYS.CARTS, JSON.stringify(mappedCarts));
+      }
+
+      if (Array.isArray(d.notes) && d.notes.length > 0) {
+        const mappedNotes: CrmCustomerNote[] = d.notes.map((n: any) => ({
+          id: n.id,
+          customerId: n.customer_id,
+          customerEmail: n.customer_email || '',
+          authorName: n.author_name || 'Equipe Aura',
+          type: n.type || 'note',
+          content: n.content,
+          followUpDate: n.follow_up_date || undefined,
+          isResolved: Boolean(n.is_resolved),
+          createdAt: n.created_at,
+        }));
+        localStorage.setItem(CRM_KEYS.NOTES, JSON.stringify(mappedNotes));
+      }
+
+      if (Array.isArray(d.events) && d.events.length > 0) {
+        const mappedEvents: CrmTimelineEvent[] = d.events.map((ev: any) => ({
+          id: ev.id,
+          customerId: ev.customer_id || '',
+          customerEmail: ev.customer_email || '',
+          eventType: ev.event_type,
+          title: ev.title,
+          description: ev.description || undefined,
+          metadata: ev.metadata || {},
+          createdAt: ev.created_at,
+        }));
+        localStorage.setItem(CRM_KEYS.EVENTS, JSON.stringify(mappedEvents));
+      }
+
+      if (Array.isArray(d.automations) && d.automations.length > 0) {
+        const mappedAutos: CrmAutomationRule[] = d.automations.map((a: any) => ({
+          id: a.id,
+          name: a.name,
+          description: a.description,
+          triggerType: a.trigger_type,
+          delayMinutes: Number(a.delay_minutes) || 0,
+          channel: a.channel || 'whatsapp',
+          subject: a.subject || undefined,
+          template: a.template,
+          autoCouponPrefix: a.auto_coupon_prefix || undefined,
+          autoCouponDiscount: a.auto_coupon_discount ? Number(a.auto_coupon_discount) : undefined,
+          isActive: Boolean(a.is_active),
+          totalTriggered: Number(a.total_triggered) || 0,
+          totalConverted: Number(a.total_converted) || 0,
+          revenueGenerated: Number(a.revenue_generated) || 0,
+          updatedAt: a.updated_at,
+        }));
+        localStorage.setItem(CRM_KEYS.AUTOMATIONS, JSON.stringify(mappedAutos));
+      }
+
+      if (Array.isArray(d.queue) && d.queue.length > 0) {
+        const mappedQueue: CrmQueuedMessage[] = d.queue.map((m: any) => ({
+          id: m.id,
+          automationId: m.automation_id || undefined,
+          campaignId: m.campaign_id || undefined,
+          customerId: m.customer_id || '',
+          customerName: m.customer_name,
+          customerEmail: m.customer_email || '',
+          customerPhone: m.customer_phone || '',
+          channel: m.channel || 'whatsapp',
+          subject: m.subject || undefined,
+          body: m.body,
+          couponCode: m.coupon_code || undefined,
+          scheduledFor: m.scheduled_for,
+          sentAt: m.sent_at || undefined,
+          status: m.status || 'pending',
+          errorMessage: m.error_message || undefined,
+          createdAt: m.created_at,
+        }));
+        localStorage.setItem(CRM_KEYS.QUEUE, JSON.stringify(mappedQueue));
+      }
+
+      if (Array.isArray(d.campaigns) && d.campaigns.length > 0) {
+        const mappedCamps: CrmCampaign[] = d.campaigns.map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          segment: c.segment,
+          channel: c.channel,
+          subject: c.subject || undefined,
+          messageTemplate: c.message_template,
+          couponCode: c.coupon_code || undefined,
+          scheduledAt: c.scheduled_at || undefined,
+          sentAt: c.sent_at || undefined,
+          status: c.status || 'sent',
+          recipientsCount: Number(c.recipients_count) || 0,
+          convertedCount: Number(c.converted_count) || 0,
+          revenueGenerated: Number(c.revenue_generated) || 0,
+          createdAt: c.created_at,
+        }));
+        localStorage.setItem(CRM_KEYS.CAMPAIGNS, JSON.stringify(mappedCamps));
+      }
+
+      if (d.settings) {
+        const s = d.settings;
+        const mappedSettings: CrmSettingsConfig = {
+          vipMinOrders: Number(s.vip_min_orders) || 3,
+          vipMinSpent: Number(s.vip_min_spent) || 800,
+          atRiskDays: Number(s.at_risk_days) || 60,
+          inactiveDays: Number(s.inactive_days) || 120,
+          abandonedCartMinutes: Number(s.abandoned_cart_minutes) || 120,
+          pendingPaymentMinutes: Number(s.pending_payment_minutes) || 60,
+          birthdayLookaheadDays: Number(s.birthday_lookahead_days) || 7,
+          birthdayDiscountPercent: Number(s.birthday_discount_percent) || 15,
+          quietHoursStart: s.quiet_hours_start || '20:00',
+          quietHoursEnd: s.quiet_hours_end || '09:00',
+          antiSpamCooldownHours: Number(s.anti_spam_cooldown_hours) || 72,
+          whatsappProvider: s.whatsapp_provider || 'manual_1click',
+          whatsappApiUrl: s.whatsapp_api_url || '',
+          whatsappApiToken: s.whatsapp_api_token || '',
+          whatsappInstanceId: s.whatsapp_instance_id || '',
+          emailProvider: s.email_provider || 'resend',
+          resendApiKey: s.resend_api_key || '',
+          senderEmail: s.sender_email || defaultCrmSettings.senderEmail,
+        };
+        localStorage.setItem(CRM_KEYS.SETTINGS, JSON.stringify(mappedSettings));
+      }
+
+      if (Array.isArray(d.users) && d.users.length > 0) {
+        const mappedUsers: CrmUser[] = d.users.map((u: any) => ({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          role: u.role || 'vendedor',
+          phone: u.phone || undefined,
+          isActive: Boolean(u.is_active),
+          createdAt: u.created_at,
+        }));
+        localStorage.setItem(CRM_KEYS.USERS, JSON.stringify(mappedUsers));
+      }
+    }
+
+    cloudStatusState = {
+      synced: true,
+      tablesReady: Boolean(json.tablesReady),
+      lastSyncedAt: json.syncedAt || new Date().toISOString(),
+    };
+    window.dispatchEvent(new CustomEvent('aura_crm_updated'));
+    return cloudStatusState;
+  } catch (e) {
+    console.warn('CRM cloud sync warning:', e);
+    return cloudStatusState;
+  }
+}
+
+// ============================================================================
 // DEFAULT SEEDS (GARANTE FUNCIONAMENTO COMPLETO E REALISTA DESDE O 1º ACESSO)
 // ============================================================================
 export const defaultCrmSettings: CrmSettingsConfig = {
@@ -946,26 +1227,22 @@ export function upsertCrmCustomer(data: Partial<CustomerProfile>): CustomerProfi
     origin: data.origin || 'site',
   });
 
-  if (isSupabaseConfigured() && saved.id && !saved.id.startsWith('cust-')) {
-    supabase
-      .from('profiles')
-      .update({
-        name: saved.name,
-        phone: saved.phone,
-        cpf: saved.cpf,
-        birth_date: saved.birthDate || null,
-        needs_manual_attention: saved.needsManualAttention ?? false,
-        tags: saved.tags || [],
-        origin: saved.origin || 'site',
-        optin_whatsapp: saved.optinWhatsapp ?? true,
-        optin_email: saved.optinEmail ?? true,
-        assigned_to: saved.assignedTo || null,
-        last_contacted_at: saved.lastContactedAt || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', saved.id)
-      .then(() => {});
-  }
+  postCrmSync('upsert_customer', {
+    name: saved.name,
+    email: saved.email,
+    phone: saved.phone,
+    cpf: saved.cpf,
+    birthDate: saved.birthDate || null,
+    needsManualAttention: saved.needsManualAttention ?? false,
+    attentionReason: saved.attentionReason,
+    tags: saved.tags || [],
+    origin: saved.origin || 'site',
+    optinWhatsapp: saved.optinWhatsapp ?? true,
+    optinEmail: saved.optinEmail ?? true,
+    preferredSizes: saved.preferredSizes || [],
+    preferredColors: saved.preferredColors || [],
+    lastContactedAt: saved.lastContactedAt || null,
+  });
 
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('aura_crm_updated'));
@@ -1037,20 +1314,7 @@ export function addCrmNote(
   notes.unshift(created);
   writeStorage(CRM_KEYS.NOTES, notes);
 
-  if (isSupabaseConfigured()) {
-    supabase
-      .from('crm_customer_notes')
-      .insert({
-        customer_id: created.customerId,
-        customer_email: created.customerEmail,
-        author_name: created.authorName,
-        type: created.type,
-        content: created.content,
-        follow_up_date: created.followUpDate || null,
-        is_resolved: created.isResolved,
-      })
-      .then(() => {});
-  }
+  postCrmSync('add_note', created);
 
   addCrmTimelineEvent({
     customerId: created.customerId,
@@ -1083,6 +1347,7 @@ export function addCrmTimelineEvent(
   };
   events.unshift(created);
   writeStorage(CRM_KEYS.EVENTS, events.slice(0, 500));
+  postCrmSync('add_event', created);
   return created;
 }
 
@@ -1159,29 +1424,7 @@ export function syncActiveCartToCrm(payload: {
   }
 
   writeStorage(CRM_KEYS.CARTS, carts);
-
-  if (isSupabaseConfigured()) {
-    supabase
-      .from('crm_carts')
-      .upsert(
-        {
-          session_id: record.sessionId,
-          user_id: record.userId || null,
-          customer_name: record.customerName || null,
-          customer_email: record.customerEmail || null,
-          customer_phone: record.customerPhone || null,
-          items: record.items,
-          subtotal: record.subtotal,
-          total: record.total,
-          coupon_code: record.couponCode || null,
-          checkout_step: record.checkoutStep,
-          status: record.status,
-          updated_at: nowIso,
-        },
-        { onConflict: 'session_id' }
-      )
-      .then(() => {});
-  }
+  postCrmSync('upsert_cart', record);
 }
 
 export function markCartConvertedOnOrder(customerEmail: string, orderId: string): void {
@@ -1201,7 +1444,10 @@ export function markCartConvertedOnOrder(customerEmail: string, orderId: string)
       changed = true;
     }
   });
-  if (changed) writeStorage(CRM_KEYS.CARTS, carts);
+  if (changed) {
+    writeStorage(CRM_KEYS.CARTS, carts);
+    postCrmSync('mark_cart_converted', { customerEmail: cleanEmail, sessionId, orderId });
+  }
 
   // Cancelar mensagens de carrinho abandonado pendentes para essa cliente
   const queue = getCrmMessageQueue();
@@ -1242,26 +1488,7 @@ export function saveCrmAutomation(rule: CrmAutomationRule): CrmAutomationRule {
     rules.push(updated);
   }
   writeStorage(CRM_KEYS.AUTOMATIONS, rules);
-
-  if (isSupabaseConfigured()) {
-    supabase
-      .from('crm_automations')
-      .upsert({
-        id: updated.id,
-        name: updated.name,
-        description: updated.description,
-        trigger_type: updated.triggerType,
-        delay_minutes: updated.delayMinutes,
-        channel: updated.channel,
-        subject: updated.subject || null,
-        template: updated.template,
-        auto_coupon_prefix: updated.autoCouponPrefix || null,
-        auto_coupon_discount: updated.autoCouponDiscount || null,
-        is_active: updated.isActive,
-        updated_at: updated.updatedAt,
-      })
-      .then(() => {});
-  }
+  postCrmSync('upsert_automation', updated);
   return updated;
 }
 
@@ -1398,6 +1625,7 @@ export function evaluateAndQueueAutomatedMessages(): { queuedNow: number; totalP
 
   if (queuedNow > 0) {
     writeStorage(CRM_KEYS.QUEUE, queue);
+    postCrmSync('upsert_messages', { messages: queue.slice(0, queuedNow) });
   }
 
   const totalPending = queue.filter(
@@ -1547,6 +1775,8 @@ export function createAndQueueCampaign(input: {
   });
 
   writeStorage(CRM_KEYS.QUEUE, queue);
+  postCrmSync('create_campaign', campaign);
+  postCrmSync('upsert_messages', { messages: queue.slice(0, targets.length) });
   return campaign;
 }
 
@@ -1561,6 +1791,7 @@ export function saveCrmSettings(patch: Partial<CrmSettingsConfig>): CrmSettingsC
   const current = getCrmSettings();
   const updated = { ...current, ...patch };
   writeStorage(CRM_KEYS.SETTINGS, updated);
+  postCrmSync('save_settings', updated);
   return updated;
 }
 
@@ -1603,12 +1834,18 @@ export function saveCrmTeamUser(user: Omit<CrmUser, 'id' | 'createdAt'> & { id?:
   if (idx !== -1) list[idx] = created;
   else list.push(created);
   writeStorage(CRM_KEYS.USERS, list);
+  postCrmSync('upsert_team_user', created);
   return created;
 }
 
 export function removeCrmTeamUser(id: string): void {
-  const list = getCrmTeamUsers().filter((u) => u.id !== id);
+  const all = getCrmTeamUsers();
+  const target = all.find((u) => u.id === id);
+  const list = all.filter((u) => u.id !== id);
   writeStorage(CRM_KEYS.USERS, list);
+  if (target?.email) {
+    postCrmSync('delete_team_user', { email: target.email });
+  }
 }
 
 // Autenticação dedicada para o Link Externo do CRM (/crm ou subdomínio crm.)

@@ -54,6 +54,8 @@ import {
   saveCrmSettings,
   saveCrmTeamUser,
   toggleCustomerManualAttention,
+  syncCrmFromSupabase,
+  getCrmCloudStatus,
 } from '../services/crmService';
 import { Customer360Drawer, SEGMENT_META } from '../components/Customer360Drawer';
 import { NewCustomerModal } from '../components/NewCustomerModal';
@@ -87,6 +89,8 @@ export const CrmWorkspace: React.FC<CrmWorkspaceProps> = ({
   const [selectedCustomer, setSelectedCustomer] = useState<CrmCustomer360 | null>(null);
   const [isNewCustomerOpen, setIsNewCustomerOpen] = useState(false);
   const [engineFeedback, setEngineFeedback] = useState<string | null>(null);
+  const [cloudStatus, setCloudStatus] = useState(() => getCrmCloudStatus());
+  const [isCloudSyncing, setIsCloudSyncing] = useState(false);
 
   // Automations Editor State
   const [editingRule, setEditingRule] = useState<CrmAutomationRule | null>(null);
@@ -111,8 +115,18 @@ export const CrmWorkspace: React.FC<CrmWorkspaceProps> = ({
   const triggerRefresh = () => setRefreshTick((t) => t + 1);
 
   useEffect(() => {
-    const handler = () => triggerRefresh();
+    const handler = () => {
+      setCloudStatus(getCrmCloudStatus());
+      triggerRefresh();
+    };
     window.addEventListener('aura_crm_updated', handler);
+
+    // Sincroniza dados do Supabase ao abrir o CRM
+    setIsCloudSyncing(true);
+    syncCrmFromSupabase()
+      .then((st) => setCloudStatus(st))
+      .finally(() => setIsCloudSyncing(false));
+
     return () => window.removeEventListener('aura_crm_updated', handler);
   }, []);
 
@@ -265,6 +279,34 @@ export const CrmWorkspace: React.FC<CrmWorkspaceProps> = ({
             <span className="px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 text-[10px] font-bold uppercase tracking-widest">
               Aura CRM 360° • Sincronizado com Compras
             </span>
+            <button
+              type="button"
+              onClick={() => {
+                setIsCloudSyncing(true);
+                syncCrmFromSupabase()
+                  .then((st) => setCloudStatus(st))
+                  .finally(() => setIsCloudSyncing(false));
+              }}
+              className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 border transition-colors ${
+                cloudStatus.tablesReady
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30'
+                  : 'bg-white/10 text-white/80 border-white/20'
+              }`}
+              title={
+                cloudStatus.tablesReady
+                  ? 'Conectado ao Supabase em tempo real (clique para atualizar)'
+                  : 'Execute supabase/crm.sql no SQL Editor do Supabase para ativar todas as tabelas em nuvem'
+              }
+            >
+              <RefreshCw className={`w-3 h-3 ${isCloudSyncing ? 'animate-spin' : ''}`} />
+              <span>
+                {isCloudSyncing
+                  ? 'Sincronizando...'
+                  : cloudStatus.tablesReady
+                    ? 'Supabase Conectado'
+                    : 'Banco Local (rodar crm.sql)'}
+              </span>
+            </button>
             {!isStandalone && (
               <a
                 href="/crm"
